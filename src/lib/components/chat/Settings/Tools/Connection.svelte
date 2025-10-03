@@ -44,7 +44,10 @@
 	<Tooltip
 		className="w-full relative"
 		content={$i18n.t(`WebUI will make requests to "{{url}}"`, {
-			url: `${connection?.url}/${connection?.path ?? 'openapi.json'}`
+			url:
+				(connection?.type ?? 'openapi') === 'mcp'
+					? `${connection?.url}`
+					: `${connection?.url}${(connection?.path?.startsWith('/') ? '' : '/')}${connection?.path ?? 'openapi.json'}`
 		})}
 		placement="top-start"
 	>
