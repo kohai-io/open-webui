@@ -42,7 +42,16 @@
 />
 
 <div class="flex w-full gap-2 items-center">
-	<Tooltip className="w-full relative" content={''} placement="top-start">
+	<Tooltip
+		className="w-full relative"
+		content={$i18n.t(`WebUI will make requests to "{{url}}"`, {
+			url:
+				(connection?.type ?? 'openapi') === 'mcp'
+					? `${connection?.url}`
+					: `${connection?.url}${(connection?.path?.startsWith('/') ? '' : '/')}${connection?.path ?? 'openapi.json'}`
+		})}
+		placement="top-start"
+	>
 		<div class="flex w-full">
 			<div
 				class="flex-1 relative flex gap-1.5 items-center {!(connection?.config?.enable ?? true)
