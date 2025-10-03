@@ -11,7 +11,7 @@
 
 	import { get, type Unsubscriber, type Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
-	import { WEBUI_BASE_URL } from '$lib/constants';
+	import { WEBUI_BASE_URL, WEBUI_API_BASE_URL } from '$lib/constants';
 
 	import {
 		chatId,
@@ -172,7 +172,6 @@
 		);
 
 		if (chatIdProp && (await loadChat())) {
-			await tick();
 			loading = false;
 			window.setTimeout(() => scrollToBottom(), 0);
 
@@ -190,6 +189,43 @@
 						webSearchEnabled = input.webSearchEnabled;
 						imageGenerationEnabled = input.imageGenerationEnabled;
 						codeInterpreterEnabled = input.codeInterpreterEnabled;
+
+						// Convert image URLs to data URLs so providers can access inline images
+						try {
+							const toDataUrl = async (url) => {
+								const res = await fetch(url, { credentials: 'include' });
+								if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
+								const blob = await res.blob();
+								return await new Promise((resolve) => {
+									const reader = new FileReader();
+									reader.onloadend = () => resolve(reader.result);
+									reader.readAsDataURL(blob);
+								});
+							};
+
+							if (Array.isArray(files) && files.length > 0) {
+								const updated = [];
+								for (const f of files) {
+									if ((f?.type === 'image' || f?.type === 'video') && typeof f.url === 'string') {
+										const url = f.url.includes('/content')
+											? f.url
+											: `${WEBUI_BASE_URL}/api/v1/files/${f.id}/content`;
+										try {
+											const dataUrl = await toDataUrl(url);
+											updated.push({ ...f, url: dataUrl });
+										} catch (e) {
+											console.warn('Image inline conversion failed; keeping original URL', e);
+											updated.push(f);
+										}
+									} else {
+										updated.push(f);
+									}
+								}
+								files = updated;
+							}
+						} catch (e) {
+							console.warn('Inline image conversion skipped', e);
+						}
 					}
 				} catch (e) {}
 			}
@@ -571,6 +607,43 @@
 					webSearchEnabled = input.webSearchEnabled;
 					imageGenerationEnabled = input.imageGenerationEnabled;
 					codeInterpreterEnabled = input.codeInterpreterEnabled;
+
+					// Convert image URLs to data URLs so providers can access inline images
+					try {
+						const toDataUrl = async (url) => {
+							const res = await fetch(url, { credentials: 'include' });
+							if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
+							const blob = await res.blob();
+							return await new Promise((resolve) => {
+								const reader = new FileReader();
+								reader.onloadend = () => resolve(reader.result);
+								reader.readAsDataURL(blob);
+							});
+						};
+
+						if (Array.isArray(files) && files.length > 0) {
+							const updated = [];
+							for (const f of files) {
+								if ((f?.type === 'image' || f?.type === 'video') && typeof f.url === 'string') {
+									const url = f.url.includes('/content')
+										? f.url
+										: `${WEBUI_BASE_URL}/api/v1/files/${f.id}/content`;
+									try {
+										const dataUrl = await toDataUrl(url);
+										updated.push({ ...f, url: dataUrl });
+									} catch (e) {
+										console.warn('Image inline conversion failed; keeping original URL', e);
+										updated.push(f);
+									}
+								} else {
+									updated.push(f);
+								}
+							}
+							files = updated;
+						}
+					} catch (e) {
+						console.warn('Inline image conversion skipped', e);
+					}
 				}
 			} catch (e) {}
 		}
@@ -1210,19 +1283,17 @@
 		} else {
 			const modelId = selectedModels[0];
 			const model = $models.filter((m) => m.id === modelId).at(0);
-
 			const messages = createMessagesList(history, history.currentId);
 			const parentMessage = messages.length !== 0 ? messages.at(-1) : null;
 
 			const userMessageId = uuidv4();
-			const responseMessageId = uuidv4();
-
 			const userMessage = {
 				id: userMessageId,
 				parentId: parentMessage ? parentMessage.id : null,
 				childrenIds: [responseMessageId],
 				role: 'user',
 				content: userPrompt ? userPrompt : `[PROMPT] ${userMessageId}`,
+				files: _files,
 				timestamp: Math.floor(Date.now() / 1000)
 			};
 
@@ -1876,7 +1947,7 @@
 							: undefined
 				},
 
-				files: (files?.length ?? 0) > 0 ? files : undefined,
+				files: (chatFiles?.length ?? 0) > 0 ? chatFiles : undefined,
 
 				filter_ids: selectedFilterIds.length > 0 ? selectedFilterIds : undefined,
 				tool_ids: toolIds.length > 0 ? toolIds : undefined,
@@ -2035,14 +2106,15 @@
 
 	const submitMessage = async (parentId, prompt) => {
 		let userPrompt = prompt;
+		// Create user message
 		let userMessageId = uuidv4();
-
 		let userMessage = {
 			id: userMessageId,
 			parentId: parentId,
 			childrenIds: [],
 			role: 'user',
 			content: userPrompt,
+			files: chatFiles.filter((file) => file.type === 'image' || file.type === 'video'),
 			models: selectedModels,
 			timestamp: Math.floor(Date.now() / 1000) // Unix epoch
 		};

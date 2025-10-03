@@ -154,7 +154,6 @@
 	let editedContent = '';
 	let editTextAreaElement: HTMLTextAreaElement;
 
-	let messageIndexEdit = false;
 
 	let audioParts: Record<number, HTMLAudioElement | null> = {};
 	let speaking = false;
@@ -165,13 +164,54 @@
 
 	let showRateComment = false;
 
+	$: showSkeleton =
+		message.content === '' &&
+		!message.error &&
+		(
+			(model?.info?.meta?.capabilities?.status_updates ?? true)
+				? ((message?.statusHistory ?? []).length === 0)
+				: true
+		);
+
+	let contentVideoDataUrl: string | null = null;
+
+	async function fetchAsDataUrl(url: string): Promise<{ dataUrl: string; mime: string | null }> {
+		const res = await fetch(url, { credentials: 'include' });
+		if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status}`);
+		const contentType = res.headers.get('content-type');
+		const blob = await res.blob();
+		const dataUrl: string = await new Promise((resolve) => {
+			const reader = new FileReader();
+			reader.onloadend = () => resolve(reader.result as string);
+			reader.readAsDataURL(blob);
+		});
+		return { dataUrl, mime: contentType };
+	}
+
+	$: (async () => {
+		// detect first file content link in assistant content and convert to data URL
+		contentVideoDataUrl = null;
+		if (message?.role === 'assistant' && typeof message?.content === 'string') {
+			const relMatch = message.content.match(/\/api\/v1\/files\/[a-f0-9\-]+\/content/i);
+			const relPath = relMatch ? relMatch[0] : null;
+			if (relPath) {
+				try {
+					const { dataUrl, mime } = await fetchAsDataUrl(relPath);
+					contentVideoDataUrl = mime && mime.startsWith('video/') ? dataUrl : null;
+				} catch (e) {
+					console.warn('Inline video fetch failed; leaving as link', e);
+					contentVideoDataUrl = null;
+				}
+			}
+		}
+	})();
+
 	const copyToClipboard = async (text) => {
 		text = removeAllDetails(text);
 
 		if (($config?.ui?.response_watermark ?? '').trim() !== '') {
 			text = `${text}\n\n${$config?.ui?.response_watermark}`;
 		}
-
 		const res = await _copyToClipboard(text, null, $settings?.copyFormatted ?? false);
 		if (res) {
 			toast.success($i18n.t('Copying to clipboard was successful!'));
@@ -798,6 +838,15 @@
 											updateChat();
 										}}
 									/>
+
+									{#if contentVideoDataUrl}
+										<div class="my-2">
+											<video controls style="max-width: 100%; height: auto; border-radius: 8px;">
+												<source src={contentVideoDataUrl} type="video/mp4" />
+											</video>
+										</div>
+
+									{/if}
 								{/if}
 
 								{#if message?.error}
