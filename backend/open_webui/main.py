@@ -612,6 +612,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS configuration: allow Svelte dev server with credentials
+# Note: wildcard origins are not allowed when allow_credentials=True.
+dev_allowed_origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=dev_allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # For Open WebUI OIDC/OAuth2
 oauth_manager = OAuthManager(app)
 app.state.oauth_manager = oauth_manager
