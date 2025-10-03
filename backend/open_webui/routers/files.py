@@ -87,6 +87,7 @@ def has_access_to_file(
 
 def process_uploaded_file(request, file, file_path, file_item, file_metadata, user):
     try:
+        processed = False
         if file.content_type:
             stt_supported_content_types = getattr(
                 request.app.state.config, "STT_SUPPORTED_CONTENT_TYPES", []
@@ -111,15 +112,27 @@ def process_uploaded_file(request, file, file_path, file_item, file_metadata, us
                     ),
                     user=user,
                 )
+                processed = True
             elif (not file.content_type.startswith(("image/", "video/"))) or (
                 request.app.state.config.CONTENT_EXTRACTION_ENGINE == "external"
             ):
                 process_file(request, ProcessFileForm(file_id=file_item.id), user=user)
+                processed = True
         else:
             log.info(
                 f"File type {file.content_type} is not provided, but trying to process anyway"
             )
             process_file(request, ProcessFileForm(file_id=file_item.id), user=user)
+            processed = True
+
+        # If no processing was performed (e.g., certain image/video types), mark as completed
+        if not processed:
+            Files.update_file_data_by_id(
+                file_item.id,
+                {
+                    "status": "completed",
+                },
+            )
     except Exception as e:
         log.error(f"Error processing file: {file_item.id}")
         Files.update_file_data_by_id(
