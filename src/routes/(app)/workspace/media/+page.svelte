@@ -44,10 +44,14 @@
   // Declare prompt resolution state early to satisfy TS references
   let promptLoading = false;
   let resolvedPrompt: string | null = null;
-  const openPreview = (item: any) => {
+  const openPreview = async (item: any) => {
     previewItem = item;
     resolvedPrompt = null;
     promptLoading = false;
+    // Ensure this file's chat is resolved
+    if (item?.id) {
+      await resolveFileChat(item.id);
+    }
     if (!previewItem?.meta?.prompt) {
       // Fire and forget; UI shows spinner state
       fetchPromptFromChat(previewItem);
@@ -76,27 +80,10 @@
       await deleteFileById(token, id);
       // Remove locally
       files = files.filter((f) => f.id !== id);
+      // Remove from cache
+      delete fileToChat[id];
     } catch (e) {
       console.error('Failed to delete file', e);
-    }
-    selectedFolderId = null;
-    selectedChatId = null;
-    mode = 'orphans';
-    if (!initialFilesLoaded) {
-      try {
-        loading = true;
-        const token = localStorage.token;
-        const res = await getFiles(token);
-        files = Array.isArray(res) ? res : [];
-        await Promise.all([ensureFoldersLoaded(), ensureChatsIndex()]);
-        await resolveFileChatLinks(files);
-        initialFilesLoaded = true;
-      } catch (e: any) {
-        console.error(e);
-        error = e?.message || 'Failed to load files';
-      } finally {
-        loading = false;
-      }
     }
   }
   const closePreview = () => {
@@ -194,38 +181,49 @@
     }
   };
 
+  // Resolve single file's chat association
+  const resolveFileChat = async (fileId: string): Promise<string | null> => {
+    if (!fileId) return null;
+    // Skip if already known
+    if (fileToChat[fileId] !== undefined) return fileToChat[fileId];
+    
+    const file = files.find(f => f.id === fileId);
+    if (!file) return null;
+
+    // 1) Meta hints
+    const metaChatId = file?.meta?.chat_id || file?.meta?.source_chat_id || file?.chat_id;
+    if (metaChatId) {
+      fileToChat[fileId] = String(metaChatId);
+      return fileToChat[fileId];
+    }
+
+    // 2) Fast server-side search by file id
+    try {
+      const token = localStorage.token;
+      const hits = await getChatListBySearchText(token, fileId, 1);
+      if (Array.isArray(hits) && hits.length > 0) {
+        fileToChat[fileId] = hits[0].id;
+        // cache minimal chat record if missing
+        if (!chatsById[hits[0].id]) chatsById[hits[0].id] = hits[0];
+        return fileToChat[fileId];
+      }
+    } catch (e) {
+      console.warn('Failed to resolve chat for file', fileId, e);
+    }
+
+    // 3) Unknown
+    fileToChat[fileId] = null;
+    return null;
+  };
+
+  // Resolve multiple files in parallel (only when needed for grouping/orphans)
   const resolveFileChatLinks = async (items: any[]) => {
     linking = true;
     linkingErrors = 0;
     try {
-      const token = localStorage.token;
       const batch = [...items];
-      for (const f of batch) {
-        const id = f?.id;
-        if (!id) continue;
-        // Skip if already known
-        if (fileToChat[id] !== undefined) continue;
-        // 1) Meta hints
-        const metaChatId = f?.meta?.chat_id || f?.meta?.source_chat_id || f?.chat_id;
-        if (metaChatId) {
-          fileToChat[id] = String(metaChatId);
-          continue;
-        }
-        // 2) Fast server-side search by file id
-        try {
-          const hits = await getChatListBySearchText(token, id, 1);
-          if (Array.isArray(hits) && hits.length > 0) {
-            fileToChat[id] = hits[0].id;
-            // cache minimal chat record if missing
-            if (!chatsById[hits[0].id]) chatsById[hits[0].id] = hits[0];
-            continue;
-          }
-        } catch (e) {
-          linkingErrors++;
-        }
-        // 3) Unknown
-        fileToChat[id] = null;
-      }
+      // Resolve in parallel for better performance
+      await Promise.all(batch.map(f => resolveFileChat(f?.id).catch(() => null)));
     } finally {
       linking = false;
     }
@@ -254,13 +252,26 @@
         const res = await getFiles(token);
         files = Array.isArray(res) ? res : [];
         await Promise.all([ensureFoldersLoaded(), ensureChatsIndex()]);
-        await resolveFileChatLinks(files);
         initialFilesLoaded = true;
       } catch (e: any) {
         console.error(e);
         error = e?.message || 'Failed to load files';
       } finally {
         loading = false;
+      }
+    }
+    // Resolve files for this specific chat (in background)
+    if (!linking && initialFilesLoaded) {
+      const filesToResolve = files.filter(f => {
+        // Skip if already resolved
+        if (fileToChat[f.id] !== undefined) return false;
+        // Skip if meta hints already show it belongs elsewhere
+        const metaChatId = f?.meta?.chat_id || f?.meta?.source_chat_id || f?.chat_id;
+        if (metaChatId && String(metaChatId) !== chatId) return false;
+        return true;
+      });
+      if (filesToResolve.length > 0) {
+        resolveFileChatLinks(filesToResolve);
       }
     }
   }
@@ -276,7 +287,6 @@
         const res = await getFiles(token);
         files = Array.isArray(res) ? res : [];
         await Promise.all([ensureFoldersLoaded(), ensureChatsIndex()]);
-        await resolveFileChatLinks(files);
         initialFilesLoaded = true;
       } catch (e: any) {
         console.error(e);
@@ -284,6 +294,10 @@
       } finally {
         loading = false;
       }
+    }
+    // Resolve file-chat links for orphans filtering (in background)
+    if (!linking) {
+      resolveFileChatLinks(files);
     }
   }
 
@@ -377,11 +391,32 @@
 
     // If in chat mode, restrict to the selected chat's files
     if (mode === 'chat' && selectedChatId) {
-      data = data.filter((f) => fileToChat[f.id] === selectedChatId);
+      data = data.filter((f) => {
+        // First check meta hints (fastest, most reliable)
+        const metaChatId = f?.meta?.chat_id || f?.meta?.source_chat_id || f?.chat_id;
+        if (metaChatId) {
+          return String(metaChatId) === selectedChatId;
+        }
+        // Then check resolved cache
+        const chatId = fileToChat[f.id];
+        if (chatId !== undefined) {
+          return chatId === selectedChatId;
+        }
+        // If not resolved yet, tentatively include (will resolve in background)
+        return true;
+      });
     }
-    // If in orphans mode, show files with no associated chat
+    // If in orphans mode, show files with no associated chat (only resolved ones)
     if (mode === 'orphans') {
-      data = data.filter((f) => fileToChat[f.id] === null);
+      data = data.filter((f) => {
+        // Only include if we've resolved this file and it has no chat
+        if (fileToChat[f.id] === null) return true;
+        // Also check meta hints - if present, it's not an orphan
+        const metaChatId = f?.meta?.chat_id || f?.meta?.source_chat_id || f?.chat_id;
+        if (metaChatId) return false;
+        // If not resolved yet, tentatively include (will be resolved in background)
+        return fileToChat[f.id] === undefined;
+      });
     }
     return data;
   })();
@@ -402,6 +437,15 @@
     if (!chat) return null;
     const fid = chat?.folder_id || chat?.folderId;
     return fid ? (foldersById[fid] || null) : null;
+  }
+
+  // Trigger resolution when grouping is enabled
+  $: if (groupBy !== 'none' && files.length > 0 && !linking) {
+    // Check if we need to resolve
+    const needsResolution = files.some(f => fileToChat[f.id] === undefined);
+    if (needsResolution) {
+      resolveFileChatLinks(files);
+    }
   }
 
   type Grouped = Record<string, { key: string; label: string; items: any[] }>;

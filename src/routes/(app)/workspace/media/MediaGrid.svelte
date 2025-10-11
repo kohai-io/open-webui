@@ -78,16 +78,23 @@
     {:else if classify(item) === 'video'}
       <div class="group block rounded-xl overflow-hidden border border-gray-100 dark:border-gray-900 bg-white dark:bg-gray-900 hover:shadow-sm transition">
         <div 
-          class="aspect-video bg-black cursor-zoom-in" 
+          class="aspect-video bg-black cursor-zoom-in relative" 
           role="button" 
           tabindex="0" 
           aria-label="Preview video" 
           on:click={() => openPreview(item)} 
           on:keydown={(e) => handleKeydown(e, () => openPreview(item))}
         >
-          <video controls src={contentUrl(item.id)} class="w-full h-full" preload="metadata">
+          <video src={contentUrl(item.id)} class="w-full h-full pointer-events-none" preload="metadata">
             <track kind="captions" srclang="en" label="captions" />
           </video>
+          <div class="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition">
+            <div class="w-12 h-12 rounded-full bg-white/90 dark:bg-gray-900/90 flex items-center justify-center shadow-lg">
+              <svg class="w-6 h-6 text-gray-800 dark:text-gray-200 ml-0.5" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M5 3.5v9l7-4.5z"/>
+              </svg>
+            </div>
+          </div>
         </div>
         <div class="px-3 py-2 flex items-center justify-between gap-2">
           <div class="text-xs text-gray-700 dark:text-gray-300 truncate">{item.filename}</div>
