@@ -118,34 +118,39 @@
 					</a>
 				</div>
 			{:else}
-				<div class="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-3">
-					{#each agents.slice(0, 15) as agent}
+				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+					{#each agents.slice(0, 8) as agent}
 						<button
 							on:click={() => selectAgent(agent.id)}
-							class="flex flex-col items-center gap-2 p-3 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+							class="flex flex-col p-5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:shadow-md transition text-left relative group"
 						>
-							<img
-								src={agent?.meta?.profile_image_url ?? agent?.info?.meta?.profile_image_url ?? '/static/favicon.png'}
-								alt={agent.name}
-								class="w-10 h-10 rounded-full object-cover"
-							/>
-							<div class="text-center w-full">
-								<div class="text-xs font-medium truncate text-gray-900 dark:text-gray-100">{agent.name}</div>
+							<h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
+								{agent.name}
+							</h3>
+							<p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-3 flex-1">
+								{agent?.meta?.description ?? agent?.info?.meta?.description ?? 'No description available'}
+							</p>
+							<div class="flex justify-end">
+								<img
+									src={agent?.meta?.profile_image_url ?? agent?.info?.meta?.profile_image_url ?? '/static/favicon.png'}
+									alt={agent.name}
+									class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700"
+								/>
 							</div>
 						</button>
 					{/each}
 
-					<!-- View All Card -->
+					<!-- Create Agent Card -->
 					<a
-						href="/workspace/models-catalog"
-						class="flex flex-col items-center justify-center gap-2 p-3 bg-white dark:bg-gray-850 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+						href="/workspace/models/create"
+						class="flex flex-col items-center justify-center gap-3 p-5 bg-gray-50 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 transition"
 					>
-						<div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
-							<svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<div class="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center">
+							<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
 							</svg>
 						</div>
-						<span class="text-xs font-medium text-gray-700 dark:text-gray-300 text-center">View All</span>
+						<div class="text-sm font-medium text-blue-600 dark:text-blue-400">Create Agent</div>
 					</a>
 				</div>
 			{/if}
