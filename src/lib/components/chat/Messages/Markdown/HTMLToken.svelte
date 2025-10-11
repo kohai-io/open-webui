@@ -22,8 +22,8 @@
 
 {#if token.type === 'html'}
 	{#if html && html.includes('<video')}
-		{@const video = html.match(/<video[^>]*>([\s\S]*?)<\/video>/)}
-		{@const videoSrc = video && video[1]}
+		{@const videoMatch = html.match(/<video[^>]*?\s+src=["']([^"']+)["'][^>]*>|<video\s+src=["']([^"']+)["'][^>]*>/)}
+		{@const videoSrc = videoMatch && (videoMatch[1] || videoMatch[2])}
 		{#if videoSrc}
 			<!-- svelte-ignore a11y-media-has-caption -->
 			<video
@@ -39,8 +39,8 @@
 			{token.text}
 		{/if}
 	{:else if html && html.includes('<audio')}
-		{@const audio = html.match(/<audio[^>]*>([\s\S]*?)<\/audio>/)}
-		{@const audioSrc = audio && audio[1]}
+		{@const audioMatch = html.match(/<audio[^>]*?\s+src=["']([^"']+)["'][^>]*>|<audio\s+src=["']([^"']+)["'][^>]*>/)}
+		{@const audioSrc = audioMatch && (audioMatch[1] || audioMatch[2])}
 		{#if audioSrc}
 			<!-- svelte-ignore a11y-media-has-caption -->
 			<audio
