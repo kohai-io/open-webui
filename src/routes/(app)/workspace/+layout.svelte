@@ -84,10 +84,16 @@
 					>
 						{#if $user?.role === 'admin' || $user?.permissions?.workspace?.models}
 							<a
-								class="min-w-fit p-1.5 {$page.url.pathname.includes('/workspace/models')
+								class="min-w-fit p-1.5 {$page.url.pathname === '/workspace/models' || $page.url.pathname.startsWith('/workspace/models/')
 									? ''
 									: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
 								href="/workspace/models">{$i18n.t('Models')}</a
+							>
+							<a
+								class="min-w-fit p-1.5 {$page.url.pathname === '/workspace/models-catalog'
+									? ''
+									: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
+								href="/workspace/models-catalog">{$i18n.t('Catalog')}</a
 							>
 						{/if}
 
