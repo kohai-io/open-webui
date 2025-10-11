@@ -48,15 +48,22 @@
     previewItem = item;
     resolvedPrompt = null;
     promptLoading = false;
-    // Ensure this file's chat is resolved
     if (item?.id) {
       await resolveFileChat(item.id);
     }
     if (!previewItem?.meta?.prompt) {
-      // Fire and forget; UI shows spinner state
       fetchPromptFromChat(previewItem);
     }
   };
+
+  const handlePreviewNavigate = (e: CustomEvent<number>) => {
+    const newIndex = e.detail;
+    if (newIndex >= 0 && newIndex < visibleData.length) {
+      openPreview(visibleData[newIndex]);
+    }
+  };
+
+  $: previewIndex = previewItem ? visibleData.findIndex(item => item.id === previewItem.id) : -1;
 
   function selectAllVisible(checked: boolean) {
     const next: Record<string, boolean> = { ...selectedMap };
@@ -924,5 +931,8 @@
 
 <MediaPreviewModal 
   {previewItem}
+  items={visibleData}
+  currentIndex={previewIndex}
   on:close={closePreview}
+  on:navigate={handlePreviewNavigate}
 />

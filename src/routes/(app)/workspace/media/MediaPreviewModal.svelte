@@ -5,10 +5,16 @@
   import type { MediaFile } from './media-types';
 
   export let previewItem: MediaFile | null = null;
+  export let items: MediaFile[] = [];
+  export let currentIndex: number = -1;
 
   const dispatch = createEventDispatcher<{
     close: void;
+    navigate: number;
   }>();
+
+  $: hasPrev = currentIndex > 0;
+  $: hasNext = currentIndex < items.length - 1;
 
   let promptLoading = false;
   let resolvedPrompt: string | null = null;
@@ -22,6 +28,18 @@
 
   const closePreview = () => {
     dispatch('close');
+  };
+
+  const goToPrev = () => {
+    if (hasPrev) {
+      dispatch('navigate', currentIndex - 1);
+    }
+  };
+
+  const goToNext = () => {
+    if (hasNext) {
+      dispatch('navigate', currentIndex + 1);
+    }
   };
 
   const handleCopyText = async (text: string) => {
@@ -266,6 +284,12 @@
     if (e.key === 'Escape') {
       e.preventDefault();
       closePreview();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      goToPrev();
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      goToNext();
     }
   };
 </script>
@@ -282,6 +306,33 @@
       on:click={closePreview}
       on:keydown={(e) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') { e.preventDefault(); closePreview(); } }}
     ></div>
+    
+    <!-- Previous button -->
+    {#if hasPrev}
+      <button
+        class="absolute left-4 z-20 w-12 h-12 rounded-full bg-white/90 dark:bg-gray-900/90 hover:bg-white dark:hover:bg-gray-800 shadow-lg flex items-center justify-center transition"
+        on:click={goToPrev}
+        aria-label="Previous"
+      >
+        <svg class="w-6 h-6 text-gray-800 dark:text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+    {/if}
+    
+    <!-- Next button -->
+    {#if hasNext}
+      <button
+        class="absolute right-4 z-20 w-12 h-12 rounded-full bg-white/90 dark:bg-gray-900/90 hover:bg-white dark:hover:bg-gray-800 shadow-lg flex items-center justify-center transition"
+        on:click={goToNext}
+        aria-label="Next"
+      >
+        <svg class="w-6 h-6 text-gray-800 dark:text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+    {/if}
+    
     <div class="relative z-10 max-w-[90vw] max-h-[90vh] w-full md:w-auto bg-white dark:bg-gray-900 rounded-xl overflow-hidden shadow-xl">
       <div class="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-800">
         <div class="text-sm truncate pr-2">{previewItem.filename}</div>
