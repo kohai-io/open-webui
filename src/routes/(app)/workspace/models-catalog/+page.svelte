@@ -169,7 +169,7 @@
 							{agents.length} {$i18n.t('agents')}
 						</span>
 						<a
-							href="/workspace/functions/create"
+							href="/workspace/models/create"
 							class="flex items-center gap-2 px-3 py-1.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition text-sm"
 							on:click={(e) => e.stopPropagation()}
 						>
@@ -201,7 +201,7 @@
 					{#if agents.length === 0}
 						<div class="text-center py-8 text-gray-500">
 							{$i18n.t('No agents created yet')}
-							<a href="/workspace/functions/create" class="block mt-2 text-blue-500 hover:underline">
+							<a href="/workspace/models/create" class="block mt-2 text-blue-500 hover:underline">
 								{$i18n.t('Create your first agent')}
 							</a>
 						</div>
