@@ -34,6 +34,8 @@ from open_webui.models.files import (
     Files,
 )
 from open_webui.models.knowledge import Knowledges
+from open_webui.models.chats import Chats
+from open_webui.models.folders import Folders
 
 from open_webui.routers.knowledge import get_knowledge, get_knowledge_list
 from open_webui.routers.retrieval import ProcessFileForm, process_file
@@ -279,6 +281,94 @@ def upload_file_handler(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=ERROR_MESSAGES.DEFAULT("Error uploading file"),
         )
+
+
+############################
+# Get Media Overview
+############################
+
+
+class MediaOverviewResponse(BaseModel):
+    files: list[dict]
+    chats: list[dict]
+    folders: list[dict]
+
+
+@router.get("/media-overview")
+async def get_media_overview(user=Depends(get_verified_user)):
+    """
+    Get media files with pre-joined chat and folder information.
+    Only returns folders/chats that contain media files.
+    Optimized for the media workspace page.
+    """
+    # Get all user's files
+    files = Files.get_files_by_user_id(user.id)
+    
+    # Filter to media types only (images, videos, audio)
+    media_types = ('image/', 'video/', 'audio/')
+    media_files = []
+    file_to_chat_map = {}
+    
+    for f in files:
+        # Check if it's a media file based on content_type in meta
+        content_type = f.meta.get('content_type', '') if f.meta else ''
+        if content_type and content_type.startswith(media_types):
+            media_files.append(f)
+            # Try to get chat_id from metadata first
+            chat_id = None
+            if f.meta:
+                chat_id = f.meta.get('chat_id') or f.meta.get('source_chat_id')
+            file_to_chat_map[f.id] = chat_id
+    
+    # For files without chat_id in metadata, search chat history
+    # Get all user's chats to search through
+    all_chats = Chats.get_chats_by_user_id(user.id)
+    
+    # Build a map of file_id -> chat_id by searching chat content
+    for chat in all_chats:
+        if not chat.chat:
+            continue
+        # Convert chat to string and search for file IDs
+        chat_str = json.dumps(chat.chat)
+        for file_id in [f.id for f in media_files if file_to_chat_map.get(f.id) is None]:
+            if file_id in chat_str:
+                file_to_chat_map[file_id] = chat.id
+                # Also update the file metadata so frontend doesn't need to search again
+                for f in media_files:
+                    if f.id == file_id:
+                        if not f.meta:
+                            f.meta = {}
+                        f.meta['chat_id'] = chat.id
+                        break
+    
+    # Collect unique chat IDs
+    chat_ids = set(cid for cid in file_to_chat_map.values() if cid is not None)
+    
+    # Get only chats that have media
+    chats = []
+    folder_ids = set()
+    if chat_ids:
+        chats = Chats.get_chat_list_by_chat_ids(list(chat_ids))
+        # Extract folder IDs from chats
+        for chat in chats:
+            if chat.folder_id:
+                folder_ids.add(chat.folder_id)
+    
+    # Get only folders that contain chats with media
+    folders = []
+    if folder_ids:
+        folders = Folders.get_folders_by_ids(list(folder_ids))
+    
+    # Convert all to dicts for response
+    files_dict = [f.model_dump() for f in media_files]
+    chats_dict = [chat.model_dump() for chat in chats]
+    folders_dict = [folder.model_dump() for folder in folders]
+    
+    return {
+        "files": files_dict,
+        "chats": chats_dict,
+        "folders": folders_dict
+    }
 
 
 ############################

@@ -2,7 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { getAllUserChats, getChatById, getChatListBySearchText } from '$lib/apis/chats';
-  import { getFiles, deleteFileById } from '$lib/apis/files';
+  import { getFiles, getMediaOverview, deleteFileById } from '$lib/apis/files';
   import { getFolders } from '$lib/apis/folders';
   import Spinner from '$lib/components/common/Spinner.svelte';
   
@@ -245,60 +245,15 @@
   async function enterChat(chatId: string) {
     selectedChatId = chatId;
     mode = 'chat';
-    if (!initialFilesLoaded) {
-      try {
-        loading = true;
-        const token = localStorage.token;
-        const res = await getFiles(token);
-        files = Array.isArray(res) ? res : [];
-        await Promise.all([ensureFoldersLoaded(), ensureChatsIndex()]);
-        initialFilesLoaded = true;
-      } catch (e: any) {
-        console.error(e);
-        error = e?.message || 'Failed to load files';
-      } finally {
-        loading = false;
-      }
-    }
-    // Resolve files for this specific chat (in background)
-    if (!linking && initialFilesLoaded) {
-      const filesToResolve = files.filter(f => {
-        // Skip if already resolved
-        if (fileToChat[f.id] !== undefined) return false;
-        // Skip if meta hints already show it belongs elsewhere
-        const metaChatId = f?.meta?.chat_id || f?.meta?.source_chat_id || f?.chat_id;
-        if (metaChatId && String(metaChatId) !== chatId) return false;
-        return true;
-      });
-      if (filesToResolve.length > 0) {
-        resolveFileChatLinks(filesToResolve);
-      }
-    }
+    // Data is already loaded from media-overview endpoint
   }
 
   async function enterOrphans() {
     selectedFolderId = null;
     selectedChatId = null;
     mode = 'orphans';
-    if (!initialFilesLoaded) {
-      try {
-        loading = true;
-        const token = localStorage.token;
-        const res = await getFiles(token);
-        files = Array.isArray(res) ? res : [];
-        await Promise.all([ensureFoldersLoaded(), ensureChatsIndex()]);
-        initialFilesLoaded = true;
-      } catch (e: any) {
-        console.error(e);
-        error = e?.message || 'Failed to load files';
-      } finally {
-        loading = false;
-      }
-    }
-    // Resolve file-chat links for orphans filtering (in background)
-    if (!linking) {
-      resolveFileChatLinks(files);
-    }
+    // Data is already loaded from media-overview endpoint
+    // Orphans are files with null chat_id, already determined in fileToChat map
   }
 
   const resetPagination = () => {
@@ -392,31 +347,13 @@
     // If in chat mode, restrict to the selected chat's files
     if (mode === 'chat' && selectedChatId) {
       data = data.filter((f) => {
-        // First check meta hints (fastest, most reliable)
-        const metaChatId = f?.meta?.chat_id || f?.meta?.source_chat_id || f?.chat_id;
-        if (metaChatId) {
-          return String(metaChatId) === selectedChatId;
-        }
-        // Then check resolved cache
         const chatId = fileToChat[f.id];
-        if (chatId !== undefined) {
-          return chatId === selectedChatId;
-        }
-        // If not resolved yet, tentatively include (will resolve in background)
-        return true;
+        return chatId === selectedChatId;
       });
     }
-    // If in orphans mode, show files with no associated chat (only resolved ones)
+    // If in orphans mode, show files with no associated chat
     if (mode === 'orphans') {
-      data = data.filter((f) => {
-        // Only include if we've resolved this file and it has no chat
-        if (fileToChat[f.id] === null) return true;
-        // Also check meta hints - if present, it's not an orphan
-        const metaChatId = f?.meta?.chat_id || f?.meta?.source_chat_id || f?.chat_id;
-        if (metaChatId) return false;
-        // If not resolved yet, tentatively include (will be resolved in background)
-        return fileToChat[f.id] === undefined;
-      });
+      data = data.filter((f) => fileToChat[f.id] === null);
     }
     return data;
   })();
@@ -437,15 +374,6 @@
     if (!chat) return null;
     const fid = chat?.folder_id || chat?.folderId;
     return fid ? (foldersById[fid] || null) : null;
-  }
-
-  // Trigger resolution when grouping is enabled
-  $: if (groupBy !== 'none' && files.length > 0 && !linking) {
-    // Check if we need to resolve
-    const needsResolution = files.some(f => fileToChat[f.id] === undefined);
-    if (needsResolution) {
-      resolveFileChatLinks(files);
-    }
   }
 
   type Grouped = Record<string, { key: string; label: string; items: any[] }>;
@@ -518,11 +446,57 @@
         if (savedGroupBy && ['none','chat','folder'].includes(savedGroupBy)) groupBy = savedGroupBy as GroupBy;
       } catch {}
 
-      // For new navigation model, we first load folders and chats only
-      await Promise.all([ensureFoldersLoaded(), ensureChatsIndex()]);
+      // Use optimized media-overview endpoint
+      const token = localStorage.token;
+      const overview = await getMediaOverview(token);
+      
+      if (overview) {
+        // Pre-populate files, chats, and folders from single API call
+        files = Array.isArray(overview.files) ? overview.files : [];
+        
+        // Build chatsById map
+        const chatsMap: Record<string, any> = {};
+        if (Array.isArray(overview.chats)) {
+          for (const c of overview.chats) chatsMap[c.id] = c;
+        }
+        chatsById = chatsMap;
+        
+        // Build foldersById map
+        const foldersMap: Record<string, any> = {};
+        if (Array.isArray(overview.folders)) {
+          for (const f of overview.folders) foldersMap[f.id] = f;
+        }
+        foldersById = foldersMap;
+        
+        // Build fileToChat map from metadata (fast, no API calls needed)
+        const fileChatMap: Record<string, string | null> = {};
+        for (const f of files) {
+          // Check multiple possible locations for chat_id
+          let chatId = null;
+          if (f.meta) {
+            chatId = f.meta.chat_id || f.meta.source_chat_id;
+          }
+          // Fallback to top-level chat_id if exists
+          if (!chatId && f.chat_id) {
+            chatId = f.chat_id;
+          }
+          fileChatMap[f.id] = chatId ? String(chatId) : null;
+        }
+        fileToChat = fileChatMap;
+        
+        console.log('Media overview loaded:', {
+          filesCount: files.length,
+          chatsCount: Object.keys(chatsMap).length,
+          foldersCount: Object.keys(foldersMap).length,
+          filesWithChat: Object.values(fileChatMap).filter(c => c !== null).length,
+          orphanFiles: Object.values(fileChatMap).filter(c => c === null).length
+        });
+        
+        initialFilesLoaded = true;
+      }
     } catch (e: any) {
       console.error(e);
-      error = e?.message || 'Failed to load folders/chats';
+      error = e?.message || 'Failed to load media overview';
     } finally {
       loading = false;
     }
