@@ -27,6 +27,10 @@
 		return item?.meta?.profile_image_url ?? item?.info?.meta?.profile_image_url ?? '/static/favicon.png';
 	};
 
+	const getDescription = (item: any): string => {
+		return item?.meta?.description ?? item?.info?.meta?.description ?? '';
+	};
+
 	const navigateToChat = (id: string) => {
 		goto(`/?models=${encodeURIComponent(id)}`);
 	};
@@ -148,19 +152,24 @@
 				</button>
 
 				{#if expandedMyAgents}
-					<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+					<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 						{#each myAgents as agent}
 							<button
 								on:click={() => navigateToChat(agent.id)}
-								class="flex flex-col items-center gap-2 p-3 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+								class="flex flex-col p-5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:shadow-md transition text-left relative group"
 							>
-								<img
-									src={getProfileImage(agent)}
-									alt={agent.name}
-									class="w-8 h-8 rounded-full object-cover"
-								/>
-								<div class="text-center w-full">
-									<div class="text-sm font-medium truncate">{agent.name}</div>
+								<h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
+									{agent.name}
+								</h3>
+								<p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-3 flex-1">
+									{getDescription(agent)}
+								</p>
+								<div class="flex justify-end">
+									<img
+										src={getProfileImage(agent)}
+										alt={agent.name}
+										class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700"
+									/>
 								</div>
 							</button>
 						{/each}
@@ -207,19 +216,24 @@
 				</button>
 
 				{#if expandedSystemAgents}
-					<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+					<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 						{#each systemAgents as agent}
 							<button
 								on:click={() => navigateToChat(agent.id)}
-								class="flex flex-col items-center gap-2 p-3 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+								class="flex flex-col p-5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:shadow-md transition text-left relative group"
 							>
-								<img
-									src={getProfileImage(agent)}
-									alt={agent.name}
-									class="w-8 h-8 rounded-full object-cover"
-								/>
-								<div class="text-center w-full">
-									<div class="text-sm font-medium truncate">{agent.name}</div>
+								<h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
+									{agent.name}
+								</h3>
+								<p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-3 flex-1">
+									{getDescription(agent)}
+								</p>
+								<div class="flex justify-end">
+									<img
+										src={getProfileImage(agent)}
+										alt={agent.name}
+										class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700"
+									/>
 								</div>
 							</button>
 						{/each}
@@ -263,19 +277,24 @@
 				</button>
 
 				{#if expandedSharedAgents}
-					<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+					<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 						{#each sharedAgents as agent}
 							<button
 								on:click={() => navigateToChat(agent.id)}
-								class="flex flex-col items-center gap-2 p-3 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+								class="flex flex-col p-5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:shadow-md transition text-left relative group"
 							>
-								<img
-									src={getProfileImage(agent)}
-									alt={agent.name}
-									class="w-8 h-8 rounded-full object-cover"
-								/>
-								<div class="text-center w-full">
-									<div class="text-sm font-medium truncate">{agent.name}</div>
+								<h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
+									{agent.name}
+								</h3>
+								<p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-3 flex-1">
+									{getDescription(agent)}
+								</p>
+								<div class="flex justify-end">
+									<img
+										src={getProfileImage(agent)}
+										alt={agent.name}
+										class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700"
+									/>
 								</div>
 							</button>
 						{/each}
@@ -319,19 +338,24 @@
 				</button>
 
 				{#if expandedFoundational}
-					<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
+					<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 						{#each foundationalModels as model}
 							<button
 								on:click={() => navigateToChat(model.id)}
-								class="flex flex-col items-center gap-2 p-3 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+								class="flex flex-col p-5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:shadow-md transition text-left relative group"
 							>
-								<img
-									src={getProfileImage(model)}
-									alt={model.name}
-									class="w-8 h-8 rounded-full object-cover"
-								/>
-								<div class="text-center w-full">
-									<div class="text-sm font-medium truncate">{model.name}</div>
+								<h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">
+									{model.name}
+								</h3>
+								<p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-3 flex-1">
+									{getDescription(model)}
+								</p>
+								<div class="flex justify-end">
+									<img
+										src={getProfileImage(model)}
+										alt={model.name}
+										class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700"
+									/>
 								</div>
 							</button>
 						{/each}

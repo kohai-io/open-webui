@@ -132,7 +132,7 @@
 								{agent.name}
 							</h3>
 							<p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-3 flex-1">
-								{agent?.meta?.description ?? agent?.info?.meta?.description ?? $i18n.t('No description available')}
+								{agent?.meta?.description ?? agent?.info?.meta?.description ?? ''}
 							</p>
 							<div class="flex justify-end">
 								<img
