@@ -20,6 +20,7 @@
 	let files: any[] = [];
 	let filesInputElement: HTMLInputElement;
 	let cameraInputElement: HTMLInputElement;
+	let webSearchEnabled = false;
 
 	const detectMobile = () => {
 		const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
@@ -67,11 +68,11 @@
 		const formData = new FormData(e.target as HTMLFormElement);
 		const message = formData.get('message') as string;
 		if (message && message.trim()) {
-			// Store files in sessionStorage if any
-			if (files.length > 0) {
-				sessionStorage.setItem('welcome-files', JSON.stringify(files));
+			const params = new URLSearchParams({ q: message.trim() });
+			if (webSearchEnabled) {
+				params.set('web-search', 'true');
 			}
-			goto(`/?q=${encodeURIComponent(message.trim())}`);
+			goto(`/?${params.toString()}`);
 		}
 	};
 
@@ -152,14 +153,14 @@
 		<div class="max-w-6xl mx-auto w-full">
 			<!-- Greeting -->
 			<div class="mb-8 mt-6">
-				<h1 style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1;" class="font-semibold mb-1 text-gray-900 dark:text-white">
+				<h1 style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;" class="font-semibold mb-1 text-gray-900 dark:text-white">
 					<span class="text-blue-600 dark:text-blue-400">{$i18n.t('Hello, {{name}}.', { name: $user?.name || $i18n.t('there') })}</span>
 				</h1>
-				<p style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1;" class="font-semibold text-gray-600 dark:text-gray-400">{$i18n.t('how can I help?')}</p>
+				<p style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;" class="font-semibold text-gray-600 dark:text-gray-400">{$i18n.t('how can I help?')}</p>
 			</div>
 
 			<!-- Chat Input -->
-			<div class="mb-12 max-w-4xl">
+			<div class="mb-12 w-full">
 				<!-- Hidden file inputs -->
 				<input
 					bind:this={filesInputElement}
@@ -232,12 +233,24 @@
 							>
 								<Camera className="w-5 h-5" />
 							</button>
+							<button
+								type="button"
+								on:click={() => webSearchEnabled = !webSearchEnabled}
+								class="p-2 rounded-lg transition {webSearchEnabled 
+									? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30' 
+									: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'}"
+								title={$i18n.t('Web search')}
+							>
+								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+								</svg>
+							</button>
 						</div>
 						<input
 							type="text"
 							name="message"
 							placeholder={$i18n.t('Ask me anything...')}
-							class="w-full px-6 py-4 pl-24 pr-24 text-lg rounded-2xl bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
+							class="w-full px-6 py-4 pl-36 pr-24 text-lg rounded-2xl bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
 						/>
 						<div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
 							{#if $user?.role === 'admin' || ($user?.permissions?.chat?.call ?? true)}
@@ -262,8 +275,8 @@
 							</button>
 						</div>
 					</div>
-				</form>
-			</div>
+			</form>
+		</div>
 
 			<!-- Agents Section -->
 			<div class="w-full">
