@@ -1041,6 +1041,17 @@
 			const q = $page.url.searchParams.get('q') ?? '';
 			messageInput?.setText(q);
 
+			// Check for files from welcome page
+			const welcomeFiles = sessionStorage.getItem('welcome-files');
+			if (welcomeFiles) {
+				try {
+					files = JSON.parse(welcomeFiles);
+					sessionStorage.removeItem('welcome-files');
+				} catch (e) {
+					console.error('Failed to parse welcome files:', e);
+				}
+			}
+
 			if (q) {
 				if (($page.url.searchParams.get('submit') ?? 'true') === 'true') {
 					await tick();

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, getContext } from 'svelte';
+	import { onMount, getContext, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { config, settings, user, showSidebar } from '$lib/stores';
 	import { getModels } from '$lib/apis';
@@ -7,11 +7,24 @@
 	import { getFunctions } from '$lib/apis/functions';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
+	import { toast } from 'svelte-sonner';
+	import Clip from '$lib/components/icons/Clip.svelte';
+	import Camera from '$lib/components/icons/Camera.svelte';
+	import Voice from '$lib/components/icons/Voice.svelte';
+	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let agents: any[] = [];
 	let loading = false;
+	let files: any[] = [];
+	let filesInputElement: HTMLInputElement;
+	let cameraInputElement: HTMLInputElement;
+
+	const detectMobile = () => {
+		const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
+		return /android|iphone|ipad|ipod|windows phone/i.test(userAgent);
+	};
 
 	onMount(async () => {
 		loading = true;
@@ -54,8 +67,80 @@
 		const formData = new FormData(e.target as HTMLFormElement);
 		const message = formData.get('message') as string;
 		if (message && message.trim()) {
+			// Store files in sessionStorage if any
+			if (files.length > 0) {
+				sessionStorage.setItem('welcome-files', JSON.stringify(files));
+			}
 			goto(`/?q=${encodeURIComponent(message.trim())}`);
 		}
+	};
+
+	const handleFileUpload = () => {
+		filesInputElement?.click();
+	};
+
+	const handleCameraCapture = async () => {
+		if (!detectMobile()) {
+			// Desktop: Use screen capture
+			try {
+				const stream = await navigator.mediaDevices.getDisplayMedia({
+					video: { displaySurface: 'monitor' } as any
+				});
+				const video = document.createElement('video');
+				video.srcObject = stream;
+				video.play();
+
+				await new Promise((resolve) => {
+					video.onloadedmetadata = resolve;
+				});
+
+				const canvas = document.createElement('canvas');
+				canvas.width = video.videoWidth;
+				canvas.height = video.videoHeight;
+				const context = canvas.getContext('2d');
+				context?.drawImage(video, 0, 0);
+
+				stream.getTracks().forEach((track) => track.stop());
+
+				const imageUrl = canvas.toDataURL('image/png');
+				files = [...files, { type: 'image', url: imageUrl }];
+				video.srcObject = null;
+			} catch (error) {
+				console.error('Screen capture error:', error);
+				toast.error($i18n.t('Screen capture failed'));
+			}
+		} else {
+			// Mobile: Use camera input
+			cameraInputElement?.click();
+		}
+	};
+
+	const handleFileInputChange = async (event: Event) => {
+		const input = event.target as HTMLInputElement;
+		const selectedFiles = Array.from(input.files || []);
+		
+		for (const file of selectedFiles) {
+			if (file.type.startsWith('image/')) {
+				const reader = new FileReader();
+				reader.onload = (e) => {
+					files = [...files, { type: 'image', url: e.target?.result as string, name: file.name }];
+				};
+				reader.readAsDataURL(file);
+			} else {
+				// For non-image files, store file object
+				files = [...files, { type: 'file', file: file, name: file.name }];
+			}
+		}
+		
+		input.value = '';
+	};
+
+	const removeFile = (index: number) => {
+		files = files.filter((_, i) => i !== index);
+	};
+
+	const handleVoiceMode = () => {
+		goto('/?call=true');
 	};
 </script>
 
@@ -70,27 +155,112 @@
 				<h1 style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1;" class="font-semibold mb-1 text-gray-900 dark:text-white">
 					<span class="text-blue-600 dark:text-blue-400">{$i18n.t('Hello, {{name}}.', { name: $user?.name || $i18n.t('there') })}</span>
 				</h1>
-				<p style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1;" class="font-semibold text-gray-600 dark:text-gray-400">{$i18n.t('How can I help you today?')}</p>
+				<p style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1;" class="font-semibold text-gray-600 dark:text-gray-400">{$i18n.t('how can I help?')}</p>
 			</div>
 
 			<!-- Chat Input -->
 			<div class="mb-12 max-w-4xl">
+				<!-- Hidden file inputs -->
+				<input
+					bind:this={filesInputElement}
+					type="file"
+					multiple
+					accept="*/*"
+					on:change={handleFileInputChange}
+					style="display: none;"
+				/>
+				<input
+					bind:this={cameraInputElement}
+					type="file"
+					accept="image/*"
+					capture="environment"
+					on:change={handleFileInputChange}
+					style="display: none;"
+				/>
+
+				<!-- File previews -->
+				{#if files.length > 0}
+					<div class="flex flex-wrap gap-2 mb-3">
+						{#each files as file, index}
+							<div class="relative group">
+								{#if file.type === 'image'}
+									<img
+										src={file.url}
+										alt={file.name || 'Uploaded image'}
+										class="w-20 h-20 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700"
+									/>
+								{:else}
+									<div class="w-20 h-20 flex items-center justify-center rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+										<div class="text-center px-1">
+											<svg class="w-6 h-6 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+											</svg>
+											<span class="text-xs text-gray-600 dark:text-gray-400 block truncate w-full">{file.name}</span>
+										</div>
+									</div>
+								{/if}
+								<button
+									type="button"
+									on:click={() => removeFile(index)}
+									class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+								>
+									<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+									</svg>
+								</button>
+							</div>
+						{/each}
+					</div>
+				{/if}
+
 				<form on:submit|preventDefault={handleSearch}>
 					<div class="relative">
+						<div class="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+							<button
+								type="button"
+								on:click={handleFileUpload}
+								class="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+								title={$i18n.t('Upload Files')}
+							>
+								<Clip className="w-5 h-5" />
+							</button>
+							<button
+								type="button"
+								on:click={handleCameraCapture}
+								class="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+								title={$i18n.t('Capture')}
+							>
+								<Camera className="w-5 h-5" />
+							</button>
+						</div>
 						<input
 							type="text"
 							name="message"
 							placeholder={$i18n.t('Ask me anything...')}
-							class="w-full px-6 py-4 pr-12 text-lg rounded-2xl bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
+							class="w-full px-6 py-4 pl-24 pr-24 text-lg rounded-2xl bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
 						/>
-						<button
-							type="submit"
-							class="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition"
-						>
-							<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-							</svg>
-						</button>
+						<div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+							{#if $user?.role === 'admin' || ($user?.permissions?.chat?.call ?? true)}
+								<Tooltip content={$i18n.t('Voice mode')}>
+									<button
+										type="button"
+										on:click={handleVoiceMode}
+										class="p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition"
+										title={$i18n.t('Voice mode')}
+									>
+										<Voice className="w-5 h-5" strokeWidth="2.5" />
+									</button>
+								</Tooltip>
+							{/if}
+							<button
+								type="submit"
+								class="p-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition"
+							>
+								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+								</svg>
+							</button>
+						</div>
 					</div>
 				</form>
 			</div>
