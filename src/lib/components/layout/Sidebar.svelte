@@ -360,15 +360,11 @@
 					showSidebar.set(false);
 				}
 
-				if ($showSidebar && !value) {
+				if (!$showSidebar && !value) {
 					const navElement = document.getElementsByTagName('nav')[0];
 					if (navElement) {
 						navElement.style['-webkit-app-region'] = 'drag';
 					}
-				}
-
-				if (!$showSidebar && !value) {
-					showSidebar.set(true);
 				}
 			}),
 			showSidebar.subscribe(async (value) => {
