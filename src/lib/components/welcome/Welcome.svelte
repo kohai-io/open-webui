@@ -5,8 +5,10 @@
 	import { getModels } from '$lib/apis';
 	import { getModels as getWorkspaceModels } from '$lib/apis/models';
 	import { getFunctions } from '$lib/apis/functions';
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
 
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let agents: any[] = [];
 	let loading = false;
@@ -66,9 +68,9 @@
 			<!-- Greeting -->
 			<div class="mb-8 mt-6">
 				<h1 style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1;" class="font-semibold mb-1 text-gray-900 dark:text-white">
-					<span class="text-blue-600 dark:text-blue-400">Hello, {$user?.name || 'there'}.</span>
+					<span class="text-blue-600 dark:text-blue-400">{$i18n.t('Hello, {{name}}.', { name: $user?.name || $i18n.t('there') })}</span>
 				</h1>
-				<p style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1;" class="font-semibold text-gray-600 dark:text-gray-400">how can I help?</p>
+				<p style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1;" class="font-semibold text-gray-600 dark:text-gray-400">{$i18n.t('How can I help you today?')}</p>
 			</div>
 
 			<!-- Chat Input -->
@@ -78,7 +80,7 @@
 						<input
 							type="text"
 							name="message"
-							placeholder="Ask me anything..."
+							placeholder={$i18n.t('Ask me anything...')}
 							class="w-full px-6 py-4 pr-12 text-lg rounded-2xl bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
 						/>
 						<button
@@ -96,12 +98,12 @@
 			<!-- Agents Section -->
 			<div class="w-full">
 			<div class="flex items-center justify-between mb-6">
-			<h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200">Agents</h2>
+			<h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200">{$i18n.t('Agents')}</h2>
 			<a
 				href="/workspace/agents"
 				class="text-sm text-blue-600 dark:text-blue-400 hover:underline"
 			>
-				View all
+				{$i18n.t('View all')}
 			</a>
 		</div>
 
@@ -111,12 +113,12 @@
 				</div>
 			{:else if agents.length === 0}
 				<div class="text-center py-16">
-					<p class="text-gray-500 dark:text-gray-400 mb-4">No agents available yet.</p>
+					<p class="text-gray-500 dark:text-gray-400 mb-4">{$i18n.t('No agents available yet.')}</p>
 					<a
 						href="/workspace/agents"
 						class="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
 					>
-						Browse Agents
+						{$i18n.t('Browse Agents')}
 					</a>
 				</div>
 			{:else}
@@ -130,7 +132,7 @@
 								{agent.name}
 							</h3>
 							<p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-3 mb-3 flex-1">
-								{agent?.meta?.description ?? agent?.info?.meta?.description ?? 'No description available'}
+								{agent?.meta?.description ?? agent?.info?.meta?.description ?? $i18n.t('No description available')}
 							</p>
 							<div class="flex justify-end">
 								<img
@@ -152,7 +154,7 @@
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
 							</svg>
 						</div>
-						<div class="text-sm font-medium text-blue-600 dark:text-blue-400">Create Agent</div>
+						<div class="text-sm font-medium text-blue-600 dark:text-blue-400">{$i18n.t('Create Agent')}</div>
 					</a>
 				</div>
 			{/if}
@@ -160,7 +162,7 @@
 
 		<!-- Quick Actions (optional) -->
 		<div class="mt-16 w-full">
-			<h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">Quick Actions</h2>
+			<h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">{$i18n.t('Quick Actions')}</h2>
 			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 				<a
 					href="/?new=true"
@@ -170,8 +172,8 @@
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
 					</svg>
 					<div>
-						<div class="font-medium text-gray-900 dark:text-gray-100">New Chat</div>
-						<div class="text-sm text-gray-500 dark:text-gray-400">Start a conversation</div>
+						<div class="font-medium text-gray-900 dark:text-gray-100">{$i18n.t('New Chat')}</div>
+						<div class="text-sm text-gray-500 dark:text-gray-400">{$i18n.t('Start a conversation')}</div>
 					</div>
 				</a>
 
@@ -183,8 +185,8 @@
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
 					</svg>
 					<div>
-						<div class="font-medium text-gray-900 dark:text-gray-100">Browse Agents</div>
-						<div class="text-sm text-gray-500 dark:text-gray-400">Explore all agents</div>
+						<div class="font-medium text-gray-900 dark:text-gray-100">{$i18n.t('Browse Agents')}</div>
+						<div class="text-sm text-gray-500 dark:text-gray-400">{$i18n.t('Explore all agents')}</div>
 					</div>
 				</a>
 
@@ -197,8 +199,8 @@
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
 					</svg>
 					<div>
-						<div class="font-medium text-gray-900 dark:text-gray-100">Workspace</div>
-						<div class="text-sm text-gray-500 dark:text-gray-400">Manage your settings</div>
+						<div class="font-medium text-gray-900 dark:text-gray-100">{$i18n.t('Workspace')}</div>
+						<div class="text-sm text-gray-500 dark:text-gray-400">{$i18n.t('Manage your settings')}</div>
 					</div>
 				</a>
 			</div>

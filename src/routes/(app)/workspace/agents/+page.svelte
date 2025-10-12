@@ -1,13 +1,16 @@
 <script lang="ts">
 	import { onMount, getContext } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { config, models, settings, user } from '$lib/stores';
 	import { getModels } from '$lib/apis';
 	import { getModels as getWorkspaceModels } from '$lib/apis/models';
 	import { getFunctions } from '$lib/apis/functions';
 	import Plus from '$lib/components/icons/Plus.svelte';
 	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
 	
-	const i18n = getContext('i18n');
+	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let foundationalModels = [];
 	let myAgents = [];
@@ -20,14 +23,23 @@
 	let expandedSharedAgents = false;
 	let expandedSystemAgents = true;
 
+	const getProfileImage = (item: any): string => {
+		return item?.meta?.profile_image_url ?? item?.info?.meta?.profile_image_url ?? '/static/favicon.png';
+	};
+
+	const navigateToChat = (id: string) => {
+		goto(`/?models=${encodeURIComponent(id)}`);
+	};
+
 	onMount(async () => {
 		try {
 			// Fetch all data in parallel - same approach as admin panel
+			const token = localStorage?.token ?? '';
 			const connections = $config?.features?.enable_direct_connections ? ($settings?.directConnections ?? null) : null;
 			const [allModelsData, workspaceModelsData, functionsData] = await Promise.all([
-				getModels(localStorage.token, connections),
-				getWorkspaceModels(localStorage.token),
-				getFunctions(localStorage.token)
+				getModels(token, connections),
+				getWorkspaceModels(token),
+				getFunctions(token)
 			]);
 
 			// Merge workspace metadata (including profile images) with all models
@@ -139,11 +151,11 @@
 					<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
 						{#each myAgents as agent}
 							<button
-								on:click={() => navigateToAgent(agent.id)}
+								on:click={() => navigateToChat(agent.id)}
 								class="flex flex-col items-center gap-2 p-3 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
 							>
 								<img
-									src={agent?.meta?.profile_image_url ?? agent?.info?.meta?.profile_image_url ?? '/static/favicon.png'}
+									src={getProfileImage(agent)}
 									alt={agent.name}
 									class="w-8 h-8 rounded-full object-cover"
 								/>
@@ -198,11 +210,11 @@
 					<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
 						{#each systemAgents as agent}
 							<button
-								on:click={() => navigateToAgent(agent.id)}
+								on:click={() => navigateToChat(agent.id)}
 								class="flex flex-col items-center gap-2 p-3 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
 							>
 								<img
-									src={agent?.meta?.profile_image_url ?? agent?.info?.meta?.profile_image_url ?? '/static/favicon.png'}
+									src={getProfileImage(agent)}
 									alt={agent.name}
 									class="w-8 h-8 rounded-full object-cover"
 								/>
@@ -254,11 +266,11 @@
 					<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
 						{#each sharedAgents as agent}
 							<button
-								on:click={() => navigateToAgent(agent.id)}
+								on:click={() => navigateToChat(agent.id)}
 								class="flex flex-col items-center gap-2 p-3 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
 							>
 								<img
-									src={agent?.meta?.profile_image_url ?? agent?.info?.meta?.profile_image_url ?? '/static/favicon.png'}
+									src={getProfileImage(agent)}
 									alt={agent.name}
 									class="w-8 h-8 rounded-full object-cover"
 								/>
@@ -310,11 +322,11 @@
 					<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2">
 						{#each foundationalModels as model}
 							<button
-								on:click={() => navigateToModel(model.id)}
+								on:click={() => navigateToChat(model.id)}
 								class="flex flex-col items-center gap-2 p-3 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
 							>
 								<img
-									src={model?.meta?.profile_image_url ?? model?.info?.meta?.profile_image_url ?? '/static/favicon.png'}
+									src={getProfileImage(model)}
 									alt={model.name}
 									class="w-8 h-8 rounded-full object-cover"
 								/>
