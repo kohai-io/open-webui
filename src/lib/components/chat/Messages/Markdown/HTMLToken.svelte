@@ -39,8 +39,10 @@
 			{token.text}
 		{/if}
 	{:else if html && html.includes('<audio')}
-		{@const audioMatch = html.match(/<audio[^>]*?\s+src=["']([^"']+)["'][^>]*>|<audio\s+src=["']([^"']+)["'][^>]*>/)}
-		{@const audioSrc = audioMatch && (audioMatch[1] || audioMatch[2])}
+		{@const audioTagMatch = html.match(/<audio[^>]*?\s+src=["']([^"']+)["'][^>]*>|<audio\s+src=["']([^"']+)["'][^>]*>/)}
+		{@const audioContentMatch = html.match(/<audio[^>]*>([\s\S]*?)<\/audio>/)}
+		{@const sourceMatch = audioContentMatch && audioContentMatch[1].match(/<source[^>]*src=["']([^"']+)["'][^>]*>/i)}
+		{@const audioSrc = (audioTagMatch && (audioTagMatch[1] || audioTagMatch[2])) || (sourceMatch && sourceMatch[1])}
 		{#if audioSrc}
 			<!-- svelte-ignore a11y-media-has-caption -->
 			<audio
