@@ -61,6 +61,15 @@
 	});
 
 	const selectAgent = (agentId: string) => {
+		// Store files in sessionStorage if any are attached
+		if (files.length > 0) {
+			try {
+				sessionStorage.setItem('welcome-files', JSON.stringify(files));
+			} catch (error) {
+				console.error('Failed to store files in sessionStorage:', error);
+				toast.error($i18n.t('Files are too large to transfer'));
+			}
+		}
 		goto(`/?models=${encodeURIComponent(agentId)}`);
 	};
 
@@ -68,6 +77,16 @@
 		const formData = new FormData(e.target as HTMLFormElement);
 		const message = formData.get('message') as string;
 		if (message && message.trim()) {
+			// Store files in sessionStorage for Chat component to pick up
+			if (files.length > 0) {
+				try {
+					sessionStorage.setItem('welcome-files', JSON.stringify(files));
+				} catch (error) {
+					console.error('Failed to store files in sessionStorage:', error);
+					toast.error($i18n.t('Files are too large to transfer'));
+				}
+			}
+			
 			const params = new URLSearchParams({ q: message.trim() });
 			if (webSearchEnabled) {
 				params.set('web-search', 'true');
@@ -141,6 +160,15 @@
 	};
 
 	const handleVoiceMode = () => {
+		// Store files in sessionStorage if any are attached
+		if (files.length > 0) {
+			try {
+				sessionStorage.setItem('welcome-files', JSON.stringify(files));
+			} catch (error) {
+				console.error('Failed to store files in sessionStorage:', error);
+				toast.error($i18n.t('Files are too large to transfer'));
+			}
+		}
 		goto('/?call=true');
 	};
 </script>
