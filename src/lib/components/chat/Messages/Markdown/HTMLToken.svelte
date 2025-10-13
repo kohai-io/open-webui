@@ -27,13 +27,10 @@
 		{#if videoSrc}
 			<!-- svelte-ignore a11y-media-has-caption -->
 			<video
-				class="w-full my-2"
+				class="w-full my-2 rounded-lg"
 				src={videoSrc.replaceAll('&amp;', '&')}
 				title="Video player"
-				frameborder="0"
-				referrerpolicy="strict-origin-when-cross-origin"
 				controls
-				allowfullscreen
 			></video>
 		{:else}
 			{token.text}
@@ -80,8 +77,19 @@
 				src={iframeSrc}
 				title="Embedded content"
 				frameborder="0"
-				sandbox
-				onload="this.style.height=(this.contentWindow.document.body.scrollHeight+20)+'px';"
+				sandbox=""
+				on:load={(e) => {
+					const iframe = e.target;
+					try {
+						// @ts-expect-error - iframe is HTMLIFrameElement
+						if (iframe?.contentWindow?.document?.body) {
+							// @ts-expect-error - iframe is HTMLIFrameElement
+							iframe.style.height = `${iframe.contentWindow.document.body.scrollHeight + 20}px`;
+						}
+					} catch (err) {
+						// Cross-origin iframe, can't access content
+					}
+				}}
 			></iframe>
 		{:else}
 			{token.text}
@@ -118,7 +126,18 @@
 				referrerpolicy="strict-origin-when-cross-origin"
 				allowfullscreen
 				width="100%"
-				onload="this.style.height=(this.contentWindow.document.body.scrollHeight+20)+'px';"
+				on:load={(e) => {
+					const iframe = e.target;
+					try {
+						// @ts-expect-error - iframe is HTMLIFrameElement
+						if (iframe?.contentWindow?.document?.body) {
+							// @ts-expect-error - iframe is HTMLIFrameElement
+							iframe.style.height = `${iframe.contentWindow.document.body.scrollHeight + 20}px`;
+						}
+					} catch (err) {
+						// Cross-origin iframe, can't access content
+					}
+				}}
 			></iframe>
 		{/if}
 	{:else if token.text.includes(`<source_id`)}
