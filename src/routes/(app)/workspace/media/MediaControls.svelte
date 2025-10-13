@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import type { MediaType, ViewMode, GroupBy, Mode } from './media-types';
+  import type { MediaType, ViewMode, GroupBy, Mode } from '$lib/types/media';
 
   export let activeTab: MediaType = 'all';
   export let query: string = '';
@@ -39,9 +39,8 @@
     dispatch('view-mode-change', mode);
   };
 
-  const handleGroupByChange = (e: Event) => {
-    const target = e.target as HTMLSelectElement;
-    groupBy = target.value as GroupBy;
+  const handleGroupByChange = (mode: GroupBy) => {
+    groupBy = mode;
     dispatch('group-by-change', groupBy);
   };
 </script>
@@ -113,20 +112,25 @@
     </button>
   </div>
 
-  <!-- Group by selector (chat mode only) -->
-  {#if mode === 'chat'}
-    <div class="ml-2 inline-flex items-center gap-1">
-      <label for="media-groupby" class="text-xs text-gray-500 dark:text-gray-400">Group</label>
-      <select
-        class="rounded-full px-3 py-1.5 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 outline-none"
-        id="media-groupby"
-        bind:value={groupBy}
-        on:change={handleGroupByChange}
+  <!-- View mode toggle (overview mode only) -->
+  {#if mode === 'overview'}
+    <div class="ml-2 inline-flex rounded-full border border-gray-200 dark:border-gray-800 overflow-hidden">
+      <button
+        type="button"
+        class="px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {groupBy === 'hierarchy' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}"
+        on:click={() => handleGroupByChange('hierarchy')}
+        title="Browse by folders and chats"
       >
-        <option value="none">None</option>
-        <option value="chat">Chat</option>
-        <option value="folder">Folder</option>
-      </select>
+        Browse
+      </button>
+      <button
+        type="button"
+        class="px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {groupBy === 'none' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}"
+        on:click={() => handleGroupByChange('none')}
+        title="View all media"
+      >
+        Gallery
+      </button>
     </div>
   {/if}
 

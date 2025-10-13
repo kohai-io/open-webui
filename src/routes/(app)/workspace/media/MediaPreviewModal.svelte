@@ -1,8 +1,8 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { classify, contentUrl, copyText, extractAssistantPrompt } from './media-utils';
+  import { classify, contentUrl, copyText, extractAssistantPrompt } from '$lib/utils/media';
   import { getAllUserChats, getChatById, getChatListBySearchText } from '$lib/apis/chats';
-  import type { MediaFile } from './media-types';
+  import type { MediaFile } from '$lib/types/media';
 
   export let previewItem: MediaFile | null = null;
   export let items: MediaFile[] = [];

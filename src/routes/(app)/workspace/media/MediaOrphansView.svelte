@@ -1,8 +1,8 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { classify, contentUrl } from './media-utils';
+  import MediaCard from '$lib/components/workspace/MediaCard.svelte';
   import MediaList from './MediaList.svelte';
-  import type { MediaFile, ViewMode, SortBy, SortDir } from './media-types';
+  import type { MediaFile, ViewMode, SortBy, SortDir } from '$lib/types/media';
 
   export let visibleData: MediaFile[] = [];
   export let filteredData: MediaFile[] = [];
@@ -11,6 +11,8 @@
   export let sortBy: SortBy = 'updated';
   export let sortDir: SortDir = 'desc';
   export let selectedMap: Record<string, boolean> = {};
+  export let showBreadcrumb: boolean = true;
+  export let breadcrumbTitle: string = 'Media not in chats';
 
   const dispatch = createEventDispatcher<{
     'enter-overview': void;
@@ -70,11 +72,13 @@
   };
 </script>
 
-<div class="mt-2 mb-3 text-xs text-gray-500 dark:text-gray-400">
-  <span role="link" tabindex="0" class="underline cursor-pointer" on:click={enterOverview} on:keydown={(e) => onKeyActivate(e, enterOverview)}>Overview</span>
-  <span> / </span>
-  <span class="font-medium text-gray-700 dark:text-gray-300">Media not in chats</span>
-</div>
+{#if showBreadcrumb}
+  <div class="mt-2 mb-3 text-xs text-gray-500 dark:text-gray-400">
+    <span role="link" tabindex="0" class="underline cursor-pointer" on:click={enterOverview} on:keydown={(e) => onKeyActivate(e, enterOverview)}>Overview</span>
+    <span> / </span>
+    <span class="font-medium text-gray-700 dark:text-gray-300">{breadcrumbTitle}</span>
+  </div>
+{/if}
 
 {#if filteredData.length === 0}
   <div class="mt-6 text-gray-500 text-sm">No unlinked media found.</div>
@@ -82,74 +86,15 @@
   {#if viewMode === 'grid'}
     <div class="mt-5 grid gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
       {#each visibleData as item (item.id)}
-        {#if classify(item) === 'image'}
-          <a 
-            class="group block rounded-xl overflow-hidden border border-gray-100 dark:border-gray-900 bg-white dark:bg-gray-900 hover:shadow-sm transition" 
-            href={contentUrl(item.id)} 
-            target="_blank" 
-            rel="noopener" 
-            on:click|preventDefault={() => openPreview(item)}
-          >
-            <div class="aspect-video bg-gray-50 dark:bg-gray-950 flex items-center justify-center overflow-hidden cursor-zoom-in">
-              <img 
-                src={contentUrl(item.id)} 
-                alt={item.filename} 
-                loading="lazy" 
-                decoding="async" 
-              />
-            </div>
-            <div class="px-3 py-2 flex items-center justify-between gap-2">
-          <div class="text-xs text-gray-700 dark:text-gray-300 truncate">{item.filename}</div>
-          <div class="flex items-center gap-2 shrink-0">
-            <input 
-              type="checkbox" 
-              class="h-4 w-4" 
-              aria-label="Select item" 
-              checked={!!selectedMap[item.id]} 
-              on:click|preventDefault|stopPropagation={() => toggleSelect(item.id)} 
-            />
-            <button 
-              class="inline-flex items-center h-7 px-3 rounded-full text-xs whitespace-nowrap border border-red-300 dark:border-red-900 text-red-700 dark:text-red-300 bg-red-50/70 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50" 
-              title="Delete" 
-              on:click|preventDefault|stopPropagation={() => deleteFile(item)} 
-              disabled={!!deleting[item.id]}
-            >
-              {deleting[item.id] ? 'Deleting…' : 'Delete'}
-            </button>
-          </div>
-        </div>
-          </a>
-        {:else}
-          <a 
-            class="group block rounded-xl overflow-hidden border border-gray-100 dark:border-gray-900 bg-white dark:bg-gray-900 hover:shadow-sm transition" 
-            href={contentUrl(item.id)} 
-            target="_blank" 
-            rel="noopener" 
-            on:click|preventDefault={() => openPreview(item)}
-          >
-            <div class="aspect-video bg-gray-100 dark:bg-gray-950 flex items-center justify-center text-xs text-gray-500 cursor-zoom-in">
-              File
-            </div>
-            <div class="px-3 py-2 flex items-center justify-between gap-2">
-          <div class="text-xs text-gray-700 dark:text-gray-300 truncate">{item.filename}</div>
-          <div class="flex items-center gap-2 shrink-0">
-            <input 
-              type="checkbox" 
-              class="h-4 w-4" 
-              aria-label="Select item" 
-              checked={!!selectedMap[item.id]} 
-              on:click|preventDefault|stopPropagation={() => toggleSelect(item.id)} 
-            />
-            <button 
-              class="text-[11px] px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-850 hover:bg-gray-200 dark:hover:bg-gray-800" 
-              on:click|preventDefault={() => chatWith(item)}
-            >
-              Chat
-            </button>
-          </div>
-        </div>
-          </a>
-        {/if}
+        <MediaCard 
+          {item}
+          deleting={!!deleting[item.id]}
+          selected={!!selectedMap[item.id]}
+          showChatButton={false}
+          on:preview
+          on:delete
+          on:toggle-select
+        />
       {/each}
     </div>
   {:else}

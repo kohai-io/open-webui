@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { classify, contentUrl, formatBytes, formatDate } from './media-utils';
-  import type { MediaFile, SortBy, SortDir } from './media-types';
+  import { classify, contentUrl, formatBytes, formatDate } from '$lib/utils/media';
+  import type { MediaFile, SortBy, SortDir } from '$lib/types/media';
 
   export let items: MediaFile[] = [];
   export let deleting: Record<string, boolean> = {};

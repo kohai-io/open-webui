@@ -1,5 +1,5 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
-import type { MediaType, MediaFile } from './media-types';
+import type { MediaType, MediaFile, Chat, Folder, GroupBy, SortBy, SortDir, GroupedItems, Mode } from '$lib/types/media';
 
 export const classify = (file: MediaFile): MediaType | 'other' => {
   const meta = file?.meta || {};
@@ -141,4 +141,114 @@ export const copyText = async (text: string): Promise<boolean> => {
     console.error('Failed to copy text', e);
     return false;
   }
+};
+
+// Helper functions for file access
+const getName = (file: MediaFile) => (file?.filename || file?.meta?.name || '').toString().toLowerCase();
+const getSize = (file: MediaFile) => (typeof file?.meta?.size === 'number' ? file.meta.size : 0);
+const getUpdated = (file: MediaFile) => toEpoch(file?.updated_at);
+
+/**
+ * Filter files by tab, search query, mode, and chat association
+ */
+export const filterFiles = (
+  files: MediaFile[],
+  activeTab: MediaType,
+  query: string,
+  mode: Mode,
+  selectedChatId: string | null,
+  fileToChat: Record<string, string | null>
+): MediaFile[] => {
+  let filtered = [...files];
+
+  // Tab filtering
+  if (activeTab !== 'all') {
+    filtered = filtered.filter((f) => classify(f) === activeTab);
+  }
+
+  // Search filtering
+  if (query?.trim()) {
+    const q = query.trim().toLowerCase();
+    filtered = filtered.filter((f) => {
+      const fname = getName(f);
+      return fname.includes(q);
+    });
+  }
+
+  // Mode-specific filtering
+  if (mode === 'chat' && selectedChatId) {
+    filtered = filtered.filter((f) => fileToChat[f.id] === selectedChatId);
+  } else if (mode === 'orphans') {
+    filtered = filtered.filter((f) => fileToChat[f.id] === null);
+  }
+
+  return filtered;
+};
+
+/**
+ * Sort files by specified criteria
+ */
+export const sortFiles = (
+  files: MediaFile[],
+  sortBy: SortBy,
+  sortDir: SortDir
+): MediaFile[] => {
+  const sorted = [...files];
+
+  const cmp = (a: MediaFile, b: MediaFile) => {
+    let va: any, vb: any;
+    if (sortBy === 'name') {
+      va = getName(a);
+      vb = getName(b);
+    } else if (sortBy === 'type') {
+      va = classify(a);
+      vb = classify(b);
+    } else if (sortBy === 'size') {
+      va = getSize(a);
+      vb = getSize(b);
+    } else {
+      va = getUpdated(a);
+      vb = getUpdated(b);
+    }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1;
+    if (va > vb) return sortDir === 'asc' ? 1 : -1;
+    // Secondary sort by updated desc for stability
+    const s = getUpdated(a) - getUpdated(b);
+    return sortDir === 'asc' ? -s : s;
+  };
+
+  sorted.sort(cmp);
+  return sorted;
+};
+
+/**
+ * Group files - returns all files as single group
+ * (hierarchy grouping is handled separately by MediaOverview component)
+ */
+export const groupFiles = (
+  files: MediaFile[],
+  groupBy: GroupBy,
+  fileToChat: Record<string, string | null>,
+  chatsById: Record<string, Chat>,
+  foldersById: Record<string, Folder>,
+  linking: boolean
+): Record<string, GroupedItems> => {
+  const groups: Record<string, GroupedItems> = {};
+  
+  // For 'none' or any other groupBy value, return flat list
+  groups['__all__'] = { key: '__all__', label: 'All Media', items: files };
+  
+  return groups;
+};
+
+/**
+ * Calculate media type counts
+ */
+export const calculateCounts = (files: MediaFile[]) => {
+  return {
+    all: files.length,
+    image: files.filter((f) => classify(f) === 'image').length,
+    video: files.filter((f) => classify(f) === 'video').length,
+    audio: files.filter((f) => classify(f) === 'audio').length
+  };
 };

@@ -2,7 +2,7 @@
   import { createEventDispatcher } from 'svelte';
   import MediaGrid from './MediaGrid.svelte';
   import MediaList from './MediaList.svelte';
-  import type { MediaFile, ViewMode, SortBy, SortDir } from './media-types';
+  import type { MediaFile, ViewMode, SortBy, SortDir } from '$lib/types/media';
 
   export let visibleData: MediaFile[] = [];
   export let filteredData: MediaFile[] = [];

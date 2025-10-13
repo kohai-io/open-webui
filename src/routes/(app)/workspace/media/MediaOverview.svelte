@@ -1,7 +1,7 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import { formatDate } from './media-utils';
-  import type { Folder, Chat } from './media-types';
+  import { formatDate } from '$lib/utils/media';
+  import type { Folder, Chat } from '$lib/types/media';
 
   export let allFolders: Folder[] = [];
   export let allChats: Chat[] = [];

@@ -1,7 +1,7 @@
 export type MediaType = 'all' | 'image' | 'video' | 'audio';
 export type Mode = 'overview' | 'folder' | 'chat' | 'orphans';
 export type ViewMode = 'grid' | 'list';
-export type GroupBy = 'none' | 'chat' | 'folder';
+export type GroupBy = 'hierarchy' | 'none';
 export type SortBy = 'name' | 'type' | 'size' | 'updated';
 export type SortDir = 'asc' | 'desc';
 
