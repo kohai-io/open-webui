@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, getContext, tick } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { config, settings, user, showSidebar } from '$lib/stores';
+	import { config, settings, user, showSidebar, mobile, showArchivedChats } from '$lib/stores';
 	import { getModels } from '$lib/apis';
 	import { getModels as getWorkspaceModels } from '$lib/apis/models';
 	import { getFunctions } from '$lib/apis/functions';
@@ -12,6 +12,8 @@
 	import Camera from '$lib/components/icons/Camera.svelte';
 	import Voice from '$lib/components/icons/Voice.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import Sidebar from '$lib/components/icons/Sidebar.svelte';
+	import UserMenu from '$lib/components/layout/Sidebar/UserMenu.svelte';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -177,6 +179,59 @@
 	? 'md:max-w-[calc(100%-260px)]'
 	: ''}"
 >
+	<!-- Top Navigation Bar -->
+	<nav class="sticky top-0 z-30 w-full py-1 pl-1.5 pr-1">
+		<div class="w-full flex items-center justify-between">
+			<!-- Left: Sidebar button (mobile only) -->
+			<div class="flex items-center">
+				{#if $mobile && !$showSidebar}
+					<Tooltip content={$showSidebar ? $i18n.t('Close Sidebar') : $i18n.t('Open Sidebar')}>
+						<button
+							class="cursor-pointer flex rounded-lg hover:bg-gray-100 dark:hover:bg-gray-850 transition"
+							on:click={() => {
+								showSidebar.set(!$showSidebar);
+							}}
+						>
+							<div class="self-center p-1.5">
+								<Sidebar />
+							</div>
+						</button>
+					</Tooltip>
+				{/if}
+			</div>
+
+			<!-- Right: User Menu -->
+			<div class="flex items-center ml-auto">
+				{#if $user !== undefined && $user !== null}
+					<UserMenu
+						className="max-w-[240px]"
+						role={$user?.role}
+						help={true}
+						on:show={(e) => {
+							if (e.detail === 'archived-chat') {
+								showArchivedChats.set(true);
+							}
+						}}
+					>
+						<div
+							class="select-none flex rounded-xl p-1.5 w-full hover:bg-gray-50 dark:hover:bg-gray-850 transition"
+						>
+							<div class="self-center">
+								<span class="sr-only">{$i18n.t('User menu')}</span>
+								<img
+									src={$user?.profile_image_url}
+									class="size-6 object-cover rounded-full"
+									alt=""
+									draggable="false"
+								/>
+							</div>
+						</div>
+					</UserMenu>
+				{/if}
+			</div>
+		</div>
+	</nav>
+
 	<div class="px-6 py-8 md:px-12 lg:px-20">
 		<div class="max-w-6xl mx-auto w-full">
 			<!-- Greeting -->
