@@ -7,6 +7,9 @@ import { deleteFileById, getMediaOverview } from '$lib/apis/files';
 import type { MediaFile, Chat, Folder } from '$lib/types/media';
 import { extractAssistantPrompt } from '$lib/utils/media';
 
+// Prompt cache to avoid repeated expensive fetches
+const promptCache = new Map<string, string | null>();
+
 export interface MediaOverviewData {
 	files: MediaFile[];
 	chatsById: Record<string, Chat>;
@@ -143,6 +146,11 @@ export const fetchPromptFromChat = async (
 	chatsById: Record<string, Chat>,
 	token: string
 ): Promise<string | null> => {
+	// Check cache first
+	if (promptCache.has(fileId)) {
+		return promptCache.get(fileId)!;
+	}
+
 	try {
 		const fileUrlPart = `/files/${fileId}`;
 
@@ -257,7 +265,10 @@ export const fetchPromptFromChat = async (
 					if (cur?.role === 'assistant') {
 						const atxt = typeof cur?.content === 'string' ? cur.content : JSON.stringify(cur?.content ?? '');
 						const extracted = extractAssistantPrompt(atxt || '');
-						if (extracted) return extracted;
+						if (extracted) {
+							promptCache.set(fileId, extracted);
+							return extracted;
+						}
 					} else if (cur?.role === 'user' && !userFallback) {
 						const c = cur?.content;
 						let promptText = '';
@@ -275,7 +286,10 @@ export const fetchPromptFromChat = async (
 					const pid = cur?.parentId;
 					cur = pid ? msgById[pid] : null;
 				}
-				if (userFallback) return userFallback;
+				if (userFallback) {
+					promptCache.set(fileId, userFallback);
+					return userFallback;
+				}
 
 				// Fallback to nearest assistant/user in chronological array
 				for (let j = allMsgs.length - 1; j >= 0; j--) {
@@ -283,7 +297,10 @@ export const fetchPromptFromChat = async (
 					if (am?.role !== 'assistant') continue;
 					const atxt = typeof am?.content === 'string' ? am.content : JSON.stringify(am?.content ?? '');
 					const extracted = extractAssistantPrompt(atxt || '');
-					if (extracted) return extracted;
+					if (extracted) {
+						promptCache.set(fileId, extracted);
+						return extracted;
+					}
 				}
 				for (let j = allMsgs.length - 1; j >= 0; j--) {
 					const um = allMsgs[j];
@@ -299,7 +316,9 @@ export const fetchPromptFromChat = async (
 						} else if (typeof c === 'object' && c) {
 							promptText = c?.text || c?.content || JSON.stringify(c);
 						}
-						return promptText?.trim() || null;
+						const result = promptText?.trim() || null;
+						promptCache.set(fileId, result);
+						return result;
 					}
 				}
 			}
@@ -317,7 +336,10 @@ export const fetchPromptFromChat = async (
 						if (am?.role !== 'assistant') continue;
 						const atxt = typeof am?.content === 'string' ? am.content : JSON.stringify(am?.content ?? '');
 						const extracted = extractAssistantPrompt(atxt || '');
-						if (extracted) return extracted;
+						if (extracted) {
+							promptCache.set(fileId, extracted);
+							return extracted;
+						}
 					}
 					// Fallback to nearest user
 					for (let j = i - 1; j >= 0; j--) {
@@ -334,7 +356,9 @@ export const fetchPromptFromChat = async (
 							} else if (typeof c === 'object' && c) {
 								promptText = c?.text || c?.content || JSON.stringify(c);
 							}
-							return promptText?.trim() || null;
+							const result = promptText?.trim() || null;
+							promptCache.set(fileId, result);
+							return result;
 						}
 					}
 					break;
@@ -342,9 +366,11 @@ export const fetchPromptFromChat = async (
 			}
 		}
 
+		promptCache.set(fileId, null);
 		return null;
 	} catch (e) {
 		console.error('Failed to fetch prompt from chat', e);
+		promptCache.set(fileId, null);
 		return null;
 	}
 };

@@ -308,13 +308,25 @@
     }
   });
 
-  // Persist UI state
-  $: localStorage.setItem('media:viewMode', viewMode);
-  $: localStorage.setItem('media:query', query);
-  $: localStorage.setItem('media:tab', activeTab);
-  $: localStorage.setItem('media:sortBy', sortBy);
-  $: localStorage.setItem('media:sortDir', sortDir);
-  $: localStorage.setItem('media:groupBy', groupBy);
+  // Persist UI state (debounced to reduce I/O)
+  let storageTimer: any;
+  $: {
+    // Bundle all state changes together
+    const state = { viewMode, query, activeTab, sortBy, sortDir, groupBy };
+    clearTimeout(storageTimer);
+    storageTimer = setTimeout(() => {
+      try {
+        localStorage.setItem('media:viewMode', state.viewMode);
+        localStorage.setItem('media:query', state.query);
+        localStorage.setItem('media:tab', state.activeTab);
+        localStorage.setItem('media:sortBy', state.sortBy);
+        localStorage.setItem('media:sortDir', state.sortDir);
+        localStorage.setItem('media:groupBy', state.groupBy);
+      } catch (e) {
+        console.warn('Failed to persist media UI state', e);
+      }
+    }, 500);
+  }
 
   // Debounced search input
   let searchTimer: any;

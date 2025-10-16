@@ -41,6 +41,13 @@
   $: mediaType = classify(item);
 </script>
 
+<style>
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+</style>
+
 {#if mediaType === 'image'}
   <a 
     class="group block rounded-xl overflow-hidden border border-gray-100 dark:border-gray-900 bg-white dark:bg-gray-900 hover:shadow-sm transition" 
@@ -49,12 +56,13 @@
     rel="noopener" 
     on:click|preventDefault={openPreview}
   >
-    <div class="aspect-video bg-gray-50 dark:bg-gray-950 flex items-center justify-center overflow-hidden cursor-zoom-in">
+    <div class="aspect-video bg-gray-50 dark:bg-gray-950 flex items-center justify-center overflow-hidden cursor-zoom-in relative">
       <img 
         src={contentUrl(item.id)} 
         alt={item.filename} 
         loading="lazy" 
-        decoding="async" 
+        decoding="async"
+        class="w-full h-full object-contain animate-[fadeIn_0.3s_ease-in]"
       />
     </div>
     <div class="px-3 py-2 flex items-center justify-between gap-2">

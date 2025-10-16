@@ -1,7 +1,17 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
 import type { MediaType, MediaFile, Chat, Folder, GroupBy, SortBy, SortDir, GroupedItems, Mode } from '$lib/types/media';
 
+// Classification cache to avoid repeated type detection
+const classifyCache = new WeakMap<MediaFile, MediaType | 'other'>();
+
 export const classify = (file: MediaFile): MediaType | 'other' => {
+  // Check cache first
+  const cached = classifyCache.get(file);
+  if (cached !== undefined) {
+    return cached;
+  }
+  
+  // Compute classification
   const meta = file?.meta || {};
   const ct = (
     meta.content_type || meta.mime_type || file?.mime || ''
@@ -27,6 +37,7 @@ export const classify = (file: MediaFile): MediaType | 'other' => {
     name.endsWith('.tif') ||
     name.endsWith('.tiff')
   ) {
+    classifyCache.set(file, 'image');
     return 'image';
   }
 
@@ -40,6 +51,7 @@ export const classify = (file: MediaFile): MediaType | 'other' => {
     name.endsWith('.mkv') ||
     name.endsWith('.m4v')
   ) {
+    classifyCache.set(file, 'video');
     return 'video';
   }
 
@@ -53,8 +65,10 @@ export const classify = (file: MediaFile): MediaType | 'other' => {
     name.endsWith('.flac') ||
     name.endsWith('.aac')
   ) {
+    classifyCache.set(file, 'audio');
     return 'audio';
   }
+  classifyCache.set(file, 'other');
   return 'other';
 };
 
@@ -242,13 +256,17 @@ export const groupFiles = (
 };
 
 /**
- * Calculate media type counts
+ * Calculate media type counts (optimized single-pass)
  */
 export const calculateCounts = (files: MediaFile[]) => {
-  return {
-    all: files.length,
-    image: files.filter((f) => classify(f) === 'image').length,
-    video: files.filter((f) => classify(f) === 'video').length,
-    audio: files.filter((f) => classify(f) === 'audio').length
-  };
+  const counts = { all: files.length, image: 0, video: 0, audio: 0 };
+  
+  for (const f of files) {
+    const type = classify(f);
+    if (type === 'image') counts.image++;
+    else if (type === 'video') counts.video++;
+    else if (type === 'audio') counts.audio++;
+  }
+  
+  return counts;
 };
