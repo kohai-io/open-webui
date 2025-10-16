@@ -224,7 +224,7 @@
       };
 
       sessionStorage.setItem('chat-input', JSON.stringify(chatInput));
-      goto('/');
+      goto('/?chat=true');
     } catch (e) {
       console.error('Failed to start chat with file', e);
     }

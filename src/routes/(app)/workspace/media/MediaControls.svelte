@@ -45,13 +45,13 @@
   };
 </script>
 
-<div class="flex items-center gap-2">
+<div class="flex flex-wrap items-center gap-2">
   <div class="inline-flex rounded-full border border-gray-200 dark:border-gray-800 overflow-hidden" role="tablist" aria-label="Media type">
     <button 
       type="button" 
       role="tab" 
       aria-selected={activeTab === 'all'} 
-      class="px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {activeTab === 'all' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}" 
+      class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {activeTab === 'all' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}" 
       on:click={() => handleTabChange('all')}
     >
       All
@@ -60,64 +60,71 @@
       type="button" 
       role="tab" 
       aria-selected={activeTab === 'image'} 
-      class="px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {activeTab === 'image' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}" 
+      class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {activeTab === 'image' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}" 
       on:click={() => handleTabChange('image')}
     >
-      Images
+      <span class="hidden xs:inline">Images</span>
+      <span class="xs:hidden">Img</span>
     </button>
     <button 
       type="button" 
       role="tab" 
       aria-selected={activeTab === 'video'} 
-      class="px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {activeTab === 'video' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}" 
+      class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {activeTab === 'video' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}" 
       on:click={() => handleTabChange('video')}
     >
-      Videos
+      <span class="hidden xs:inline">Videos</span>
+      <span class="xs:hidden">Vid</span>
     </button>
     <button 
       type="button" 
       role="tab" 
       aria-selected={activeTab === 'audio'} 
-      class="px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {activeTab === 'audio' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}" 
+      class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {activeTab === 'audio' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}" 
       on:click={() => handleTabChange('audio')}
     >
-      Audio
+      <span class="hidden xs:inline">Audio</span>
+      <span class="xs:hidden">Aud</span>
     </button>
   </div>
 
   <input
-    class="ml-2 md:ml-3 rounded-full px-4 py-1.5 text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 outline-none focus:ring-2 focus:ring-gray-200 dark:focus:ring-gray-800"
-    placeholder="Search filename..."
+    class="flex-1 min-w-[120px] sm:min-w-[160px] rounded-full px-3 sm:px-4 py-1.5 text-xs sm:text-sm bg-gray-50 dark:bg-gray-950 border border-gray-200 dark:border-gray-800 outline-none focus:ring-2 focus:ring-gray-200 dark:focus:ring-gray-800"
+    placeholder="Search..."
     value={query}
     on:input={handleSearchInput}
   />
 
   <!-- View mode toggle -->
-  <div class="ml-2 inline-flex rounded-full border border-gray-200 dark:border-gray-800 overflow-hidden">
+  <div class="inline-flex rounded-full border border-gray-200 dark:border-gray-800 overflow-hidden">
     <button
       type="button"
-      class="px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {viewMode === 'grid' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}"
+      class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {viewMode === 'grid' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}"
       on:click={() => handleViewModeChange('grid')}
       title="Grid view"
+      aria-label="Grid view"
     >
-      Grid
+      <span class="hidden sm:inline">Grid</span>
+      <span class="sm:hidden">⊞</span>
     </button>
     <button
       type="button"
-      class="px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {viewMode === 'list' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}"
+      class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {viewMode === 'list' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}"
       on:click={() => handleViewModeChange('list')}
       title="List view"
+      aria-label="List view"
     >
-      List
+      <span class="hidden sm:inline">List</span>
+      <span class="sm:hidden">☰</span>
     </button>
   </div>
 
   <!-- View mode toggle (overview mode only) -->
   {#if mode === 'overview'}
-    <div class="ml-2 inline-flex rounded-full border border-gray-200 dark:border-gray-800 overflow-hidden">
+    <div class="inline-flex rounded-full border border-gray-200 dark:border-gray-800 overflow-hidden">
       <button
         type="button"
-        class="px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {groupBy === 'hierarchy' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}"
+        class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {groupBy === 'hierarchy' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}"
         on:click={() => handleGroupByChange('hierarchy')}
         title="Browse by folders and chats"
       >
@@ -125,7 +132,7 @@
       </button>
       <button
         type="button"
-        class="px-3 py-1.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {groupBy === 'none' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}"
+        class="px-2 sm:px-3 py-1.5 text-xs sm:text-sm hover:bg-gray-100 dark:hover:bg-gray-850 {groupBy === 'none' ? 'bg-gray-100 dark:bg-gray-850 font-medium' : ''}"
         on:click={() => handleGroupByChange('none')}
         title="View all media"
       >

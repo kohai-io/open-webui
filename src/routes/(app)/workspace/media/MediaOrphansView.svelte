@@ -90,8 +90,8 @@
           {item}
           deleting={!!deleting[item.id]}
           selected={!!selectedMap[item.id]}
-          showChatButton={false}
           on:preview
+          on:chat-with
           on:delete
           on:toggle-select
         />
