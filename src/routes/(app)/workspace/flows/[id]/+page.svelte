@@ -3,8 +3,10 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getFlowById, updateFlowById } from '$lib/apis/flows';
+	import { saveFlowExecution } from '$lib/apis/flows/executions';
 	import { toast } from 'svelte-sonner';
 	import FlowEditor from '$lib/components/flows/FlowEditor.svelte';
+	import ExecutionHistory from '$lib/components/flows/panels/ExecutionHistory.svelte';
 	import { currentFlow, loadFlow, saveFlowState, isExecuting, flowNodes, flowEdges, updateNodeData } from '$lib/stores/flows';
 	import { FlowExecutor } from '$lib/components/flows/execution/FlowExecutor';
 	import type { Flow } from '$lib/types/flows';
@@ -16,6 +18,7 @@
 	let saving = false;
 	let executing = false;
 	let currentExecutor: FlowExecutor | null = null;
+	let showHistory = false;
 
 	$: flowId = $page.params.id || '';
 
@@ -142,6 +145,25 @@
 			// Execute the flow
 			const result = await currentExecutor.execute();
 			
+			// Save execution history to backend
+			try {
+				const token = localStorage.getItem('token') || '';
+				// Map result status to execution status
+				const executionStatus = result.status === 'error' ? 'error' : 'success';
+				await saveFlowExecution(token, flowId, {
+					flow_id: flowId,
+					status: executionStatus,
+					inputs: {}, // Could capture input node values here
+					outputs: result.nodeResults,
+					node_results: result.nodeResults,
+					errors: result.errors,
+					execution_time: result.executionTime
+				});
+			} catch (saveError) {
+				console.error('Failed to save execution history:', saveError);
+				// Don't show error to user - execution history is not critical
+			}
+			
 			if (result.status === 'success') {
 				toast.success(`Flow executed successfully in ${(result.executionTime / 1000).toFixed(2)}s`);
 				console.log('Flow results:', result.nodeResults);
@@ -154,6 +176,23 @@
 		} catch (error) {
 			console.error('Error executing flow:', error);
 			const errorMessage = (error as Error).message;
+			
+			// Save failed execution to history
+			try {
+				const token = localStorage.getItem('token') || '';
+				await saveFlowExecution(token, flowId, {
+					flow_id: flowId,
+					status: errorMessage.includes('aborted') ? 'aborted' : 'error',
+					inputs: {},
+					outputs: {},
+					node_results: {},
+					errors: { global: errorMessage },
+					execution_time: 0
+				});
+			} catch (saveError) {
+				console.error('Failed to save execution history:', saveError);
+			}
+			
 			if (errorMessage.includes('aborted')) {
 				toast.warning('Flow execution stopped');
 			} else {
@@ -237,6 +276,26 @@
 				</div>
 			</div>
 			<div class="flex items-center gap-2">
+				<button
+					on:click={() => (showHistory = !showHistory)}
+					class="px-4 py-2 {showHistory ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-100 dark:bg-gray-800'} hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors flex items-center gap-2"
+					title="Execution History"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="w-4 h-4"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<path d="M3 3v5h5" />
+						<path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" />
+					</svg>
+					History
+				</button>
 				{#if executing || $isExecuting}
 					<button
 						on:click={stopFlow}
@@ -279,9 +338,16 @@
 			</div>
 		</div>
 
-		<!-- Flow Editor -->
-		<div class="flex-1">
-			<FlowEditor />
+		<!-- Flow Editor with History Panel -->
+		<div class="flex-1 flex overflow-hidden">
+			<div class="flex-1">
+				<FlowEditor />
+			</div>
+			{#if showHistory}
+				<div class="w-96">
+					<ExecutionHistory flowId={flowId} onClose={() => (showHistory = false)} />
+				</div>
+			{/if}
 		</div>
 	</div>
 {/if}

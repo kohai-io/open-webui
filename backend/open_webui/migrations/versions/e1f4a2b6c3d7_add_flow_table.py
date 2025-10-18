@@ -1,7 +1,7 @@
 """Add flow table
 
 Revision ID: e1f4a2b6c3d7
-Revises: 018012973d35
+Revises: a5c220713937
 Create Date: 2025-10-18 12:00:00.000000
 
 """
@@ -10,7 +10,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "e1f4a2b6c3d7"
-down_revision = "018012973d35"
+down_revision = "a5c220713937"
 branch_labels = None
 depends_on = None
 
@@ -19,7 +19,7 @@ def upgrade():
     # Create flow table
     op.create_table(
         "flow",
-        sa.Column("id", sa.String(), nullable=False, primary_key=True),
+        sa.Column("id", sa.String(), nullable=False),
         sa.Column("user_id", sa.String(), nullable=False),
         sa.Column("name", sa.Text(), nullable=False),
         sa.Column("description", sa.Text(), nullable=True),
@@ -27,7 +27,8 @@ def upgrade():
         sa.Column("edges", sa.JSON(), nullable=False),
         sa.Column("created_at", sa.BigInteger(), nullable=False),
         sa.Column("updated_at", sa.BigInteger(), nullable=False),
-        sa.Column("meta", sa.JSON(), server_default="{}"),
+        sa.Column("meta", sa.JSON(), nullable=False, server_default="{}"),
+        sa.PrimaryKeyConstraint("id"),
     )
     
     # Create indexes for flow table

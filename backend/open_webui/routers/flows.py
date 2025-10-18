@@ -9,6 +9,13 @@ from open_webui.models.flows import (
     FlowModel,
     Flows,
 )
+from open_webui.models.flow_executions import (
+    FlowExecutionForm,
+    FlowExecutionResponse,
+    FlowExecutionListResponse,
+    FlowExecutionStatsResponse,
+    FlowExecutions,
+)
 from open_webui.constants import ERROR_MESSAGES
 from open_webui.utils.auth import get_admin_user, get_verified_user
 
@@ -375,3 +382,260 @@ async def execute_flow_by_id(
         "flowId": id,
         "status": "delegated_to_client",
     }
+
+
+############################
+# Flow Execution History
+############################
+
+
+@router.post("/{flow_id}/executions", response_model=Optional[FlowExecutionResponse])
+async def create_flow_execution(
+    flow_id: str,
+    form_data: FlowExecutionForm,
+    user=Depends(get_verified_user),
+):
+    """
+    Save a flow execution result
+    """
+    # Verify flow exists and user has access
+    flow = Flows.get_flow_by_id(flow_id)
+    
+    if not flow:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ERROR_MESSAGES.NOT_FOUND,
+        )
+
+    # Check if user owns the flow or is admin
+    if flow.user_id != user.id and user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
+        )
+
+    try:
+        execution = FlowExecutions.insert_new_execution(user.id, form_data)
+
+        if execution:
+            return FlowExecutionResponse(
+                id=execution.id,
+                flow_id=execution.flow_id,
+                user_id=execution.user_id,
+                status=execution.status,
+                inputs=execution.inputs,
+                outputs=execution.outputs,
+                node_results=execution.node_results,
+                errors=execution.errors,
+                execution_time=execution.execution_time,
+                created_at=execution.created_at,
+                meta=execution.meta,
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=ERROR_MESSAGES.DEFAULT(),
+            )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+
+
+@router.get("/{flow_id}/executions", response_model=list[FlowExecutionListResponse])
+async def get_flow_executions(
+    flow_id: str,
+    page: Optional[int] = 1,
+    user=Depends(get_verified_user),
+):
+    """
+    Get execution history for a flow (paginated)
+    """
+    # Verify flow exists and user has access
+    flow = Flows.get_flow_by_id(flow_id)
+    
+    if not flow:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ERROR_MESSAGES.NOT_FOUND,
+        )
+
+    # Check if user owns the flow or is admin
+    if flow.user_id != user.id and user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
+        )
+
+    limit = 60
+    skip = (page - 1) * limit if page else 0
+
+    executions = FlowExecutions.get_executions_by_flow_id(
+        flow_id, skip=skip, limit=limit
+    )
+    
+    return [
+        FlowExecutionListResponse(
+            id=execution.id,
+            flow_id=execution.flow_id,
+            status=execution.status,
+            execution_time=execution.execution_time,
+            created_at=execution.created_at,
+        )
+        for execution in executions
+    ]
+
+
+@router.get("/{flow_id}/executions/stats", response_model=FlowExecutionStatsResponse)
+async def get_flow_execution_stats(
+    flow_id: str,
+    user=Depends(get_verified_user),
+):
+    """
+    Get execution statistics for a flow
+    """
+    # Verify flow exists and user has access
+    flow = Flows.get_flow_by_id(flow_id)
+    
+    if not flow:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ERROR_MESSAGES.NOT_FOUND,
+        )
+
+    # Check if user owns the flow or is admin
+    if flow.user_id != user.id and user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
+        )
+
+    return FlowExecutions.get_execution_stats_by_flow_id(flow_id)
+
+
+@router.get("/{flow_id}/executions/{execution_id}", response_model=Optional[FlowExecutionResponse])
+async def get_flow_execution_by_id(
+    flow_id: str,
+    execution_id: str,
+    user=Depends(get_verified_user),
+):
+    """
+    Get a specific flow execution result
+    """
+    # Verify flow exists and user has access
+    flow = Flows.get_flow_by_id(flow_id)
+    
+    if not flow:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ERROR_MESSAGES.NOT_FOUND,
+        )
+
+    # Check if user owns the flow or is admin
+    if flow.user_id != user.id and user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
+        )
+
+    execution = FlowExecutions.get_execution_by_id(execution_id)
+    
+    if not execution:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Execution not found",
+        )
+    
+    # Verify execution belongs to the flow
+    if execution.flow_id != flow_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Execution not found for this flow",
+        )
+
+    return FlowExecutionResponse(
+        id=execution.id,
+        flow_id=execution.flow_id,
+        user_id=execution.user_id,
+        status=execution.status,
+        inputs=execution.inputs,
+        outputs=execution.outputs,
+        node_results=execution.node_results,
+        errors=execution.errors,
+        execution_time=execution.execution_time,
+        created_at=execution.created_at,
+        meta=execution.meta,
+    )
+
+
+@router.delete("/{flow_id}/executions/{execution_id}", response_model=bool)
+async def delete_flow_execution(
+    flow_id: str,
+    execution_id: str,
+    user=Depends(get_verified_user),
+):
+    """
+    Delete a specific flow execution
+    """
+    # Verify flow exists and user has access
+    flow = Flows.get_flow_by_id(flow_id)
+    
+    if not flow:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ERROR_MESSAGES.NOT_FOUND,
+        )
+
+    # Check if user owns the flow or is admin
+    if flow.user_id != user.id and user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
+        )
+    
+    execution = FlowExecutions.get_execution_by_id(execution_id)
+    
+    if not execution:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Execution not found",
+        )
+    
+    # Verify execution belongs to the flow
+    if execution.flow_id != flow_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Execution not found for this flow",
+        )
+
+    result = FlowExecutions.delete_execution_by_id(execution_id)
+    return result
+
+
+@router.delete("/{flow_id}/executions", response_model=bool)
+async def delete_all_flow_executions(
+    flow_id: str,
+    user=Depends(get_verified_user),
+):
+    """
+    Delete all executions for a flow
+    """
+    # Verify flow exists and user has access
+    flow = Flows.get_flow_by_id(flow_id)
+    
+    if not flow:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ERROR_MESSAGES.NOT_FOUND,
+        )
+
+    # Check if user owns the flow or is admin
+    if flow.user_id != user.id and user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
+        )
+
+    result = FlowExecutions.delete_executions_by_flow_id(flow_id)
+    return result

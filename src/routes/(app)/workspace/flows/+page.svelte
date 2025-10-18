@@ -83,7 +83,8 @@
 	);
 
 	const formatDate = (timestamp: number) => {
-		return new Date(timestamp).toLocaleDateString('en-US', {
+		// Backend stores timestamps in seconds, JavaScript expects milliseconds
+		return new Date(timestamp * 1000).toLocaleDateString('en-US', {
 			year: 'numeric',
 			month: 'short',
 			day: 'numeric'
