@@ -128,6 +128,16 @@
 							</a>
 						{/if}
 
+						<!-- Flows tab -->
+						<a
+							class="min-w-fit p-1.5 {$page.url.pathname.includes('/workspace/flows')
+								? ''
+								: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
+							href="/workspace/flows"
+						>
+							{$i18n.t('Flows')}
+						</a>
+
 						<!-- Media tab -->
 						<a
 							class="min-w-fit p-1.5 {$page.url.pathname.includes('/media')
