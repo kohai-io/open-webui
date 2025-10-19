@@ -1,189 +1,232 @@
-Extending Node Capabilities
-Before addressing the priority concerns, let's explore what node enhancements would be most valuable. I'll examine the current node system first.
+# Flow Nodes Feature Review - Current Implementation Status
 
-Analyzed
-c:\Users\Robert\dev\AI\open-webui\open-webui\src\lib\components\flows\nodes
-Now let me check what the FlowExecutor currently supports:
+**Last Updated:** Based on code review of current implementation
 
-Perfect! Now I have a clear picture. Let me create a comprehensive analysis of potential node extensions:
+## Executive Summary
 
-Current Node Capabilities Analysis
-Implemented Nodes (4 types)
-Node	Current Capabilities	Limitations
-Input	Text input, media upload (image/video/audio)	Single input per flow, no validation, no multi-step forms
-Model	AI model execution, temperature, max tokens, streaming	Single model per node, no multi-model comparison, no fallback
-Output	4 formats (text/JSON/markdown/file)	No custom formatting, no export options, no webhooks
-Transform	6 operations (uppercase, lowercase, trim, replace, extract, template)	Limited operations, no custom code, no data validation
-Defined but Not Implemented (3 types)
-Conditional - Branching logic (types exist, no execution)
-Loop - Iterations (types exist, no execution)
-Merge - Combine outputs (types exist, no execution)
-Proposed Node Extensions
-Option 1: Complete the Partial Nodes ⭐ (High Priority)
-Implement the 3 defined but missing nodes:
+✅ **Phase 1 COMPLETE** - All foundational nodes implemented  
+✅ **Phase 2A COMPLETE** - API integration nodes (Knowledge, Web Search) implemented  
+🔄 **Phase 2B** - Enhancement opportunities identified  
+⏳ **Phase 3 & 4** - Advanced features pending
 
-Conditional Node
-typescript
-// Add branching logic
-- Compare values (equals, contains, greater, less, regex)
-- Two output handles: "true" and "false"
-- Route execution based on condition
-- Support variable comparison
-Loop Node
-typescript
-// Add iteration capability
-- Max iterations limit
-- Break conditions
-- Current iteration tracking
-- Loop over arrays/lists
-- Accumulate results
-Merge Node
-typescript
-// Combine multiple inputs
-- Strategies: concat, first, last, array, object merge
-- Configurable separator
-- Multiple input handles
-- Single output
-Option 2: Enhanced Existing Nodes (Medium Priority)
-Input Node Enhancements
-Multi-field forms - Multiple inputs in one node
-Validation rules - Regex, required, min/max length
-Input types - Number, date, select dropdown, checkbox
-File size limits - Configurable upload limits
-Batch input - Upload multiple files
-Model Node Enhancements
-Multi-model mode - Run multiple models in parallel, compare outputs
-Fallback chain - If model fails, try next model
-Response caching - Cache identical prompts
-Token usage tracking - Display cost estimation
-System prompts - Separate field for system messages
-Few-shot examples - Built-in example management
-Transform Node Enhancements
-JSON operations - Parse, stringify, query (JSONPath)
-Array operations - Map, filter, reduce, sort
-String operations - Split, join, format (date/number)
-Math operations - Calculate, round, statistics
-Custom JavaScript - Execute safe sandboxed code
-Data validation - Schema validation (Zod/JSON Schema)
-Output Node Enhancements
-Export formats - CSV, PDF, HTML
-Webhook delivery - POST results to URL
-Email notification - Send results via email
-File download - Trigger browser download
-Rich formatting - HTML templates, charts
-Option 3: New Node Types 🚀 (Game Changers)
-1. HTTP Request Node
-typescript
-- Make external API calls
-- GET, POST, PUT, DELETE methods
-- Headers, query params, body
-- Authentication (Bearer, API key)
-- Response parsing
-2. Knowledge Base / RAG Node
-typescript
-- Query vector database
-- Document retrieval
-- Semantic search
-- Chunk selection
-- Context injection
-3. Function/Tool Node
-typescript
-- Execute function calling
-- Tool selection from registry
-- Parameter mapping
-- Result parsing
-4. Database Node
-typescript
-- Query databases (SQL)
-- Read/write operations
-- Connection management
-- Query builder UI
-5. Code Execution Node
-typescript
-- Run Python/JavaScript
-- Sandboxed environment
-- Package imports
-- Timeout protection
-6. Split/Fork Node
-typescript
-- Parallel execution branches
-- Distribute input to multiple paths
-- No conditional logic (just split)
-7. Aggregation Node
-typescript
-- Wait for multiple inputs
-- Statistical operations (sum, avg, min, max)
-- Custom aggregation logic
-8. Delay/Wait Node
-typescript
-- Add delays between operations
-- Rate limiting
-- Time-based triggers
-9. Filter Node
-typescript
-- Filter arrays/lists
-- Conditional data filtering
-- Pattern matching
-10. Validation Node
-typescript
-- Schema validation
-- Data quality checks
-- Error handling branching
-Recommended Implementation Priority
-Phase 1: Complete the Foundation ✅
-Conditional Node - Essential for branching
-Loop Node - Essential for iterations
-Merge Node - Essential for combining outputs
-Estimated Effort: 2-3 days
-Value: Completes the MVP, enables complex workflows
+---
 
-Phase 2: Enhance Power Users ⚡
-Transform Node enhancements - JSON/Array operations, custom JS
-HTTP Request Node - Connect to external APIs
-Split/Fork Node - Parallel execution
-Estimated Effort: 3-4 days
-Value: 10x workflow capabilities, professional-grade features
+## Current Node Capabilities Analysis
 
-Phase 3: Advanced Features 🎯
-Knowledge Base/RAG Node - Integrate with Open WebUI's RAG
-Function/Tool Node - Function calling support
-Model Node enhancements - Multi-model, fallback chain
-Estimated Effort: 4-5 days
-Value: Enterprise features, AI-native workflows
+### ✅ Fully Implemented Nodes (9 types)
 
-Phase 4: Specialized Nodes 🔧
-Database Node, Code Execution, Validation, Aggregation
-Estimated Effort: 1-2 weeks
-Value: Niche but powerful capabilities
+| Node | Current Capabilities | Status |
+|------|---------------------|--------|
+| **Input** | Text input, media file selection (image/video/audio), placeholder | ✅ Complete |
+| **Model** | AI model execution, prompt templates with variable interpolation, temperature control, max tokens, advanced settings, vision model support (image/video), streaming | ✅ Complete |
+| **Knowledge** | RAG queries, knowledge base selection, Top-K results (1-20), confidence threshold, reranking, hybrid search, metadata inclusion | ✅ Complete |
+| **Web Search** | Internet search OR URL scraping, configurable max results (1-20), returns structured array with title/url/content/snippet | ✅ Complete |
+| **Transform** | 6 operations (uppercase, lowercase, trim, replace/regex, extract JSON field, template) | ✅ Complete |
+| **Conditional** | Branching logic with 6 operators (equals, not equals, contains, greater, less, regex), variable interpolation, true/false outputs | ✅ Complete |
+| **Loop** | 3 loop types (count, array iteration, until condition), max iterations config, EACH and DONE handles for per-iteration vs. final processing | ✅ Complete |
+| **Merge** | 4 merge strategies (concat, array, first, last), configurable separator, multiple inputs | ✅ Complete |
+| **Output** | 4 formats (text/JSON/markdown/file), real-time display updates, iteration result accumulation | ✅ Complete |
+---
 
-My Recommendation
-Start with Phase 1 - Complete the 3 partially-implemented nodes. This:
+## Implementation Details
 
-✅ Completes the type system (no orphaned types)
-✅ Unlocks complex workflows immediately
-✅ Provides foundation for advanced nodes
-✅ Relatively quick win (2-3 days)
-✅ Makes the feature "complete" from a user perspective
-Then move to Phase 2 focusing on:
+### Conditional Node Features
+- ✅ 6 comparison operators: equals, not_equals, contains, greater, less, regex
+- ✅ Two output handles: "true" and "false" branches
+- ✅ Variable interpolation: `{{input}}` and `{{node.output.path}}`
+- ✅ Dynamic routing based on condition result
 
-Transform enhancements (JSON/Array operations)
-HTTP Request Node (most requested feature)
-What's your preference? Should we:
+### Loop Node Features
+- ✅ 3 loop types:
+  - **Count**: Simple iteration N times
+  - **Array**: Iterate over array elements with path navigation (e.g., `{{websearch.output.results}}`)
+  - **Until**: Loop until condition met (max iterations limit)
+- ✅ Two output handles:
+  - **EACH**: Executes per iteration (passes `{iteration, value}`)
+  - **DONE**: Executes once after all iterations (passes aggregated results)
+- ✅ Nested downstream execution for EACH branches
+- ✅ Accumulation of iteration results in output nodes
 
-Complete Phase 1 (Conditional, Loop, Merge nodes)?
-Enhance existing nodes first (Transform/Model enhancements)?
-Add a specific new node (which one interests you most)?
-Different priority based on your use cases?
+### Merge Node Features
+- ✅ 4 merge strategies:
+  - **Concat**: String concatenation with configurable separator
+  - **Array**: Combine inputs as array
+  - **First**: Take first input only
+  - **Last**: Take last input only
+- ✅ Configurable separator (supports `\n` for newlines)
+- ✅ Multiple input support
+
+### Knowledge Node Features
+- ✅ Knowledge base selection (dropdown from available bases)
+- ✅ Query with variable interpolation
+- ✅ Top-K results (1-20 slider)
+- ✅ Confidence threshold (0-1)
+- ✅ Reranking option for better relevance
+- ✅ Hybrid search (semantic + keyword)
+- ✅ Metadata inclusion toggle
+- ✅ Returns structured chunks with relevance scores
+
+### Web Search Node Features
+- ✅ Two modes:
+  - **Search Mode**: Query text → Returns search results array
+  - **URL Mode**: Query is URL → Fetches and scrapes content from URL
+- ✅ Max results configuration (1-20)
+- ✅ Returns structured array with:
+  - `title` - Page title
+  - `url` - Source URL
+  - `content` - Full extracted text content
+  - `snippet` - Preview (first 200 chars)
+  - `metadata` - Additional information
+- ✅ Works seamlessly with Loop node for batch processing
+
+---
+
+## Implementation Roadmap
+
+### ✅ Phase 1: Foundation Complete (DONE)
+1. ✅ **Conditional Node** - Branching logic with 6 operators
+2. ✅ **Loop Node** - Iteration with EACH/DONE handles  
+3. ✅ **Merge Node** - Combine outputs with 4 strategies
+
+**Status:** ✅ COMPLETE - All foundational control flow nodes operational
+
+---
+
+### ✅ Phase 2A: API Integration Complete (DONE)
+4. ✅ **Knowledge/RAG Node** - Semantic search with reranking
+5. ✅ **Web Search Node** - Internet search + URL scraping
+
+**Status:** ✅ COMPLETE - RAG and web integration fully functional
+
+---
+
+### 🔄 Phase 2B: Power User Enhancements (NEXT)
+**Priority:** ⭐⭐⭐ HIGH
+
+#### Transform Node Enhancements
+- **JSON operations** - Parse, stringify, JSONPath queries
+- **Array operations** - Map, filter, reduce, sort, slice
+- **String operations** - Split, join, substring, regex groups
+- **Math operations** - Calculate, round, min/max, statistics
+- **Custom JavaScript** - Safe sandboxed code execution (using Pyodide or similar)
+- **Data validation** - Schema validation (Zod/JSON Schema)
+
+**Estimated Effort:** 2-3 days  
+**Value:** 10x transform capabilities for data processing
+
+#### Model Node Enhancements
+- **Multi-model mode** - Run multiple models in parallel, compare outputs
+- **Fallback chain** - If primary model fails, try next model
+- **Response caching** - Cache identical prompts (save API costs)
+- **Token usage tracking** - Display cost estimation
+- **System prompts** - Separate field for system messages
+- **Few-shot examples** - Built-in example management UI
+
+**Estimated Effort:** 3-4 days  
+**Value:** Professional-grade model orchestration
+
+#### New Nodes
+- **Split/Fork Node** - Parallel execution (distribute input to multiple paths)
+- **HTTP Request Node** - External API calls (GET/POST/PUT/DELETE, auth, headers)
+- **Function/Tool Node** - Execute Open WebUI tools (already has API support!)
+
+**Estimated Effort:** 4-5 days  
+**Value:** Extends workflows beyond built-in capabilities
+
+---
+
+### ⏳ Phase 3: Advanced Features (FUTURE)
+**Priority:** ⭐⭐ MEDIUM
+
+- **Tool/Function Node** - Leverage existing Open WebUI tools framework
+- **File Operations Node** - Upload, download, process files
+- **Prompt Library Integration** - Use saved prompts
+- **Advanced Conditionals** - Multiple conditions, AND/OR logic
+
+**Estimated Effort:** 4-5 days  
+**Value:** Enterprise-grade workflow features
+
+---
+
+### ⏳ Phase 4: Specialized Nodes (FUTURE)
+**Priority:** ⭐ LOW (Niche)
+
+- **Database Node** - SQL queries (via Tools)
+- **Code Execution Node** - Python/JS sandboxed execution (via Tools)
+- **Validation Node** - Schema validation, data quality checks
+- **Aggregation Node** - Statistical operations (sum, avg, min, max)
+- **Delay/Wait Node** - Add delays, rate limiting
+
+**Estimated Effort:** 1-2 weeks  
+**Value:** Specialized use cases
+
+---
+
+## Current Capabilities Showcase
+
+### ✅ What You Can Build NOW
+
+#### 1. RAG-Enhanced Chat
+```
+Input → Knowledge (query docs) → Model (with context) → Output
+```
+
+#### 2. Web Research Agent
+```
+Input → Web Search (query) → Loop (each result) → Web Search (fetch URL) → Model (analyze) → Output
+```
+
+#### 3. Multi-Knowledge Synthesis
+```
+Input → [Knowledge A, Knowledge B, Knowledge C] → Merge → Model → Output
+```
+
+#### 4. Conditional Processing
+```
+Input → Model (classify) → Conditional → [Path A, Path B] → Merge → Output
+```
+
+#### 5. Batch Processing Pipeline
+```
+Input (array) → Loop (EACH) → Model (process item) → Transform → Output (accumulated)
+```
+
+#### 6. Vision + Web Workflow
+```
+Input (image) → Model (describe) → Web Search (query) → Knowledge (context) → Model (synthesize) → Output
+```
+
+---
+
+## Recommendations
+
+### Immediate Next Steps (Phase 2B)
+**Priority Order:**
+1. 🔧 **Transform Node Enhancements** - Most impactful for existing workflows
+   - JSON/Array operations unlock data manipulation
+   - Custom JS for advanced transformations
+2. 🔗 **Tool/Function Node** - Leverage existing infrastructure
+   - Backend API already exists (`/api/v1/tools/`)
+   - Opens unlimited extensibility
+3. ⚡ **Split/Fork Node** - Enable parallel processing
+   - Simple to implement
+   - High value for multi-path workflows
+
+### Why These First?
+- ✅ Build on completed foundation (Phase 1 & 2A)
+- ✅ Maximize value of existing nodes
+- ✅ Leverage existing APIs (tools, files)
+- ✅ Enable advanced workflows without major new infrastructure
 
 ---
 
 ## Open WebUI API Integration Analysis
 
-### Available APIs for New Nodes
+### ✅ Successfully Integrated APIs
 
-After reviewing the Open WebUI backend, here are the **existing APIs we can leverage** for new node types:
+The following APIs have been successfully integrated into Flow Nodes:
 
-#### **1. Knowledge/RAG API** ✅ **FULLY AVAILABLE**
+#### **1. Knowledge/RAG API** ✅ **IMPLEMENTED**
 
 **Backend**: `/api/v1/knowledge/`
 
@@ -205,32 +248,66 @@ After reviewing the Open WebUI backend, here are the **existing APIs we can leve
 - `src/lib/apis/knowledge/index.ts` - Full CRUD operations
 - `src/lib/apis/retrieval/index.ts` - Query functions
 
-**What We Can Build**:
+**Implementation Status**: ✅ **COMPLETE**
+
+**Implemented Features**:
 ```typescript
-// Knowledge/RAG Node
-{
-  knowledgeBaseId: string;    // Select from available knowledge bases
-  query: string;              // Query text (supports {{variables}})
-  topK: number;               // Number of results (default: 4)
-  useReranking: boolean;      // Enable reranking
-  hybridSearch: boolean;      // Use hybrid search
+interface KnowledgeNodeData {
+  knowledgeBaseId: string;      // Select from available knowledge bases
+  knowledgeBaseName?: string;   // Display name
+  query: string;                // Query text (supports {{input}}, {{node.output}})
+  topK: number;                 // Number of results (1-20, default: 4)
+  confidenceThreshold?: number; // Minimum relevance score (0-1)
+  useReranking?: boolean;       // Enable reranking
+  hybridSearch?: boolean;       // Use hybrid search
+  includeMetadata?: boolean;    // Include source file information
 }
 ```
 
-**Capabilities**:
-- ✅ List available knowledge bases
-- ✅ Query vector database
-- ✅ Semantic search
-- ✅ Reranking support
-- ✅ Hybrid search (semantic + keyword)
-- ✅ Access control (user permissions)
-- ✅ Return relevant chunks with metadata
-
-**Implementation Complexity**: **LOW** ⭐ (APIs ready, just need UI wrapper)
+**Live Capabilities**:
+- ✅ Knowledge base dropdown from user's available bases
+- ✅ Variable interpolation in queries (`{{input}}`, `{{node.output.path}}`)
+- ✅ Configurable Top-K (1-20 slider)
+- ✅ Confidence threshold filtering
+- ✅ Reranking toggle
+- ✅ Hybrid search toggle
+- ✅ Metadata inclusion toggle
+- ✅ Returns structured chunks with relevance scores
 
 ---
 
-#### **2. Tools/Functions API** ✅ **FULLY AVAILABLE**
+#### **2. Web Search/Retrieval API** ✅ **IMPLEMENTED**
+
+**Backend**: `/api/v1/retrieval/`
+
+**Available Endpoints**:
+- `POST /retrieval/process/web/search` - Web search with configurable engines
+- `POST /retrieval/process/web` - URL scraping and content extraction
+- `POST /retrieval/query/collection` - Query search result collections
+
+**Implementation Status**: ✅ **COMPLETE**
+
+**Implemented Features**:
+```typescript
+interface WebSearchNodeData {
+  query: string;           // Search query OR URL (auto-detected)
+  maxResults?: number;     // Max search results (1-20, default: 5)
+}
+```
+
+**Live Capabilities**:
+- ✅ Dual mode: Search queries OR direct URL scraping
+- ✅ Variable interpolation (`{{input}}`, `{{loop.output.value.url}}`)
+- ✅ Configurable max results (1-20 slider)
+- ✅ Returns structured array with title/url/content/snippet/metadata
+- ✅ Perfect integration with Loop node for batch processing
+- ✅ Full text content extraction from web pages
+
+---
+
+### 🔄 APIs Available for Future Nodes
+
+#### **3. Tools/Functions API** ⭐ **READY TO INTEGRATE**
 
 **Backend**: `/api/v1/tools/`
 
@@ -249,38 +326,43 @@ After reviewing the Open WebUI backend, here are the **existing APIs we can leve
 **Frontend APIs**: 
 - `src/lib/apis/tools/index.ts` - Full tool management
 
-**What We Can Build**:
+**Proposed Implementation**:
 ```typescript
-// Tool/Function Node
-{
-  toolId: string;             // Select from available tools
-  parameters: Record<string, any>; // Tool-specific params
-  userValves: Record<string, any>; // User configuration
-  timeout: number;            // Execution timeout
+interface ToolNodeData {
+  toolId: string;                  // Select from available tools
+  toolName?: string;               // Display name
+  parameters: Record<string, any>; // Tool-specific inputs (dynamic)
+  userValves?: Record<string, any>; // User configuration
+  timeout?: number;                // Execution timeout (ms)
 }
 ```
 
-**Capabilities**:
-- ✅ List available tools
-- ✅ Execute tools with parameters
-- ✅ User-configurable valves (API keys, settings)
-- ✅ Tool specifications (auto-generate UI)
-- ✅ OpenAPI server integration
-- ✅ MCP server support
-- ✅ Error handling
+**Available Capabilities**:
+- ⏳ List available tools (local + OpenAPI + MCP)
+- ⏳ Execute tools with parameters
+- ⏳ User-configurable valves (API keys, settings)
+- ⏳ Dynamic parameter form generation from tool specs
+- ⏳ OpenAPI server integration
+- ⏳ MCP server support
+- ⏳ Error handling and timeout protection
 
 **Tool Examples from Open WebUI**:
-- Web scraping
-- API calls
-- Database queries
-- File operations
-- Custom Python/JS functions
+- Web scraping and crawling
+- External API calls
+- Database queries (SQL, NoSQL)
+- File operations and processing
+- Custom Python/JavaScript functions
+- Weather, news, stock APIs
+- Email sending
+- Much more...
 
-**Implementation Complexity**: **MEDIUM** ⚡ (Need tool parameter UI builder)
+**Implementation Complexity**: **MEDIUM** ⚡  
+**Blockers**: Need dynamic parameter UI builder based on tool specs  
+**Priority**: ⭐⭐⭐ HIGH (Opens unlimited extensibility)
 
 ---
 
-#### **3. Additional APIs Available**
+#### **4. Additional APIs Available**
 
 **Files API** (`/api/v1/files/`):
 - Upload files
@@ -304,127 +386,62 @@ After reviewing the Open WebUI backend, here are the **existing APIs we can leve
 
 ---
 
-### Feasibility Assessment
+### API Integration Status
 
 | Node Type | API Available | Frontend Client | Complexity | Priority | Status |
 |-----------|--------------|-----------------|------------|----------|---------|
-| **Knowledge/RAG** | ✅ Complete | ✅ Ready | 🟢 LOW | ⭐⭐⭐ High | Ready to implement |
-| **Tool/Function** | ✅ Complete | ✅ Ready | 🟡 MEDIUM | ⭐⭐⭐ High | Ready to implement |
-| **HTTP Request** | ⚠️ Can use Tools | ⚠️ Partial | 🟡 MEDIUM | ⭐⭐ Medium | Use Tool node |
-| **Web Search** | ✅ Complete | ✅ Ready | 🟢 LOW | ⭐⭐ Medium | Ready to implement |
-| **File Upload** | ✅ Complete | ✅ Ready | 🟢 LOW | ⭐ Low | Ready to implement |
-| **Database** | ⚠️ Via Tools | ⚠️ Via Tools | 🔴 HIGH | ⭐ Low | Implement via Tool node |
-| **Code Execution** | ⚠️ Via Tools | ⚠️ Via Tools | 🔴 HIGH | ⭐ Low | Implement via Tool node |
+| **Knowledge/RAG** | ✅ Complete | ✅ Ready | 🟢 LOW | ⭐⭐⭐ High | ✅ **IMPLEMENTED** |
+| **Web Search** | ✅ Complete | ✅ Ready | 🟢 LOW | ⭐⭐⭐ High | ✅ **IMPLEMENTED** |
+| **Tool/Function** | ✅ Complete | ✅ Ready | 🟡 MEDIUM | ⭐⭐⭐ High | 🔄 Next priority |
+| **HTTP Request** | ⚠️ Can use Tools | ⚠️ Partial | 🟡 MEDIUM | ⭐⭐ Medium | ⏳ Use Tool node |
+| **File Upload** | ✅ Complete | ✅ Ready | 🟢 LOW | ⭐⭐ Medium | 🔄 Enhancement |
+| **Prompts** | ✅ Complete | ✅ Ready | 🟢 LOW | ⭐ Low | ⏳ Future |
+| **Database** | ⚠️ Via Tools | ⚠️ Via Tools | 🔴 HIGH | ⭐ Low | ⏳ Via Tool node |
+| **Code Execution** | ⚠️ Via Tools | ⚠️ Via Tools | 🔴 HIGH | ⭐ Low | ⏳ Via Tool node |
 
 ---
 
-### Recommended New Nodes (API-Ready)
+### Implementation Summary
 
-#### **Phase 2A: Knowledge & Tools Integration** 🎯
+#### **✅ COMPLETED PHASES**
 
-##### **1. Knowledge/RAG Node** 
-**Priority**: ⭐⭐⭐ **HIGHEST**
+**Phase 1: Foundation** ✅ DONE
+1. ✅ Conditional Node (6 operators, variable interpolation)
+2. ✅ Loop Node (count/array/until, EACH/DONE handles)
+3. ✅ Merge Node (4 strategies)
 
-```typescript
-interface KnowledgeNodeData extends BaseNodeData {
-  knowledgeBaseId: string;      // Required: Knowledge base to query
-  query: string;                 // Query text (supports {{input}})
-  topK: number;                  // Number of results (default: 4)
-  confidenceThreshold?: number;  // Minimum similarity score
-  useReranking?: boolean;        // Enable reranking
-  hybridSearch?: boolean;        // Use hybrid search
-  includeMetadata?: boolean;     // Include source metadata
-}
-```
-
-**UI Features**:
-- Dropdown to select knowledge base
-- Query text area with variable support
-- Slider for topK (1-20)
-- Checkboxes for reranking/hybrid search
-- Display retrieved chunks in output
-
-**Execution Logic**:
-1. Interpolate query variables
-2. Call `/retrieval/query/collection`
-3. Return formatted results with sources
-4. Display relevance scores
-
-**Value**: Enables RAG workflows in visual flows!
+**Phase 2A: Core API Integration** ✅ DONE  
+4. ✅ Knowledge/RAG Node (full RAG capabilities)
+5. ✅ Web Search Node (search + URL scraping)
 
 ---
 
-##### **2. Tool/Function Node**
-**Priority**: ⭐⭐⭐ **HIGHEST**
+#### **🔄 IN PROGRESS / NEXT PHASES**
 
-```typescript
-interface ToolNodeData extends BaseNodeData {
-  toolId: string;                // Required: Tool to execute
-  toolName?: string;             // Display name
-  parameters: Record<string, any>; // Tool inputs
-  userValves?: Record<string, any>; // User configuration
-  timeout?: number;              // Execution timeout (ms)
-}
-```
+**Phase 2B: Power User Features** 🔄 NEXT (Priority)
+6. 🔧 **Tool/Function Node** - Execute tools (3-4 days)
+7. 🔄 **Transform Node Enhancements** - JSON/Array/Math ops (2-3 days)
+8. ⚡ **Split/Fork Node** - Parallel execution (1-2 days)
+9. 🤖 **Model Node Enhancements** - Multi-model, fallback (2-3 days)
 
-**UI Features**:
-- Dropdown to select tool (loads from API)
-- **Dynamic parameter form** (generated from tool spec)
-- User valves configuration panel
-- Timeout setting
+**Phase 3: Advanced Features** ⏳ FUTURE
+10. 📁 File operations node (upload/download/process)
+11. 📝 Prompt library integration
+12. 🔀 Advanced conditionals (AND/OR logic)
+13. 📊 Aggregation node (statistics)
 
-**Execution Logic**:
-1. Resolve tool ID
-2. Load tool module
-3. Execute with parameters
-4. Handle timeout/errors
-5. Return tool output
-
-**Value**: Extends flows with custom functions!
+**Phase 4: Specialized** ⏳ FUTURE
+14. ⏱️ Delay/Wait node
+15. ✅ Validation node
+16. 🔍 Filter node
 
 ---
 
-##### **3. Web Search Node**
-**Priority**: ⭐⭐ **HIGH**
-
-```typescript
-interface WebSearchNodeData extends BaseNodeData {
-  query: string;                 // Search query
-  engine?: string;               // Search engine (default from config)
-  maxResults?: number;           // Max search results
-  processContent?: boolean;      // Extract and process page content
-}
-```
-
-**Value**: Enables web-augmented AI workflows!
-
 ---
 
-### Updated Implementation Roadmap
+## Technical Implementation Notes
 
-#### **Phase 1: Complete Foundation** (2-3 days)
-1. ✅ Conditional Node
-2. ✅ Loop Node  
-3. ✅ Merge Node
-
-#### **Phase 2A: API Integration** (3-4 days) 🆕
-4. ✅ **Knowledge/RAG Node** - Semantic search
-5. ✅ **Tool/Function Node** - Execute tools
-6. ✅ **Web Search Node** - Internet search
-
-#### **Phase 2B: Power User Features** (2-3 days)
-7. ✅ Transform enhancements (JSON/Array ops)
-8. ✅ Split/Fork Node - Parallel execution
-9. ✅ Model enhancements (multi-model, fallback)
-
-#### **Phase 3: Advanced** (4-5 days)
-10. ✅ File operations node
-11. ✅ Prompt library integration
-12. ✅ Advanced conditionals
-
----
-
-### Architecture Considerations
+### Architecture Patterns Used
 
 #### **Security** 🔒
 - **Knowledge access**: Already enforced by backend (user permissions)
@@ -446,63 +463,122 @@ interface WebSearchNodeData extends BaseNodeData {
 
 ---
 
-### Example Workflows Enabled
+### Advanced Workflow Examples
 
-#### **1. RAG-Enhanced Chat**
-```
-Input Node → Knowledge Node (query docs) → Model Node (with context) → Output Node
-```
+These workflows are **currently possible** with the implemented nodes:
 
-#### **2. Multi-Knowledge Agent**
+#### **1. Multi-Source Research Agent**
 ```
-Input → Split → [Knowledge A, Knowledge B, Knowledge C] → Merge → Model → Output
-```
-
-#### **3. Tool-Augmented Workflow**
-```
-Input → Model (plan) → Tool Node (API call) → Model (process) → Output
-```
-
-#### **4. Web Research Pipeline**
-```
-Input → Web Search → Knowledge (store) → Model (analyze) → Output
+Input (topic) 
+  → Web Search (search topic)
+    → Loop EACH (for each result)
+      → Web Search (fetch URL content)
+      → Transform (extract key info)
+    → Loop DONE
+  → Knowledge (query local docs)
+→ Merge (combine sources)
+→ Model (synthesize answer)
+→ Output
 ```
 
-#### **5. Dynamic Function Calling**
+#### **2. Conditional RAG Pipeline**
 ```
-Input → Model (detect intent) → Conditional → [Tool A, Tool B] → Merge → Output
+Input (question)
+→ Model (classify question type)
+→ Conditional (check category)
+  TRUE → Knowledge (technical docs)
+  FALSE → Knowledge (general knowledge)
+→ Model (answer with context)
+→ Output
+```
+
+#### **3. Batch Vision Processing**
+```
+Input (array of image IDs)
+→ Loop EACH (for each image)
+  → Model (vision: analyze image)
+  → Web Search (search based on description)
+  → Transform (extract relevant data)
+→ Loop DONE
+→ Output (accumulated results)
+```
+
+#### **4. Multi-KB Synthesis**
+```
+Input (query)
+→ [Knowledge A, Knowledge B, Knowledge C] (parallel queries)
+→ Merge (concat with separator)
+→ Model (synthesize from all sources)
+→ Output
+```
+
+#### **5. Iterative Refinement Loop**
+```
+Input (draft)
+→ Loop (count=3)
+  EACH:
+    → Model (critique and improve)
+    → Transform (extract improvements)
+  DONE:
+    → Output (final refined version)
 ```
 
 ---
 
-### Conclusion: API Readiness ✅
-
-**All required APIs exist and are production-ready!** 
-
-The Open WebUI backend provides:
-- ✅ Complete Knowledge/RAG system with vector DB
-- ✅ Comprehensive Tools framework (local + OpenAPI + MCP)
-- ✅ File management
-- ✅ Web search integration
-- ✅ Access control and security
-
-**We can immediately implement**:
-1. **Knowledge/RAG Node** - Leverage existing vector DB
-2. **Tool/Function Node** - Use tools framework
-3. **Web Search Node** - Use retrieval API
-
-**Implementation is straightforward** because:
-- Frontend API clients already exist
-- Backend handles all heavy lifting
-- Security/auth already implemented
-- Just need to create node UI wrappers
-
-**Recommendation**: Start with **Knowledge Node** (simplest, highest value), then **Tool Node** (more complex UI), then **Web Search** (bonus feature).
-
 ---
 
-**Next Steps**: Which node should we implement first?
-1. 🎯 **Knowledge/RAG Node** (semantic search, easiest win)
-2. 🔧 **Tool/Function Node** (most powerful, medium complexity)
-3. 🌐 **Web Search Node** (internet access, quick add-on)
-4. 🔄 **Complete Phase 1 first** (Conditional/Loop/Merge)
+## Summary & Next Steps
+
+### ✅ What's Been Achieved
+
+**9 Fully Functional Node Types:**
+1. ✅ Input - Text + media file selection
+2. ✅ Model - AI execution with vision support
+3. ✅ Knowledge - RAG with reranking
+4. ✅ Web Search - Search + URL scraping
+5. ✅ Transform - 6 operations
+6. ✅ Conditional - 6 operators
+7. ✅ Loop - 3 types with EACH/DONE
+8. ✅ Merge - 4 strategies
+9. ✅ Output - 4 formats
+
+**Key Infrastructure:**
+- ✅ Variable interpolation system (`{{input}}`, `{{node.output.path}}`)
+- ✅ Topological execution order
+- ✅ Real-time node status updates
+- ✅ Error handling and abort functionality
+- ✅ Loop iteration tracking
+- ✅ Conditional branching via source handles
+- ✅ Vision model support (image/video)
+- ✅ File upload/download integration
+
+### 🎯 Recommended Next Priorities
+
+**1. Tool/Function Node** (3-4 days)
+- Opens unlimited extensibility
+- Backend API ready
+- Enables HTTP, Database, Code Execution via existing tools
+
+**2. Transform Node Enhancements** (2-3 days)
+- JSON/Array operations
+- Math operations
+- Custom JavaScript execution
+
+**3. Split/Fork Node** (1-2 days)
+- Parallel execution
+- Simple implementation
+- High workflow value
+
+### 📊 Impact Assessment
+
+**Current System:**
+- ⭐⭐⭐⭐⭐ Foundational workflows ✅
+- ⭐⭐⭐⭐ RAG & web integration ✅
+- ⭐⭐⭐ Data processing (limited by Transform)
+- ⭐⭐ External APIs (waiting for Tool node)
+- ⭐ Advanced data manipulation (waiting for Transform enhancements)
+
+**With Phase 2B Complete:**
+- ⭐⭐⭐⭐⭐ All workflow capabilities
+- ⭐⭐⭐⭐⭐ Professional-grade features
+- ⭐⭐⭐⭐⭐ Production-ready for complex use cases
