@@ -1,7 +1,7 @@
 import type { FlowNode, FlowEdge, FlowExecutionContext, FlowExecutionResult } from '$lib/types/flows';
 import { chatCompletion } from '$lib/apis/openai';
 import { uploadFile } from '$lib/apis/files';
-import { queryDoc, processWebSearch } from '$lib/apis/retrieval';
+import { queryDoc, processWebSearch, queryCollection } from '$lib/apis/retrieval';
 import { getKnowledgeById } from '$lib/apis/knowledge';
 import { WEBUI_BASE_URL } from '$lib/constants';
 
@@ -16,6 +16,25 @@ export class FlowExecutor {
 	private onNodeStatusChange?: (nodeId: string, status: string, result?: any) => void;
 	private aborted: boolean = false;
 	private currentController?: AbortController;
+
+	/**
+	 * Smart node result lookup - matches by exact ID or by node type prefix
+	 * e.g., "websearch" will match "websearch_123_abc" if no exact match found
+	 */
+	private getNodeResult(nodeId: string): any | undefined {
+		let result = this.nodeResults.get(nodeId);
+		
+		// If not found by exact ID, try to find by node type prefix
+		if (result === undefined && !nodeId.includes('_')) {
+			for (const [id, res] of this.nodeResults.entries()) {
+				if (id.startsWith(nodeId + '_')) {
+					return res;
+				}
+			}
+		}
+		
+		return result;
+	}
 
 	constructor(
 		nodes: FlowNode[],
@@ -174,6 +193,15 @@ export class FlowExecutor {
 					break;
 				case 'websearch':
 					result = await this.executeWebSearchNode(node, inputs);
+					break;
+				case 'conditional':
+					result = await this.executeConditionalNode(node, inputs);
+					break;
+				case 'loop':
+					result = await this.executeLoopNode(node, inputs);
+					break;
+				case 'merge':
+					result = await this.executeMergeNode(node, inputs);
 					break;
 				default:
 					throw new Error(`Unknown node type: ${node.type}`);
@@ -836,7 +864,7 @@ export class FlowExecutor {
 
 		// Replace {{node_id.output}} patterns with node results
 		query = query.replace(/\{\{\s*([a-zA-Z0-9_-]+)\.output\s*\}\}/g, (match: string, nodeId: string) => {
-			const result = this.nodeResults.get(nodeId);
+			const result = this.getNodeResult(nodeId);
 			if (result !== undefined) {
 				return typeof result === 'string' ? result : JSON.stringify(result);
 			}
@@ -925,10 +953,11 @@ export class FlowExecutor {
 		}
 
 		console.log('=== Web Search Node Execution ===');
-		console.log('Query template:', data.query);
+		console.log('Node data:', data);
 
-		// Interpolate query with inputs
-		let query = data.query;
+		// Get query with variable interpolation
+		let query = data.query || '';
+		const maxResults = data.maxResults || 5;
 		
 		// Replace {{input}} with the first input
 		if (inputs.length > 0) {
@@ -938,7 +967,7 @@ export class FlowExecutor {
 
 		// Replace {{node_id.output}} patterns with node results
 		query = query.replace(/\{\{\s*([a-zA-Z0-9_-]+)\.output\s*\}\}/g, (match: string, nodeId: string) => {
-			const result = this.nodeResults.get(nodeId);
+			const result = this.getNodeResult(nodeId);
 			if (result !== undefined) {
 				return typeof result === 'string' ? result : JSON.stringify(result);
 			}
@@ -953,27 +982,67 @@ export class FlowExecutor {
 			
 			// Perform web search - Note: processWebSearch expects query and optional collection_name
 			// We'll let it create a temporary collection automatically by passing undefined
-			const result = await processWebSearch(token, query, undefined);
+			const searchResult = await processWebSearch(token, query, undefined);
 			
-			console.log('Web search result:', result);
+			console.log('Web search result:', searchResult);
 
-			if (!result) {
+			if (!searchResult || !searchResult.status) {
 				throw new Error('No search results returned');
 			}
 
-			// The result contains the search results
-			// Format as a string for easy use in downstream nodes
-			const resultText = result.filenames && result.filenames.length > 0
-				? `Web search found ${result.filenames.length} results for "${query}":\n${result.filenames.join('\n')}`
-				: `No results found for "${query}"`;
+			// Try to query the collection to get the actual documents with metadata
+			let results: any[] = [];
+			
+			try {
+				const collectionResult = await queryCollection(
+					token,
+					searchResult.collection_name,
+					query,
+					maxResults || 5
+				);
 
-			// Return formatted result
+				console.log('Collection query result:', collectionResult);
+
+				// Extract structured results with URLs
+				if (collectionResult?.documents?.[0]) {
+					results = collectionResult.documents[0].map((doc: any, index: number) => {
+						const metadata = collectionResult?.metadatas?.[0]?.[index] || {};
+						return {
+							title: metadata.title || metadata.source || `Result ${index + 1}`,
+							url: metadata.source || metadata.url || '',
+							content: doc || '',
+							snippet: doc ? doc.substring(0, 200) + '...' : '',
+							metadata: metadata
+						};
+					});
+				}
+			} catch (collectionError) {
+				console.warn('Collection query failed, using filenames only:', collectionError);
+				// Fallback: use filenames from search result
+				results = (searchResult.filenames || []).map((filename: string, index: number) => ({
+					title: filename,
+					url: filename,
+					content: '',
+					snippet: filename,
+					metadata: { source: filename }
+				}));
+			}
+
+			console.log('Structured results:', results);
+
+			// Return both structured array and formatted text
 			return {
 				query: query,
-				filenames: result.filenames || [],
-				collection_name: result.collection_name,
-				status: result.status,
-				text: resultText
+				results: results, // Array for looping
+				count: results.length,
+				collection_name: searchResult.collection_name,
+				// Formatted text for direct use
+				text: results.length > 0
+					? `Found ${results.length} results:\n\n` + 
+					  results.map((r: any, i: number) => 
+						`${i + 1}. ${r.title}\n   URL: ${r.url}\n   ${r.snippet}`
+					  ).join('\n\n')
+					: `No results found for "${query}"`
 			};
 		} catch (error) {
 			console.error('Web search error:', error);
@@ -987,6 +1056,242 @@ export class FlowExecutor {
 				errorMessage = error;
 			}
 			throw new Error(`Web search failed: ${errorMessage}`);
+		}
+	}
+
+	private async executeConditionalNode(node: FlowNode, inputs: any[]): Promise<any> {
+		const data = node.data as any;
+		
+		console.log('=== Conditional Node Execution ===');
+		console.log('Condition:', data.condition);
+		console.log('Operator:', data.operator);
+		console.log('Compare value:', data.compareValue);
+
+		// Get condition value (with variable interpolation)
+		let conditionValue = data.condition || '';
+		
+		// Replace {{input}} with first input
+		if (inputs.length > 0) {
+			const inputStr = typeof inputs[0] === 'string' ? inputs[0] : JSON.stringify(inputs[0]);
+			conditionValue = conditionValue.replace(/\{\{\s*input\s*\}\}/g, inputStr);
+		}
+
+		// Replace {{node_id.output}} patterns
+		conditionValue = conditionValue.replace(/\{\{\s*([a-zA-Z0-9_-]+)\.output\s*\}\}/g, (match: string, nodeId: string) => {
+			const result = this.getNodeResult(nodeId);
+			if (result !== undefined) {
+				return typeof result === 'string' ? result : JSON.stringify(result);
+			}
+			return match;
+		});
+
+		const compareValue = data.compareValue || '';
+		const operator = data.operator || 'equals';
+
+		console.log('Evaluated condition value:', conditionValue);
+		console.log('Comparing against:', compareValue);
+
+		// Evaluate condition
+		let result = false;
+		try {
+			switch (operator) {
+				case 'equals':
+					result = conditionValue === compareValue;
+					break;
+				case 'not_equals':
+					result = conditionValue !== compareValue;
+					break;
+				case 'contains':
+					result = conditionValue.includes(compareValue);
+					break;
+				case 'greater':
+					result = parseFloat(conditionValue) > parseFloat(compareValue);
+					break;
+				case 'less':
+					result = parseFloat(conditionValue) < parseFloat(compareValue);
+					break;
+				case 'regex':
+					const regex = new RegExp(compareValue);
+					result = regex.test(conditionValue);
+					break;
+				default:
+					result = false;
+			}
+		} catch (error) {
+			console.error('Condition evaluation error:', error);
+			throw new Error(`Failed to evaluate condition: ${(error as Error).message}`);
+		}
+
+		console.log('Condition result:', result);
+
+		return {
+			condition: conditionValue,
+			result: result,
+			branch: result ? 'true' : 'false'
+		};
+	}
+
+	private async executeLoopNode(node: FlowNode, inputs: any[]): Promise<any> {
+		const data = node.data as any;
+		
+		console.log('=== Loop Node Execution ===');
+		console.log('Loop type:', data.loopType);
+		console.log('Max iterations:', data.maxIterations);
+
+		const loopType = data.loopType || 'count';
+		const maxIterations = data.maxIterations || 5;
+		const results: any[] = [];
+
+		try {
+			if (loopType === 'count') {
+				// Simple count loop
+				for (let i = 0; i < maxIterations; i++) {
+					console.log(`Loop iteration ${i + 1}/${maxIterations}`);
+					results.push({
+						iteration: i,
+						value: inputs[0] // Pass through input
+					});
+				}
+			} else if (loopType === 'array') {
+				// Loop over array
+				let arrayPath = data.arrayPath || '{{input}}';
+				
+				console.log('Original array path:', arrayPath);
+				
+				// Interpolate array path
+				let array: any;
+				
+				if (arrayPath === '{{input}}' && inputs.length > 0) {
+					array = inputs[0];
+				} else if (arrayPath.includes('{{')) {
+					// Handle template syntax: {{node_id.output.path.to.array}}
+					const templateMatch = arrayPath.match(/\{\{\s*([a-zA-Z0-9_-]+)\.output(\.[\w.]+)?\s*\}\}/);
+					
+					if (templateMatch) {
+						const nodeId = templateMatch[1];
+						const path = templateMatch[2];
+						
+						console.log(`Interpolating: nodeId=${nodeId}, path=${path || ''}`);
+						
+						const result = this.getNodeResult(nodeId);
+						
+						if (result === undefined) {
+							throw new Error(`Node ${nodeId} not found in results. Available nodes: ${Array.from(this.nodeResults.keys()).join(', ')}`);
+						}
+						
+						console.log('Node result:', result);
+						
+						// If there's a path after .output, navigate to it
+						if (path) {
+							const keys = path.substring(1).split('.'); // Remove leading dot and split
+							let value = result;
+							for (const key of keys) {
+								if (value && typeof value === 'object' && key in value) {
+									value = value[key];
+								} else {
+									throw new Error(`Path ${key} not found in result at ${keys.slice(0, keys.indexOf(key) + 1).join('.')}`);
+								}
+							}
+							array = value;
+						} else {
+							array = result;
+						}
+						
+						console.log('Extracted value:', array);
+					} else {
+						throw new Error(`Invalid array path template: ${arrayPath}`);
+					}
+				} else {
+					// Try to parse as JSON or split
+					try {
+						array = JSON.parse(arrayPath);
+					} catch {
+						array = arrayPath.split(/[\n,]/).map((s: string) => s.trim()).filter(Boolean);
+					}
+				}
+
+				console.log('Resolved array:', array);
+
+				if (!Array.isArray(array)) {
+					throw new Error(`Loop array must be an array. Got: ${typeof array}. Value: ${JSON.stringify(array)}`);
+				}
+
+				console.log(`Looping over array with ${array.length} items`);
+				for (let i = 0; i < Math.min(array.length, maxIterations); i++) {
+					results.push({
+						iteration: i,
+						value: array[i]
+					});
+				}
+			} else if (loopType === 'until') {
+				// Loop until condition (simplified - just use max iterations for now)
+				for (let i = 0; i < maxIterations; i++) {
+					results.push({
+						iteration: i,
+						value: inputs[0]
+					});
+					// TODO: Implement break condition evaluation
+				}
+			}
+
+			console.log(`Loop completed with ${results.length} iterations`);
+
+			return {
+				iterations: results.length,
+				results: results
+			};
+		} catch (error) {
+			console.error('Loop execution error:', error);
+			throw new Error(`Loop failed: ${(error as Error).message}`);
+		}
+	}
+
+	private async executeMergeNode(node: FlowNode, inputs: any[]): Promise<any> {
+		const data = node.data as any;
+		
+		console.log('=== Merge Node Execution ===');
+		console.log('Strategy:', data.strategy);
+		console.log('Inputs:', inputs);
+
+		const strategy = data.strategy || 'concat';
+		const separator = data.separator || '\n';
+
+		try {
+			let result: any;
+
+			switch (strategy) {
+				case 'concat':
+					// Concatenate all inputs as strings
+					result = inputs
+						.map(input => typeof input === 'string' ? input : JSON.stringify(input))
+						.join(separator.replace(/\\n/g, '\n'));
+					break;
+				
+				case 'array':
+					// Combine as array
+					result = inputs;
+					break;
+				
+				case 'first':
+					// Take first input
+					result = inputs[0];
+					break;
+				
+				case 'last':
+					// Take last input
+					result = inputs[inputs.length - 1];
+					break;
+				
+				default:
+					result = inputs[0];
+			}
+
+			console.log('Merge result:', result);
+
+			return result;
+		} catch (error) {
+			console.error('Merge execution error:', error);
+			throw new Error(`Merge failed: ${(error as Error).message}`);
 		}
 	}
 }

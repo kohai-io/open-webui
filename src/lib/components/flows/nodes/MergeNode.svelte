@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Handle, Position } from '@xyflow/svelte';
-	import type { WebSearchNodeData } from '$lib/types/flows';
+	import type { MergeNodeData } from '$lib/types/flows';
 	
-	export let data: WebSearchNodeData;
+	export let data: MergeNodeData;
 	export let selected = false;
 	
 	const getStatusColor = (status?: string) => {
@@ -14,34 +14,43 @@
 			case 'error':
 				return 'border-red-500 bg-red-50 dark:bg-red-900/20';
 			default:
-				return 'border-cyan-300 dark:border-cyan-600 bg-white dark:bg-gray-800';
+				return 'border-yellow-300 dark:border-yellow-600 bg-white dark:bg-gray-800';
 		}
 	};
 </script>
 
 <div
-	class="websearch-node min-w-[200px] rounded-lg border-2 transition-all shadow-md hover:shadow-lg {getStatusColor(
+	class="merge-node min-w-[200px] rounded-lg border-2 transition-all shadow-md hover:shadow-lg {getStatusColor(
 		data.status
-	)} {selected ? 'ring-2 ring-cyan-500' : ''}"
+	)} {selected ? 'ring-2 ring-yellow-500' : ''}"
 >
-	<!-- Input Handle -->
+	<!-- Multiple Input Handles -->
 	<Handle
 		type="target"
 		position={Position.Left}
-		class="!bg-cyan-500"
+		id="input-1"
+		style="top: 33%"
+		class="!bg-yellow-500"
+	/>
+	<Handle
+		type="target"
+		position={Position.Left}
+		id="input-2"
+		style="top: 67%"
+		class="!bg-yellow-500"
 	/>
 	
 	<!-- Node Header -->
 	<div class="node-header p-3 border-b border-gray-200 dark:border-gray-700">
 		<div class="flex items-center gap-2">
-			<div class="text-2xl">🌐</div>
+			<div class="text-2xl">🔗</div>
 			<div class="flex-1">
 				<div class="font-semibold text-gray-900 dark:text-gray-100">
-					{data.label || 'Web Search'}
+					{data.label || 'Merge'}
 				</div>
-				{#if data.engine}
-					<div class="text-xs text-gray-500 dark:text-gray-400">
-						{data.engine}
+				{#if data.strategy}
+					<div class="text-xs text-gray-500 dark:text-gray-400 capitalize">
+						{data.strategy}
 					</div>
 				{/if}
 			</div>
@@ -81,21 +90,21 @@
 	
 	<!-- Node Body -->
 	<div class="node-body p-3">
-		{#if data?.query}
+		{#if data.strategy}
 			<div class="text-xs text-gray-600 dark:text-gray-400">
-				<div class="mb-1">
-					<span class="font-medium">Query:</span>
-					<div class="line-clamp-2 mt-1">{data.query}</div>
+				<div class="flex items-center gap-2">
+					<span class="font-medium">Strategy:</span>
+					<span class="capitalize">{data.strategy}</span>
 				</div>
-				{#if data.maxResults}
-					<div class="text-xs text-gray-500 dark:text-gray-500 mt-1">
-						Max {data.maxResults} results
+				{#if data.strategy === 'concat' && data.separator}
+					<div class="mt-1 text-gray-500 dark:text-gray-500">
+						Separator: "{data.separator}"
 					</div>
 				{/if}
 			</div>
 		{:else}
 			<div class="text-xs text-gray-400 dark:text-gray-500 italic">
-				Configure web search...
+				Configure merge strategy...
 			</div>
 		{/if}
 		
@@ -108,17 +117,8 @@
 		{#if data?.result && data.status === 'success'}
 			<div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
 				<div class="text-xs text-gray-500 dark:text-gray-400">
-					{#if data.result.count}
-						Found {data.result.count} result{data.result.count !== 1 ? 's' : ''}
-					{:else}
-						Search completed
-					{/if}
+					Merged successfully
 				</div>
-				{#if data.result.results && data.result.results.length > 0}
-					<div class="mt-1 text-xs text-gray-600 dark:text-gray-300">
-						<div class="font-medium">Results array ready for looping</div>
-					</div>
-				{/if}
 			</div>
 		{/if}
 	</div>
@@ -127,15 +127,6 @@
 	<Handle
 		type="source"
 		position={Position.Right}
-		class="!bg-cyan-500"
+		class="!bg-yellow-500"
 	/>
 </div>
-
-<style>
-	.line-clamp-2 {
-		display: -webkit-box;
-		-webkit-line-clamp: 2;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
-	}
-</style>

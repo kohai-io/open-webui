@@ -620,8 +620,20 @@
 			</div>
 			
 			<div class="p-3 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg border border-cyan-200 dark:border-cyan-800">
-				<p class="text-xs text-gray-700 dark:text-gray-300">
-					<strong>Note:</strong> Web search uses the configured search engine in your Open WebUI settings. Results are stored in a temporary collection and can be queried by downstream nodes.
+				<p class="text-xs text-gray-700 dark:text-gray-300 mb-2">
+					<strong>Output Structure:</strong> Returns an array of results, each with:
+				</p>
+				<ul class="text-xs text-gray-600 dark:text-gray-400 list-disc list-inside space-y-1">
+					<li><code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">title</code> - Page title</li>
+					<li><code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">url</code> - Source URL</li>
+					<li><code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">content</code> - Full content</li>
+					<li><code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">snippet</code> - Short preview</li>
+				</ul>
+				<p class="text-xs text-gray-700 dark:text-gray-300 mt-2">
+					<strong>Loop over results:</strong> Use <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{'}{'{'} websearch.output.results {'}'}{'}'}</code> in Loop node
+				</p>
+				<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+					💡 You can use node type (e.g., <code>websearch</code>) instead of full ID
 				</p>
 			</div>
 		{:else if node.type === 'transform'}
@@ -735,6 +747,235 @@
 					</p>
 				</div>
 			{/if}
+		{:else if node.type === 'conditional'}
+			<!-- Conditional Node Config -->
+			<div>
+				<label for="conditional-condition" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+					Condition Value
+				</label>
+				<textarea
+					id="conditional-condition"
+					value={localData.condition}
+					on:input={(e) => {
+						const target = e.target;
+						if (target instanceof HTMLTextAreaElement) {
+							localData.condition = target.value;
+						}
+					}}
+					on:blur={updateData}
+					placeholder="Enter value to test... Use {'{'}{'{'} input {'}'}{'}'}  to reference previous node"
+					rows="2"
+					class="nopan nodrag nowheel w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+				/>
+			</div>
+			
+			<div>
+				<label for="conditional-operator" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+					Operator
+				</label>
+				<select
+					id="conditional-operator"
+					value={localData.operator || 'equals'}
+					on:change={(e) => {
+						const target = e.target;
+						if (target instanceof HTMLSelectElement) {
+							localData.operator = target.value;
+							updateData();
+						}
+					}}
+					class="nopan nodrag nowheel w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+				>
+					<option value="equals">Equals</option>
+					<option value="not_equals">Not Equals</option>
+					<option value="contains">Contains</option>
+					<option value="greater">Greater Than</option>
+					<option value="less">Less Than</option>
+					<option value="regex">Regex Match</option>
+				</select>
+			</div>
+			
+			<div>
+				<label for="conditional-compare" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+					Compare To
+				</label>
+				<input
+					id="conditional-compare"
+					type="text"
+					value={localData.compareValue}
+					on:input={(e) => {
+						const target = e.target;
+						if (target instanceof HTMLInputElement) {
+							localData.compareValue = target.value;
+						}
+					}}
+					on:blur={updateData}
+					placeholder="Value to compare against"
+					class="nopan nodrag nowheel w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+				/>
+			</div>
+			
+			<div class="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+				<p class="text-xs text-gray-700 dark:text-gray-300">
+					<strong>Flow:</strong> Connect the TRUE output (green) for when condition passes, and FALSE output (red) for when it fails.
+				</p>
+			</div>
+		{:else if node.type === 'loop'}
+			<!-- Loop Node Config -->
+			<div>
+				<label for="loop-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+					Loop Type
+				</label>
+				<select
+					id="loop-type"
+					value={localData.loopType || 'count'}
+					on:change={(e) => {
+						const target = e.target;
+						if (target instanceof HTMLSelectElement) {
+							localData.loopType = target.value;
+							updateData();
+						}
+					}}
+					class="nopan nodrag nowheel w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+				>
+					<option value="count">Count (N times)</option>
+					<option value="array">Array (For Each)</option>
+					<option value="until">Until (Condition)</option>
+				</select>
+			</div>
+			
+			{#if localData.loopType === 'count' || localData.loopType === 'until'}
+				<div>
+					<label for="loop-max" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+						Max Iterations: {localData.maxIterations || 5}
+					</label>
+					<input
+						id="loop-max"
+						type="range"
+						min="1"
+						max="100"
+						value={localData.maxIterations || 5}
+						on:input={(e) => {
+							const target = e.target;
+							if (target instanceof HTMLInputElement) {
+								localData.maxIterations = parseInt(target.value);
+							}
+						}}
+						on:change={updateData}
+						class="nopan nodrag nowheel w-full"
+					/>
+				</div>
+			{/if}
+			
+			{#if localData.loopType === 'array'}
+				<div>
+					<label for="loop-array" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+						Array Path
+					</label>
+					<input
+						id="loop-array"
+						type="text"
+						value={localData.arrayPath}
+						on:input={(e) => {
+							const target = e.target;
+							if (target instanceof HTMLInputElement) {
+								localData.arrayPath = target.value;
+							}
+						}}
+						on:blur={updateData}
+						placeholder="e.g., {'{'}{'{'} input {'}'}{'}'}  or {'{'}{'{'} node_id.output {'}'}{'}'}"
+						class="nopan nodrag nowheel w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+					/>
+					<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+						Path to the array to iterate over
+					</p>
+				</div>
+			{/if}
+			
+			{#if localData.loopType === 'until'}
+				<div>
+					<label for="loop-break" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+						Break Condition
+					</label>
+					<input
+						id="loop-break"
+						type="text"
+						value={localData.breakCondition}
+						on:input={(e) => {
+							const target = e.target;
+							if (target instanceof HTMLInputElement) {
+								localData.breakCondition = target.value;
+							}
+						}}
+						on:blur={updateData}
+						placeholder="e.g., done or complete"
+						class="nopan nodrag nowheel w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+					/>
+				</div>
+			{/if}
+			
+			<div class="p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
+				<p class="text-xs text-gray-700 dark:text-gray-300 mb-2">
+					<strong>EACH</strong> output fires for every iteration. <strong>DONE</strong> output fires when loop completes.
+				</p>
+				<p class="text-xs text-gray-600 dark:text-gray-400">
+					<strong>Tip:</strong> Loop over web search results using <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{'}{'{'} websearch.output.results {'}'}{'}'}</code>
+				</p>
+			</div>
+		{:else if node.type === 'merge'}
+			<!-- Merge Node Config -->
+			<div>
+				<label for="merge-strategy" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+					Merge Strategy
+				</label>
+				<select
+					id="merge-strategy"
+					value={localData.strategy || 'concat'}
+					on:change={(e) => {
+						const target = e.target;
+						if (target instanceof HTMLSelectElement) {
+							localData.strategy = target.value;
+							updateData();
+						}
+					}}
+					class="nopan nodrag nowheel w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+				>
+					<option value="concat">Concatenate (join strings)</option>
+					<option value="array">Array (combine as list)</option>
+					<option value="first">First (take first input)</option>
+					<option value="last">Last (take last input)</option>
+				</select>
+			</div>
+			
+			{#if localData.strategy === 'concat'}
+				<div>
+					<label for="merge-separator" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+						Separator
+					</label>
+					<input
+						id="merge-separator"
+						type="text"
+						value={localData.separator}
+						on:input={(e) => {
+							const target = e.target;
+							if (target instanceof HTMLInputElement) {
+								localData.separator = target.value;
+							}
+						}}
+						on:blur={updateData}
+						placeholder="\\n"
+						class="nopan nodrag nowheel w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+					/>
+					<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+						String to insert between merged values (use \\n for newline)
+					</p>
+				</div>
+			{/if}
+			
+			<div class="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+				<p class="text-xs text-gray-700 dark:text-gray-300">
+					<strong>Note:</strong> Connect multiple nodes to the Merge node inputs. All inputs must complete before merge executes.
+				</p>
+			</div>
 		{:else if node.type === 'output'}
 			<!-- Output Node Config -->
 			<div>

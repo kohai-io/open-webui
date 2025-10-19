@@ -57,20 +57,26 @@ export interface TransformNodeData {
 }
 
 export interface ConditionalNodeData extends BaseNodeData {
-	condition: string;
-	operator: 'equals' | 'contains' | 'greater' | 'less' | 'regex';
-	value: string;
+	condition?: string;
+	operator?: 'equals' | 'contains' | 'greater' | 'less' | 'not_equals' | 'regex';
+	compareValue?: string;
+	trueOutput?: string;
+	falseOutput?: string;
 }
 
 export interface LoopNodeData extends BaseNodeData {
-	maxIterations: number;
+	loopType?: 'count' | 'array' | 'until';
+	maxIterations?: number;
+	arrayPath?: string;
 	currentIteration?: number;
 	breakCondition?: string;
+	results?: any[];
 }
 
 export interface MergeNodeData extends BaseNodeData {
-	strategy: 'concat' | 'first' | 'last' | 'custom';
+	strategy?: 'concat' | 'first' | 'last' | 'array';
 	separator?: string;
+	result?: any;
 }
 
 export interface KnowledgeNodeData extends BaseNodeData {

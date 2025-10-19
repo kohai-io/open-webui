@@ -49,6 +49,27 @@
 			color: 'border-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20'
 		},
 		{
+			type: 'conditional',
+			label: 'Conditional',
+			icon: '🔀',
+			description: 'Branch based on conditions',
+			color: 'border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20'
+		},
+		{
+			type: 'loop',
+			label: 'Loop',
+			icon: '🔁',
+			description: 'Iterate over data',
+			color: 'border-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20'
+		},
+		{
+			type: 'merge',
+			label: 'Merge',
+			icon: '🔗',
+			description: 'Combine multiple inputs',
+			color: 'border-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20'
+		},
+		{
 			type: 'output',
 			label: 'Output',
 			icon: '📤',

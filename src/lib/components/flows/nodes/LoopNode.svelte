@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { Handle, Position } from '@xyflow/svelte';
-	import type { WebSearchNodeData } from '$lib/types/flows';
+	import type { LoopNodeData } from '$lib/types/flows';
 	
-	export let data: WebSearchNodeData;
+	export let data: LoopNodeData;
 	export let selected = false;
 	
 	const getStatusColor = (status?: string) => {
@@ -14,34 +14,34 @@
 			case 'error':
 				return 'border-red-500 bg-red-50 dark:bg-red-900/20';
 			default:
-				return 'border-cyan-300 dark:border-cyan-600 bg-white dark:bg-gray-800';
+				return 'border-indigo-300 dark:border-indigo-600 bg-white dark:bg-gray-800';
 		}
 	};
 </script>
 
 <div
-	class="websearch-node min-w-[200px] rounded-lg border-2 transition-all shadow-md hover:shadow-lg {getStatusColor(
+	class="loop-node min-w-[200px] rounded-lg border-2 transition-all shadow-md hover:shadow-lg {getStatusColor(
 		data.status
-	)} {selected ? 'ring-2 ring-cyan-500' : ''}"
+	)} {selected ? 'ring-2 ring-indigo-500' : ''}"
 >
 	<!-- Input Handle -->
 	<Handle
 		type="target"
 		position={Position.Left}
-		class="!bg-cyan-500"
+		class="!bg-indigo-500"
 	/>
 	
 	<!-- Node Header -->
 	<div class="node-header p-3 border-b border-gray-200 dark:border-gray-700">
 		<div class="flex items-center gap-2">
-			<div class="text-2xl">🌐</div>
+			<div class="text-2xl">🔁</div>
 			<div class="flex-1">
 				<div class="font-semibold text-gray-900 dark:text-gray-100">
-					{data.label || 'Web Search'}
+					{data.label || 'Loop'}
 				</div>
-				{#if data.engine}
-					<div class="text-xs text-gray-500 dark:text-gray-400">
-						{data.engine}
+				{#if data.loopType}
+					<div class="text-xs text-gray-500 dark:text-gray-400 capitalize">
+						{data.loopType} loop
 					</div>
 				{/if}
 			</div>
@@ -81,21 +81,34 @@
 	
 	<!-- Node Body -->
 	<div class="node-body p-3">
-		{#if data?.query}
+		{#if data.loopType}
 			<div class="text-xs text-gray-600 dark:text-gray-400">
-				<div class="mb-1">
-					<span class="font-medium">Query:</span>
-					<div class="line-clamp-2 mt-1">{data.query}</div>
-				</div>
-				{#if data.maxResults}
-					<div class="text-xs text-gray-500 dark:text-gray-500 mt-1">
-						Max {data.maxResults} results
+				{#if data.loopType === 'count'}
+					<div class="flex items-center gap-2">
+						<span class="font-medium">Iterations:</span>
+						<span>{data.maxIterations || 1}</span>
+					</div>
+				{:else if data.loopType === 'array'}
+					<div class="flex items-center gap-2">
+						<span class="font-medium">Array:</span>
+						<span class="truncate">{data.arrayPath || '{{input}}'}</span>
+					</div>
+				{:else if data.loopType === 'until'}
+					<div>
+						<span class="font-medium">Until:</span>
+						<div class="line-clamp-2 mt-1">{data.breakCondition || 'condition met'}</div>
+					</div>
+				{/if}
+				
+				{#if data.currentIteration !== undefined}
+					<div class="mt-2 text-xs text-gray-500 dark:text-gray-500">
+						Current: {data.currentIteration} / {data.maxIterations}
 					</div>
 				{/if}
 			</div>
 		{:else}
 			<div class="text-xs text-gray-400 dark:text-gray-500 italic">
-				Configure web search...
+				Configure loop...
 			</div>
 		{/if}
 		
@@ -105,30 +118,37 @@
 			</div>
 		{/if}
 
-		{#if data?.result && data.status === 'success'}
+		{#if data?.results && data.status === 'success'}
 			<div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
 				<div class="text-xs text-gray-500 dark:text-gray-400">
-					{#if data.result.count}
-						Found {data.result.count} result{data.result.count !== 1 ? 's' : ''}
-					{:else}
-						Search completed
-					{/if}
+					{data.results.length} iteration{data.results.length !== 1 ? 's' : ''} completed
 				</div>
-				{#if data.result.results && data.result.results.length > 0}
-					<div class="mt-1 text-xs text-gray-600 dark:text-gray-300">
-						<div class="font-medium">Results array ready for looping</div>
-					</div>
-				{/if}
 			</div>
 		{/if}
 	</div>
 	
-	<!-- Output Handle -->
+	<!-- Output Handles -->
 	<Handle
 		type="source"
 		position={Position.Right}
-		class="!bg-cyan-500"
+		id="each"
+		style="top: 35%"
+		class="!bg-indigo-500"
 	/>
+	<div class="absolute right-[-8px] top-[35%] transform -translate-y-1/2 translate-x-full ml-2 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 pointer-events-none">
+		EACH
+	</div>
+	
+	<Handle
+		type="source"
+		position={Position.Right}
+		id="done"
+		style="top: 65%"
+		class="!bg-green-500"
+	/>
+	<div class="absolute right-[-8px] top-[65%] transform -translate-y-1/2 translate-x-full ml-2 text-[10px] font-bold text-green-600 dark:text-green-400 pointer-events-none">
+		DONE
+	</div>
 </div>
 
 <style>

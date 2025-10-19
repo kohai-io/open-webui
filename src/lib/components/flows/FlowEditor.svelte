@@ -25,6 +25,9 @@
 	import TransformNode from './nodes/TransformNode.svelte';
 	import KnowledgeNode from './nodes/KnowledgeNode.svelte';
 	import WebSearchNode from './nodes/WebSearchNode.svelte';
+	import ConditionalNode from './nodes/ConditionalNode.svelte';
+	import LoopNode from './nodes/LoopNode.svelte';
+	import MergeNode from './nodes/MergeNode.svelte';
 	
 	// Panels
 	import NodeLibrary from './panels/NodeLibrary.svelte';
@@ -36,7 +39,10 @@
 		output: OutputNode,
 		transform: TransformNode,
 		knowledge: KnowledgeNode,
-		websearch: WebSearchNode
+		websearch: WebSearchNode,
+		conditional: ConditionalNode,
+		loop: LoopNode,
+		merge: MergeNode
 	};
 	
 	let showNodeLibrary = true;
@@ -153,6 +159,29 @@
 					query: '{{input}}',
 					engine: '',
 					maxResults: 5
+				};
+				break;
+			case 'conditional':
+				nodeData = {
+					label: 'Conditional',
+					condition: '{{input}}',
+					operator: 'equals',
+					compareValue: ''
+				};
+				break;
+			case 'loop':
+				nodeData = {
+					label: 'Loop',
+					loopType: 'count',
+					maxIterations: 5,
+					currentIteration: 0
+				};
+				break;
+			case 'merge':
+				nodeData = {
+					label: 'Merge',
+					strategy: 'concat',
+					separator: '\n'
 				};
 				break;
 			case 'transform':
