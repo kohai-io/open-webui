@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { SvelteFlow, Controls, Background, MiniMap, Panel } from '@xyflow/svelte';
 	import { writable } from 'svelte/store';
+	import { createEventDispatcher } from 'svelte';
 	import '@xyflow/svelte/dist/style.css';
 	
 	import {
@@ -17,6 +18,8 @@
 	} from '$lib/stores/flows';
 	
 	import type { FlowNode, FlowEdge, NodeType } from '$lib/types/flows';
+	
+	const dispatch = createEventDispatcher();
 	
 	// Node components
 	import InputNode from './nodes/InputNode.svelte';
@@ -45,8 +48,11 @@
 		merge: MergeNode
 	};
 	
+	export let lastExecutionResults: Record<string, any> = {}; // Passed from parent page
+	
 	let showNodeLibrary = true;
 	let showNodeConfig = false;
+	let viewMode: 'edit' | 'execution' = 'edit'; // Toggle between edit and execution history
 	
 	$: showNodeConfig = $selectedNode !== null;
 	
@@ -57,6 +63,13 @@
 	
 	const handlePaneClick = () => {
 		selectedNode.set(null);
+	};
+	
+	const handleClearResults = () => {
+		// Dispatch event to parent to clear execution results
+		dispatch('clearResults');
+		// Also switch back to edit mode
+		viewMode = 'edit';
 	};
 	
 	const handleConnect = (event: CustomEvent) => {
@@ -287,6 +300,40 @@
 			maskColor="rgb(0, 0, 0, 0.1)"
 		/>
 		
+		<!-- Mode Toggle Panel -->
+		<Panel position="top-center" class="m-4">
+			<div class="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-1">
+				<button
+					on:click={() => viewMode = 'edit'}
+					class="px-4 py-2 rounded-md font-medium transition-all {viewMode === 'edit' 
+						? 'bg-blue-600 text-white shadow-md' 
+						: 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}"
+				>
+					✏️ Edit Mode
+				</button>
+				<button
+					on:click={() => viewMode = 'execution'}
+					class="px-4 py-2 rounded-md font-medium transition-all {viewMode === 'execution' 
+						? 'bg-green-600 text-white shadow-md' 
+						: 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}"
+				>
+					📊 Execution History
+				</button>
+				
+				<!-- Clear Results Button (only show if results exist) -->
+				{#if Object.keys(lastExecutionResults).length > 0}
+					<div class="w-px h-6 bg-gray-300 dark:bg-gray-600"></div>
+					<button
+						on:click={handleClearResults}
+						class="px-3 py-2 rounded-md font-medium text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all flex items-center gap-1"
+						title="Clear execution results"
+					>
+						🗑️ Clear Results
+					</button>
+				{/if}
+			</div>
+		</Panel>
+		
 		<!-- Top Panel with Add Node Button -->
 		<Panel position="top-left" class="m-4">
 			<button
@@ -347,6 +394,8 @@
 				node={$selectedNode}
 				nodes={$flowNodes}
 				edges={$flowEdges}
+				{viewMode}
+				executionResult={lastExecutionResults[$selectedNode.id]}
 				on:update={(e) => updateNodeData($selectedNode.id, e.detail)}
 				on:delete={() => handleNodeDelete($selectedNode.id)}
 				on:close={() => selectedNode.set(null)}

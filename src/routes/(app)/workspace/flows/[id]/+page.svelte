@@ -19,6 +19,7 @@
 	let executing = false;
 	let currentExecutor: FlowExecutor | null = null;
 	let showHistory = false;
+	let lastExecutionResults: Record<string, any> = {}; // Store execution results for each node
 
 	$: flowId = $page.params.id || '';
 
@@ -163,6 +164,9 @@
 				console.error('Failed to save execution history:', saveError);
 				// Don't show error to user - execution history is not critical
 			}
+			
+			// Store execution results for each node
+			lastExecutionResults = result.nodeResults || {};
 			
 			if (result.status === 'success') {
 				toast.success(`Flow executed successfully in ${(result.executionTime / 1000).toFixed(2)}s`);
@@ -341,7 +345,10 @@
 		<!-- Flow Editor with History Panel -->
 		<div class="flex-1 flex overflow-hidden">
 			<div class="flex-1">
-				<FlowEditor />
+				<FlowEditor 
+					{lastExecutionResults} 
+					on:clearResults={() => lastExecutionResults = {}}
+				/>
 			</div>
 			{#if showHistory}
 				<div class="w-96">

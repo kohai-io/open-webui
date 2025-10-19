@@ -405,31 +405,8 @@ export class FlowExecutor {
 			prompt = prompt.replace(/\{\{\s*input\s*\}\}/g, '').trim();
 		}
 
-		// Replace {{node_id.output.path}} patterns with node results
-		prompt = prompt.replace(/\{\{\s*([a-zA-Z0-9_-]+)\.output(\.[\w.]+)?\s*\}\}/g, (match: string, nodeId: string, path: string) => {
-			const result = this.getNodeResult(nodeId);
-			if (result === undefined) {
-				console.warn(`Node ${nodeId} not found for interpolation, keeping placeholder`);
-				return match;
-			}
-			
-			// If there's a path after .output, navigate to it
-			if (path) {
-				const keys = path.substring(1).split('.'); // Remove leading dot and split
-				let value = result;
-				for (const key of keys) {
-					if (value && typeof value === 'object' && key in value) {
-						value = value[key];
-					} else {
-						console.warn(`Path ${key} not found in ${nodeId} result`);
-						return match;
-					}
-				}
-				return typeof value === 'string' ? value : JSON.stringify(value);
-			}
-			
-			return typeof result === 'string' ? result : JSON.stringify(result);
-		});
+		// Use universal variable interpolation
+		prompt = this.interpolateVariables(prompt, inputs);
 
 		// Prompt should now contain the file path if we have images
 		if (!prompt) {
@@ -1006,37 +983,8 @@ export class FlowExecutor {
 		let query = data.query || '';
 		const maxResults = data.maxResults || 5;
 		
-		// Replace {{input}} with the first input
-		if (inputs.length > 0) {
-			const inputStr = typeof inputs[0] === 'string' ? inputs[0] : JSON.stringify(inputs[0]);
-			query = query.replace(/\{\{\s*input\s*\}\}/g, inputStr);
-		}
-
-		// Replace {{node_id.output.path}} patterns with node results (support nested paths)
-		query = query.replace(/\{\{\s*([a-zA-Z0-9_-]+)\.output(\.[\w.]+)?\s*\}\}/g, (match: string, nodeId: string, path: string) => {
-			const result = this.getNodeResult(nodeId);
-			if (result === undefined) {
-				console.warn(`Node ${nodeId} not found for interpolation in web search query`);
-				return match;
-			}
-			
-			// If there's a path after .output, navigate to it
-			if (path) {
-				const keys = path.substring(1).split('.'); // Remove leading dot and split
-				let value = result;
-				for (const key of keys) {
-					if (value && typeof value === 'object' && key in value) {
-						value = value[key];
-					} else {
-						console.warn(`Path ${key} not found in ${nodeId} result for web search`);
-						return match;
-					}
-				}
-				return typeof value === 'string' ? value : JSON.stringify(value);
-			}
-			
-			return typeof result === 'string' ? result : JSON.stringify(result);
-		});
+		// Use universal variable interpolation
+		query = this.interpolateVariables(query, inputs);
 
 		console.log('Interpolated query:', query);
 
@@ -1194,6 +1142,67 @@ export class FlowExecutor {
 			result: result,
 			branch: result ? 'true' : 'false'
 		};
+	}
+
+	/**
+	 * Universal variable interpolation for any string template
+	 * Handles {{input}}, {{input.path}}, {{node.output.path}}
+	 */
+	private interpolateVariables(template: string, inputs: any[]): string {
+		let result = template;
+		
+		// Replace {{input}} and {{input.path}} with predecessor output
+		result = result.replace(/\{\{\s*input(\.[\w.]+)?\s*\}\}/g, (match: string, path: string) => {
+			if (inputs.length === 0) {
+				console.warn('No inputs available for {{input}} interpolation');
+				return match;
+			}
+			
+			let value = inputs[0]; // Default to first input
+			
+			// If there's a path after input, navigate to it
+			if (path) {
+				const keys = path.substring(1).split('.'); // Remove leading dot
+				for (const key of keys) {
+					if (value && typeof value === 'object' && key in value) {
+						value = value[key];
+					} else {
+						console.warn(`Path ${key} not found in input for {{input${path}}}`);
+						return match;
+					}
+				}
+			}
+			
+			return typeof value === 'string' ? value : JSON.stringify(value);
+		});
+		
+		// Replace {{node.output.path}} patterns with node results
+		result = result.replace(/\{\{\s*([a-zA-Z0-9_-]+)\.output(\.[\w.]+)?\s*\}\}/g, (match: string, nodeId: string, path: string) => {
+			const nodeResult = this.getNodeResult(nodeId);
+			if (nodeResult === undefined) {
+				console.warn(`Node ${nodeId} not found for interpolation`);
+				return match;
+			}
+			
+			// If there's a path after .output, navigate to it
+			if (path) {
+				const keys = path.substring(1).split('.'); // Remove leading dot
+				let value = nodeResult;
+				for (const key of keys) {
+					if (value && typeof value === 'object' && key in value) {
+						value = value[key];
+					} else {
+						console.warn(`Path ${key} not found in ${nodeId}.output${path}`);
+						return match;
+					}
+				}
+				return typeof value === 'string' ? value : JSON.stringify(value);
+			}
+			
+			return typeof nodeResult === 'string' ? nodeResult : JSON.stringify(nodeResult);
+		});
+		
+		return result;
 	}
 
 	/**

@@ -9,6 +9,8 @@
 	export let node: FlowNode;
 	export let nodes: FlowNode[] = [];
 	export let edges: FlowEdge[] = [];
+	export let viewMode: 'edit' | 'execution' = 'edit';
+	export let executionResult: any = undefined;
 	
 	const dispatch = createEventDispatcher();
 	
@@ -181,8 +183,26 @@
 	
 	<!-- Content -->
 	<div class="flex-1 overflow-y-auto p-4 space-y-4">
-		<!-- Label -->
-		<div>
+		<!-- Execution History View -->
+		{#if viewMode === 'execution' && executionResult !== undefined}
+			<div class="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+				<h3 class="text-sm font-semibold text-green-900 dark:text-green-100 mb-2">
+					📊 Last Execution Result
+				</h3>
+				<div class="text-xs text-gray-700 dark:text-gray-300 font-mono bg-white dark:bg-gray-800 p-3 rounded border border-gray-200 dark:border-gray-600 overflow-auto max-h-96">
+					<pre>{JSON.stringify(executionResult, null, 2)}</pre>
+				</div>
+			</div>
+		{:else if viewMode === 'execution'}
+			<div class="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+				<p class="text-xs text-gray-500 dark:text-gray-400 text-center">
+					No execution data available for this node yet.
+				</p>
+			</div>
+		{/if}
+		
+		<!-- Label (Edit Mode Only) -->
+		<div class:hidden={viewMode === 'execution'}>
 			<label for="node-label" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
 				Label
 			</label>
