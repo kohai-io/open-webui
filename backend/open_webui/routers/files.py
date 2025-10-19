@@ -292,10 +292,17 @@ class MediaOverviewResponse(BaseModel):
     files: list[dict]
     chats: list[dict]
     folders: list[dict]
+    total: int
+    skip: int
+    limit: int
 
 
 @router.get("/media-overview")
-async def get_media_overview(user=Depends(get_verified_user)):
+async def get_media_overview(
+    user=Depends(get_verified_user),
+    skip: int = Query(0, ge=0, description="Number of files to skip"),
+    limit: int = Query(0, ge=0, le=500, description="Max files to return (0 = all)"),
+):
     """
     Get media files with pre-joined chat and folder information.
     Only returns folders/chats that contain media files.
@@ -308,6 +315,7 @@ async def get_media_overview(user=Depends(get_verified_user)):
     media_types = ('image/', 'video/', 'audio/')
     media_files = []
     file_to_chat_map = {}
+    files_without_chat = set()  # Track files needing chat resolution
     
     for f in files:
         # Check if it's a media file based on content_type in meta
@@ -319,27 +327,36 @@ async def get_media_overview(user=Depends(get_verified_user)):
             if f.meta:
                 chat_id = f.meta.get('chat_id') or f.meta.get('source_chat_id')
             file_to_chat_map[f.id] = chat_id
+            if chat_id is None:
+                files_without_chat.add(f.id)
     
     # For files without chat_id in metadata, search chat history
-    # Get all user's chats to search through
-    all_chats = Chats.get_chats_by_user_id(user.id)
-    
-    # Build a map of file_id -> chat_id by searching chat content
-    for chat in all_chats:
-        if not chat.chat:
-            continue
-        # Convert chat to string and search for file IDs
-        chat_str = json.dumps(chat.chat)
-        for file_id in [f.id for f in media_files if file_to_chat_map.get(f.id) is None]:
-            if file_id in chat_str:
-                file_to_chat_map[file_id] = chat.id
-                # Also update the file metadata so frontend doesn't need to search again
-                for f in media_files:
-                    if f.id == file_id:
-                        if not f.meta:
-                            f.meta = {}
-                        f.meta['chat_id'] = chat.id
-                        break
+    # OPTIMIZATION: Use optimized method that only loads minimal chat data
+    if files_without_chat:
+        # Get chat associations for files without metadata
+        resolved_mappings = Chats.get_chat_ids_containing_file_ids(user.id, files_without_chat)
+        
+        # Update file_to_chat_map and file metadata
+        if resolved_mappings:
+            # Build file dict for efficient lookup
+            file_dict = {f.id: f for f in media_files if f.id in resolved_mappings}
+            
+            for file_id, chat_id in resolved_mappings.items():
+                file_to_chat_map[file_id] = chat_id
+                
+                # Update file metadata so it's available on subsequent loads
+                f = file_dict.get(file_id)
+                if f:
+                    if not f.meta:
+                        f.meta = {}
+                    f.meta['chat_id'] = chat_id
+                    
+                    # Persist to database so we don't need to search again
+                    # Do this asynchronously to avoid blocking the response
+                    try:
+                        Files.update_file_metadata_by_id(file_id, f.meta)
+                    except Exception as e:
+                        log.warning(f"Failed to persist chat_id for file {file_id}: {e}")
     
     # Collect unique chat IDs
     chat_ids = set(cid for cid in file_to_chat_map.values() if cid is not None)
@@ -359,6 +376,14 @@ async def get_media_overview(user=Depends(get_verified_user)):
     if folder_ids:
         folders = Folders.get_folders_by_ids(list(folder_ids))
     
+    # Sort files by updated_at (newest first) before pagination
+    media_files.sort(key=lambda f: f.updated_at if hasattr(f, 'updated_at') and f.updated_at else 0, reverse=True)
+    
+    # Apply pagination if requested
+    total_files = len(media_files)
+    if limit > 0:
+        media_files = media_files[skip : skip + limit]
+    
     # Convert all to dicts for response
     files_dict = [f.model_dump() for f in media_files]
     chats_dict = [chat.model_dump() for chat in chats]
@@ -367,7 +392,10 @@ async def get_media_overview(user=Depends(get_verified_user)):
     return {
         "files": files_dict,
         "chats": chats_dict,
-        "folders": folders_dict
+        "folders": folders_dict,
+        "total": total_files,
+        "skip": skip,
+        "limit": limit if limit > 0 else total_files,
     }
 
 

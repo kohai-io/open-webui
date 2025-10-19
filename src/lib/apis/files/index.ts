@@ -35,7 +35,7 @@ export const uploadFile = async (token: string, file: File, metadata?: object | 
 	if (res) {
 		const status = await getFileProcessStatus(token, res.id);
 
-		if (status && status.ok) {
+		if (status && status.ok && status.body) {
 			const reader = status.body
 				.pipeThrough(new TextDecoderStream())
 				.pipeThrough(splitStream('\n'))
@@ -161,10 +161,21 @@ export const getFiles = async (token: string = '') => {
 	return res;
 };
 
-export const getMediaOverview = async (token: string = '') => {
+export const getMediaOverview = async (
+	token: string = '',
+	skip: number = 0,
+	limit: number = 0
+) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/files/media-overview`, {
+	// Build query params
+	const params = new URLSearchParams();
+	if (skip > 0) params.append('skip', skip.toString());
+	if (limit > 0) params.append('limit', limit.toString());
+	const queryString = params.toString();
+	const url = `${WEBUI_API_BASE_URL}/files/media-overview${queryString ? '?' + queryString : ''}`;
+
+	const res = await fetch(url, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',

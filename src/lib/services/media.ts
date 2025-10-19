@@ -15,13 +15,23 @@ export interface MediaOverviewData {
 	chatsById: Record<string, Chat>;
 	foldersById: Record<string, Folder>;
 	fileToChat: Record<string, string | null>;
+	total?: number;
+	skip?: number;
+	limit?: number;
 }
 
 /**
  * Fetch all media data in a single optimized call
+ * @param token - Auth token
+ * @param skip - Number of files to skip (for pagination)
+ * @param limit - Max files to return (0 = all)
  */
-export const fetchMediaOverview = async (token: string): Promise<MediaOverviewData> => {
-	const overview = await getMediaOverview(token);
+export const fetchMediaOverview = async (
+	token: string,
+	skip: number = 0,
+	limit: number = 0
+): Promise<MediaOverviewData> => {
+	const overview = await getMediaOverview(token, skip, limit);
 
 	if (!overview) {
 		return {
@@ -66,7 +76,10 @@ export const fetchMediaOverview = async (token: string): Promise<MediaOverviewDa
 		files,
 		chatsById,
 		foldersById,
-		fileToChat
+		fileToChat,
+		total: overview.total,
+		skip: overview.skip,
+		limit: overview.limit
 	};
 };
 

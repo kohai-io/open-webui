@@ -20,6 +20,13 @@
   let loading = true;
   let error: string | null = null;
   let files: MediaFile[] = [];
+  
+  // Server-side pagination state
+  let totalFiles = 0;
+  let loadedFiles = 0;
+  let usePagination = false;
+  const SERVER_PAGE_SIZE = 100; // Load 100 files per API call
+  let loadingMore = false;
 
   // Navigation state
   let mode: Mode = 'overview';
@@ -255,6 +262,33 @@
   // Grouping and counts using utility functions
   $: groupedVisible = groupFiles(visibleData, groupBy, fileToChat, chatsById, foldersById, linking);
 
+  // Load more files from server (server-side pagination)
+  const loadMoreFromServer = async () => {
+    if (loadingMore || !usePagination || loadedFiles >= totalFiles) return;
+    
+    try {
+      loadingMore = true;
+      const token = localStorage.token;
+      const nextBatch = await fetchMediaOverview(token, loadedFiles, SERVER_PAGE_SIZE);
+      
+      // Append new files
+      files = [...files, ...nextBatch.files];
+      loadedFiles = files.length;
+      
+      // Merge chats and folders
+      chatsById = { ...chatsById, ...nextBatch.chatsById };
+      foldersById = { ...foldersById, ...nextBatch.foldersById };
+      fileToChat = { ...fileToChat, ...nextBatch.fileToChat };
+      
+      console.log(`Loaded more files: ${nextBatch.files.length}, total: ${loadedFiles}/${totalFiles}`);
+    } catch (e) {
+      console.error('Failed to load more files', e);
+    } finally {
+      loadingMore = false;
+    }
+  };
+  
+  // Load more visible items (client-side pagination)
   const loadMore = () => {
     visibleCount += pageSize;
   };
@@ -284,15 +318,29 @@
 
       // Use optimized media-overview endpoint via service
       const token = localStorage.token;
-      const overview = await fetchMediaOverview(token);
+      
+      // First, check total count to decide on pagination strategy
+      const initialCheck = await fetchMediaOverview(token, 0, 1);
+      totalFiles = initialCheck.total || 0;
+      usePagination = totalFiles > 100;
+      
+      console.log(`Total media files: ${totalFiles}, using ${usePagination ? 'server-side' : 'client-side'} pagination`);
+      
+      // Load initial data
+      const overview = usePagination
+        ? await fetchMediaOverview(token, 0, SERVER_PAGE_SIZE)
+        : await fetchMediaOverview(token);
       
       files = overview.files;
+      loadedFiles = files.length;
       chatsById = overview.chatsById;
       foldersById = overview.foldersById;
       fileToChat = overview.fileToChat;
       
       console.log('Media overview loaded:', {
         filesCount: files.length,
+        totalFiles,
+        usePagination,
         chatsCount: Object.keys(chatsById).length,
         foldersCount: Object.keys(foldersById).length,
         filesWithChat: Object.values(fileToChat).filter(c => c !== null).length,
@@ -347,10 +395,28 @@
   let observer: IntersectionObserver | undefined;
   onMount(() => {
     observer = new IntersectionObserver(
-      (entries) => {
+      async (entries) => {
         if (entries.some((e) => e.isIntersecting)) {
+          // Check if we need more data from client-side pagination
           if (visibleData.length < filteredData.length) {
             loadMore();
+          }
+          // If using server-side pagination and approaching end of loaded data
+          else if (usePagination && loadedFiles < totalFiles) {
+            // Load more from server when we're near the end of currently loaded files
+            const filtered = files.filter((f) => {
+              const contentType = f.meta?.content_type || '';
+              if (activeTab === 'all') return true;
+              if (activeTab === 'image') return contentType.startsWith('image/');
+              if (activeTab === 'video') return contentType.startsWith('video/');
+              if (activeTab === 'audio') return contentType.startsWith('audio/');
+              return true;
+            });
+            
+            // Trigger server load when we've shown most of the loaded files
+            if (visibleData.length >= filtered.length * 0.7) {
+              await loadMoreFromServer();
+            }
           }
         }
       },
@@ -385,7 +451,14 @@
 
 <div class="p-4 md:p-6 lg:p-8 mx-auto max-w-[1400px]">
   <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-    <div class="text-xl md:text-2xl font-semibold">Your Media</div>
+    <div class="flex items-center gap-2">
+      <div class="text-xl md:text-2xl font-semibold">Your Media</div>
+      {#if usePagination && loadedFiles < totalFiles}
+        <span class="text-xs text-gray-500 dark:text-gray-400">
+          ({loadedFiles} of {totalFiles} loaded)
+        </span>
+      {/if}
+    </div>
 
     <MediaControls 
       bind:activeTab
@@ -500,6 +573,14 @@
         on:sort-change={(e) => { sortBy = e.detail.sortBy; sortDir = e.detail.sortDir; }}
       />
     {/if}
+  {/if}
+
+  <!-- Loading indicator for server-side pagination -->
+  {#if loadingMore}
+    <div class="flex justify-center items-center py-6">
+      <Spinner className="size-5" />
+      <span class="ml-2 text-sm text-gray-500">Loading more files...</span>
+    </div>
   {/if}
 
   <!-- Infinite scroll sentinel -->
