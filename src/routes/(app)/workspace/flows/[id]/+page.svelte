@@ -97,6 +97,8 @@
 			if (node.type === 'output') {
 				clearData.value = undefined;
 				clearData.iterationResults = undefined;
+				clearData.fileId = undefined;
+				clearData.fileType = undefined;
 			}
 			
 			updateNodeData(node.id, clearData);
@@ -150,6 +152,13 @@
 					// Preserve iterationResults for Output nodes (from loops)
 					if (result?.iterationResults) {
 						updateData.iterationResults = result.iterationResults;
+					}
+					// Update fileId and fileType for file outputs (images/videos/audio)
+					if (result?.fileId !== undefined) {
+						updateData.fileId = result.fileId;
+					}
+					if (result?.fileType !== undefined) {
+						updateData.fileType = result.fileType;
 					}
 				}
 				updateNodeData(nodeId, updateData);
@@ -262,12 +271,21 @@
 				// Update node with execution result
 				const updateData: Record<string, unknown> = { status: 'success' };
 				
-				// For output nodes, preserve iteration results
+				// For output nodes, preserve iteration results and file outputs
 				if (node.type === 'output') {
 					if (result.value !== undefined) updateData.value = result.value;
 					if (result.iterationResults !== undefined) {
 						updateData.iterationResults = result.iterationResults;
 						console.log(`  → Setting iterationResults (${result.iterationResults.length} items)`);
+					}
+					// Restore file outputs (images/videos/audio)
+					if (result.fileId !== undefined) {
+						updateData.fileId = result.fileId;
+						console.log(`  → Setting fileId: ${result.fileId}`);
+					}
+					if (result.fileType !== undefined) {
+						updateData.fileType = result.fileType;
+						console.log(`  → Setting fileType: ${result.fileType}`);
 					}
 				} else {
 					// For other nodes, just update value

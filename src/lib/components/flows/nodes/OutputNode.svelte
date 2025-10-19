@@ -29,6 +29,9 @@
 	let expanded = false;
 	let showLightbox = false;
 	let currentIterationIndex = 0;
+	let imageLoading = true;
+	let imageError = false;
+	let videoError = false;
 	
 	// Handle iteration results array
 	$: iterationResults = data.iterationResults || [];
@@ -44,6 +47,39 @@
 	
 	$: fileUrl = data.fileId ? `${WEBUI_BASE_URL}/api/v1/files/${data.fileId}/content` : null;
 	$: hasLongText = currentValue && currentValue.length > 150;
+	
+	// Debug: Log when file data changes
+	$: if (data.fileId && data.format === 'file') {
+		console.log(`📤 OutputNode ${id}: Received file data`, {
+			fileId: data.fileId,
+			fileType: data.fileType,
+			format: data.format,
+			fileUrl
+		});
+	}
+	
+	// Reset loading/error states when fileUrl changes
+	$: if (fileUrl) {
+		imageLoading = true;
+		imageError = false;
+		videoError = false;
+	}
+	
+	function handleImageLoad() {
+		imageLoading = false;
+		imageError = false;
+	}
+	
+	function handleImageError() {
+		imageLoading = false;
+		imageError = true;
+		console.error('Failed to load image:', fileUrl);
+	}
+	
+	function handleVideoError() {
+		videoError = true;
+		console.error('Failed to load video:', fileUrl);
+	}
 	
 	function openLightbox() {
 		showLightbox = true;
@@ -80,6 +116,41 @@
 		a.click();
 		document.body.removeChild(a);
 		URL.revokeObjectURL(url);
+	}
+	
+	async function downloadMediaFile() {
+		if (!fileUrl || !data.fileType) return;
+		try {
+			// Fetch the file to get proper MIME type
+			const response = await fetch(fileUrl);
+			if (!response.ok) throw new Error('Failed to fetch file');
+			
+			const blob = await response.blob();
+			const mimeType = blob.type;
+			
+			// Determine file extension from MIME type
+			let ext: string = data.fileType || 'bin'; // fallback to fileType (image/video/audio)
+			if (mimeType.includes('image/')) {
+				ext = mimeType.split('/')[1].split('+')[0]; // Handle image/svg+xml
+			} else if (mimeType.includes('video/')) {
+				ext = mimeType.split('/')[1];
+			} else if (mimeType.includes('audio/')) {
+				ext = mimeType.split('/')[1];
+			}
+			
+			// Create download link with descriptive name
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			const label = data.label ? data.label.replace(/\s+/g, '-').toLowerCase() : 'output';
+			a.download = `${label}-${Date.now()}.${ext}`;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+		} catch (err) {
+			console.error('Failed to download file:', err);
+		}
 	}
 </script>
 
@@ -120,6 +191,7 @@
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
 					</svg>
 				</button>
+				<!-- Text output buttons -->
 				{#if currentValue}
 					<button
 						type="button"
@@ -136,6 +208,19 @@
 						on:click={downloadAsFile}
 						class="nodrag p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded transition-colors"
 						title="Download as file"
+					>
+						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+						</svg>
+					</button>
+				{/if}
+				<!-- Media file download button -->
+				{#if fileUrl && data.format === 'file'}
+					<button
+						type="button"
+						on:click={downloadMediaFile}
+						class="nodrag p-1.5 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded transition-colors"
+						title="Download {data.fileType || 'file'}"
 					>
 						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -182,28 +267,67 @@
 			<!-- File Output -->
 			<div class="file-preview">
 				{#if data.fileType === 'image'}
-					<button
-						type="button"
-						on:click={openLightbox}
-						class="nodrag w-full cursor-zoom-in hover:opacity-90 transition-opacity"
-					>
-						<img src={fileUrl} alt="Output" class="w-full rounded" />
-					</button>
+				<div class="relative">
+					{#if imageLoading && !imageError}
+						<div class="w-full h-32 bg-gray-200 dark:bg-gray-700 rounded animate-pulse flex items-center justify-center">
+							<svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+							</svg>
+						</div>
+					{/if}
+					{#if imageError}
+						<div class="w-full p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded flex flex-col items-center justify-center gap-2">
+							<svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+							<span class="text-xs text-red-600 dark:text-red-400">Failed to load image</span>
+						</div>
+					{:else}
+						<button
+							type="button"
+							on:click={openLightbox}
+							class="nodrag w-full cursor-zoom-in hover:opacity-90 transition-opacity {imageLoading ? 'opacity-0' : 'opacity-100'}"
+						>
+							<img 
+								src={fileUrl} 
+								alt={data.label || 'Generated output image'}
+								class="w-full rounded" 
+								on:load={handleImageLoad}
+								on:error={handleImageError}
+							/>
+						</button>
+					{/if}
+				</div>
 				{:else if data.fileType === 'video'}
+				{#if videoError}
+					<div class="w-full p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded flex flex-col items-center justify-center gap-2">
+						<svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+						<span class="text-xs text-red-600 dark:text-red-400">Failed to load video</span>
+					</div>
+				{:else}
 					<div class="relative group">
-						<video src={fileUrl} class="w-full rounded" preload="metadata">
+						<video 
+							src={fileUrl} 
+							class="w-full rounded" 
+							preload="metadata"
+							on:error={handleVideoError}
+						>
 							<track kind="captions" />
 						</video>
 						<button
 							type="button"
 							on:click={openLightbox}
 							class="nodrag absolute inset-0 flex items-center justify-center bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded cursor-pointer"
+							aria-label="Play video in fullscreen"
 						>
 							<svg class="w-12 h-12 text-white opacity-60 group-hover:opacity-90 transition-opacity" fill="currentColor" viewBox="0 0 24 24">
 								<path d="M8 5v14l11-7z"/>
 							</svg>
 						</button>
 					</div>
+				{/if}
 				{:else if data.fileType === 'audio'}
 					<audio src={fileUrl} controls class="w-full" />
 				{/if}
@@ -254,22 +378,37 @@
 			on:click|stopPropagation
 			role="presentation"
 		>
-			<!-- Close button -->
-			<button
-				type="button"
-				on:click|stopPropagation={closeLightbox}
-				class="absolute top-2 right-2 z-10 p-2 bg-black bg-opacity-50 hover:bg-opacity-75 rounded-full text-white transition-all"
-				aria-label="Close"
-			>
-				<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-				</svg>
-			</button>
+			<!-- Action buttons -->
+			<div class="absolute top-2 right-2 z-10 flex gap-2">
+				<!-- Download button -->
+				<button
+					type="button"
+					on:click|stopPropagation={downloadMediaFile}
+					class="p-2 bg-black bg-opacity-50 hover:bg-opacity-75 rounded-full text-white transition-all"
+					aria-label="Download"
+					title="Download {data.fileType || 'file'}"
+				>
+					<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+					</svg>
+				</button>
+				<!-- Close button -->
+				<button
+					type="button"
+					on:click|stopPropagation={closeLightbox}
+					class="p-2 bg-black bg-opacity-50 hover:bg-opacity-75 rounded-full text-white transition-all"
+					aria-label="Close"
+				>
+					<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+					</svg>
+				</button>
+			</div>
 			
 			{#if data.fileType === 'image'}
 				<img 
 					src={fileUrl} 
-					alt="Full size output" 
+					alt={data.label ? `${data.label} - Full size` : 'Generated output image - Full size'}
 					class="max-w-[95vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
 				/>
 			{:else if data.fileType === 'video'}
@@ -278,8 +417,10 @@
 					controls 
 					autoplay
 					class="max-w-[95vw] max-h-[90vh] rounded-lg shadow-2xl"
+					aria-label={data.label ? `${data.label} video player` : 'Generated output video player'}
 				>
 					<track kind="captions" />
+					Your browser does not support the video tag.
 				</video>
 			{/if}
 		</div>

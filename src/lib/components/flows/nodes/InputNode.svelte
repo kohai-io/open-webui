@@ -99,49 +99,6 @@
 		fileInputElement?.click();
 	}
 	
-	async function captureFromCamera() {
-		try {
-			const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-			const video = document.createElement('video');
-			video.srcObject = stream;
-			video.play();
-			
-			// Wait a bit for camera to initialize
-			await new Promise(resolve => setTimeout(resolve, 1000));
-			
-			const canvas = document.createElement('canvas');
-			canvas.width = video.videoWidth;
-			canvas.height = video.videoHeight;
-			canvas.getContext('2d')?.drawImage(video, 0, 0);
-			
-			// Stop camera
-			stream.getTracks().forEach(track => track.stop());
-			
-			// Convert to blob and upload
-			canvas.toBlob(async (blob) => {
-				if (!blob) return;
-				const file = new File([blob], `capture-${Date.now()}.png`, { type: 'image/png' });
-				
-				isUploading = true;
-				try {
-					const token = localStorage.getItem('token') || '';
-					const uploadedFile = await uploadFile(token, file);
-					
-					updateNodeData(id, {
-						mediaFileId: uploadedFile.id,
-						mediaFileName: file.name,
-						mediaFileType: file.type
-					});
-				} catch (error) {
-					console.error('Capture upload failed:', error);
-				} finally {
-					isUploading = false;
-				}
-			}, 'image/png');
-		} catch (error) {
-			console.error('Camera access failed:', error);
-		}
-	}
 	
 	function clearMedia() {
 		updateNodeData(id, {
@@ -203,18 +160,6 @@
 					>
 						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-						</svg>
-					</button>
-					<!-- Camera capture button -->
-					<button
-						type="button"
-						on:click={captureFromCamera}
-						class="nodrag p-1.5 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors"
-						title="Capture from camera"
-					>
-						<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
 						</svg>
 					</button>
 					<!-- Clear media button (only show if media exists) -->
