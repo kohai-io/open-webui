@@ -69,7 +69,8 @@ export const fetchMediaOverview = async (
 		if (!chatId && f.chat_id) {
 			chatId = f.chat_id;
 		}
-		fileToChat[f.id] = chatId ? String(chatId) : null;
+		// Treat 'orphan' marker as null (files not in any chat)
+		fileToChat[f.id] = chatId && chatId !== 'orphan' ? String(chatId) : null;
 	}
 
 	return {

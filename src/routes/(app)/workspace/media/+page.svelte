@@ -298,8 +298,11 @@
 
   onMount(async () => {
     try {
+      const startTime = performance.now();
       loading = true;
       error = null;
+      console.log('[PERF] Media page mount started');
+      
       // Restore persisted UI state
       try {
         const savedView = localStorage.getItem('media:viewMode');
@@ -320,24 +323,34 @@
       const token = localStorage.token;
       
       // First, check total count to decide on pagination strategy
+      console.log('[PERF] Fetching initial file count...');
+      const t1 = performance.now();
       const initialCheck = await fetchMediaOverview(token, 0, 1);
+      console.log(`[PERF] Initial count fetch: ${(performance.now() - t1).toFixed(0)}ms`);
+      
       totalFiles = initialCheck.total || 0;
       usePagination = totalFiles > 100;
       
-      console.log(`Total media files: ${totalFiles}, using ${usePagination ? 'server-side' : 'client-side'} pagination`);
+      console.log(`[PERF] Total media files: ${totalFiles}, using ${usePagination ? 'server-side' : 'client-side'} pagination`);
       
       // Load initial data
+      console.log(`[PERF] Fetching ${usePagination ? SERVER_PAGE_SIZE : 'all'} files...`);
+      const t2 = performance.now();
       const overview = usePagination
         ? await fetchMediaOverview(token, 0, SERVER_PAGE_SIZE)
         : await fetchMediaOverview(token);
+      console.log(`[PERF] Main data fetch: ${(performance.now() - t2).toFixed(0)}ms`);
       
+      const t3 = performance.now();
       files = overview.files;
       loadedFiles = files.length;
       chatsById = overview.chatsById;
       foldersById = overview.foldersById;
       fileToChat = overview.fileToChat;
+      console.log(`[PERF] State assignment: ${(performance.now() - t3).toFixed(0)}ms`);
       
-      console.log('Media overview loaded:', {
+      const t4 = performance.now();
+      console.log('[PERF] Media overview loaded:', {
         filesCount: files.length,
         totalFiles,
         usePagination,
@@ -348,8 +361,12 @@
       });
       
       initialFilesLoaded = true;
+      console.log(`[PERF] Set initialFilesLoaded: ${(performance.now() - t4).toFixed(0)}ms`);
+      
+      const totalTime = performance.now() - startTime;
+      console.log(`[PERF] ✅ TOTAL FRONTEND LOAD: ${totalTime.toFixed(0)}ms`);
     } catch (e: any) {
-      console.error(e);
+      console.error('[PERF] ❌ ERROR:', e);
       error = e?.message || 'Failed to load media overview';
     } finally {
       loading = false;

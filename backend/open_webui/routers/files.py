@@ -308,10 +308,16 @@ async def get_media_overview(
     Only returns folders/chats that contain media files.
     Optimized for the media workspace page.
     """
+    import time
+    start_time = time.time()
+    
     # Get all user's files
+    t1 = time.time()
     files = Files.get_files_by_user_id(user.id)
+    log.info(f"[PERF] Get all files: {(time.time() - t1)*1000:.0f}ms ({len(files)} files)")
     
     # Filter to media types only (images, videos, audio)
+    t2 = time.time()
     media_types = ('image/', 'video/', 'audio/')
     media_files = []
     file_to_chat_map = {}
@@ -326,21 +332,31 @@ async def get_media_overview(
             chat_id = None
             if f.meta:
                 chat_id = f.meta.get('chat_id') or f.meta.get('source_chat_id')
-            file_to_chat_map[f.id] = chat_id
-            if chat_id is None:
-                files_without_chat.add(f.id)
+            
+            # Handle orphan files (marked as 'orphan' to skip expensive lookup)
+            if chat_id == 'orphan':
+                file_to_chat_map[f.id] = None
+            else:
+                file_to_chat_map[f.id] = chat_id
+                # Only add to files_without_chat if not marked as orphan
+                if chat_id is None:
+                    files_without_chat.add(f.id)
+    
+    log.info(f"[PERF] Filter media files: {(time.time() - t2)*1000:.0f}ms ({len(media_files)} media, {len(files_without_chat)} need chat lookup)")
     
     # For files without chat_id in metadata, search chat history
     # OPTIMIZATION: Use optimized method that only loads minimal chat data
     if files_without_chat:
+        t3 = time.time()
         # Get chat associations for files without metadata
         resolved_mappings = Chats.get_chat_ids_containing_file_ids(user.id, files_without_chat)
+        log.info(f"[PERF] Chat lookup for orphans: {(time.time() - t3)*1000:.0f}ms ({len(resolved_mappings or [])} resolved)")
         
-        # Update file_to_chat_map and file metadata
+        # Build file dict for efficient lookup
+        file_dict = {f.id: f for f in media_files if f.id in files_without_chat}
+        
+        # Update file_to_chat_map and file metadata for resolved files
         if resolved_mappings:
-            # Build file dict for efficient lookup
-            file_dict = {f.id: f for f in media_files if f.id in resolved_mappings}
-            
             for file_id, chat_id in resolved_mappings.items():
                 file_to_chat_map[file_id] = chat_id
                 
@@ -352,14 +368,30 @@ async def get_media_overview(
                     f.meta['chat_id'] = chat_id
                     
                     # Persist to database so we don't need to search again
-                    # Do this asynchronously to avoid blocking the response
                     try:
                         Files.update_file_metadata_by_id(file_id, f.meta)
                     except Exception as e:
                         log.warning(f"Failed to persist chat_id for file {file_id}: {e}")
+        
+        # Mark unresolved files as orphans so we don't search again
+        orphan_files = files_without_chat - set(resolved_mappings.keys() if resolved_mappings else [])
+        if orphan_files:
+            log.info(f"[PERF] Marking {len(orphan_files)} files as orphans (no chat found)")
+            for file_id in orphan_files:
+                f = file_dict.get(file_id)
+                if f:
+                    if not f.meta:
+                        f.meta = {}
+                    # Mark as orphan with special value so we don't search again
+                    f.meta['chat_id'] = 'orphan'
+                    try:
+                        Files.update_file_metadata_by_id(file_id, f.meta)
+                    except Exception as e:
+                        log.warning(f"Failed to mark file {file_id} as orphan: {e}")
     
-    # Collect unique chat IDs
-    chat_ids = set(cid for cid in file_to_chat_map.values() if cid is not None)
+    # Collect unique chat IDs (exclude None and 'orphan' marker)
+    t4 = time.time()
+    chat_ids = set(cid for cid in file_to_chat_map.values() if cid is not None and cid != 'orphan')
     
     # Get only chats that have media
     chats = []
@@ -370,14 +402,19 @@ async def get_media_overview(
         for chat in chats:
             if chat.folder_id:
                 folder_ids.add(chat.folder_id)
+    log.info(f"[PERF] Get chats: {(time.time() - t4)*1000:.0f}ms ({len(chats)} chats)")
     
     # Get only folders that contain chats with media
+    t5 = time.time()
     folders = []
     if folder_ids:
         folders = Folders.get_folders_by_ids(list(folder_ids))
+    log.info(f"[PERF] Get folders: {(time.time() - t5)*1000:.0f}ms ({len(folders)} folders)")
     
     # Sort files by updated_at (newest first) before pagination
+    t6 = time.time()
     media_files.sort(key=lambda f: f.updated_at if hasattr(f, 'updated_at') and f.updated_at else 0, reverse=True)
+    log.info(f"[PERF] Sort files: {(time.time() - t6)*1000:.0f}ms")
     
     # Apply pagination if requested
     total_files = len(media_files)
@@ -385,9 +422,14 @@ async def get_media_overview(
         media_files = media_files[skip : skip + limit]
     
     # Convert all to dicts for response
+    t7 = time.time()
     files_dict = [f.model_dump() for f in media_files]
     chats_dict = [chat.model_dump() for chat in chats]
     folders_dict = [folder.model_dump() for folder in folders]
+    log.info(f"[PERF] Serialize to dicts: {(time.time() - t7)*1000:.0f}ms")
+    
+    total_time = (time.time() - start_time) * 1000
+    log.info(f"[PERF] media-overview TOTAL: {total_time:.0f}ms (skip={skip}, limit={limit}, returned {len(files_dict)} files)")
     
     return {
         "files": files_dict,
