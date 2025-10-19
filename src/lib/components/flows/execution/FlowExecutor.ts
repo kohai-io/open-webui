@@ -1,6 +1,6 @@
 import type { FlowNode, FlowEdge, FlowExecutionContext, FlowExecutionResult } from '$lib/types/flows';
 import { chatCompletion } from '$lib/apis/openai';
-import { uploadFile } from '$lib/apis/files';
+import { uploadFile, getFileById } from '$lib/apis/files';
 import { queryDoc, processWebSearch, queryCollection } from '$lib/apis/retrieval';
 import { getKnowledgeById } from '$lib/apis/knowledge';
 import { WEBUI_BASE_URL } from '$lib/constants';
@@ -780,11 +780,43 @@ export class FlowExecutor {
 				// Check if it's a UUID (file ID)
 				if (/^[a-f0-9-]{36}$/i.test(input.trim())) {
 					console.log('Using existing file ID:', input);
+					// Fetch file metadata to detect actual file type
+					try {
+						const token = localStorage.getItem('token') || '';
+						const fileMetadata = await getFileById(token, input.trim());
+						if (fileMetadata?.meta?.content_type) {
+							const contentType = fileMetadata.meta.content_type;
+							let detectedFileType = fileType; // fallback to configured type
+							if (contentType.startsWith('image/')) detectedFileType = 'image';
+							else if (contentType.startsWith('video/')) detectedFileType = 'video';
+							else if (contentType.startsWith('audio/')) detectedFileType = 'audio';
+							console.log(`Detected file type: ${detectedFileType} from content type: ${contentType}`);
+							return { fileId: input.trim(), fileType: detectedFileType };
+						}
+					} catch (error) {
+						console.warn('Failed to fetch file metadata, using configured fileType:', error);
+					}
 					return { fileId: input.trim(), fileType };
 				}
 				
 				// Otherwise assume it's a file ID (might not be UUID format)
 				console.log('Assuming input is file ID:', input);
+				// Try to fetch metadata for non-UUID formats too
+				try {
+					const token = localStorage.getItem('token') || '';
+					const fileMetadata = await getFileById(token, input);
+					if (fileMetadata?.meta?.content_type) {
+						const contentType = fileMetadata.meta.content_type;
+						let detectedFileType = fileType;
+						if (contentType.startsWith('image/')) detectedFileType = 'image';
+						else if (contentType.startsWith('video/')) detectedFileType = 'video';
+						else if (contentType.startsWith('audio/')) detectedFileType = 'audio';
+						console.log(`Detected file type: ${detectedFileType} from content type: ${contentType}`);
+						return { fileId: input, fileType: detectedFileType };
+					}
+				} catch (error) {
+					console.warn('Failed to fetch file metadata, using configured fileType:', error);
+				}
 				return { fileId: input, fileType };
 			}
 			
