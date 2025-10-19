@@ -393,16 +393,16 @@ async def get_media_overview(
     t4 = time.time()
     chat_ids = set(cid for cid in file_to_chat_map.values() if cid is not None and cid != 'orphan')
     
-    # Get only chats that have media
-    chats = []
+    # Get only chat metadata (id, title, folder_id) - optimized to avoid loading full chat history
+    chats_dict = []
     folder_ids = set()
     if chat_ids:
-        chats = Chats.get_chat_list_by_chat_ids(list(chat_ids))
+        chats_dict = Chats.get_chat_metadata_by_ids(list(chat_ids))
         # Extract folder IDs from chats
-        for chat in chats:
-            if chat.folder_id:
-                folder_ids.add(chat.folder_id)
-    log.info(f"[PERF] Get chats: {(time.time() - t4)*1000:.0f}ms ({len(chats)} chats)")
+        for chat in chats_dict:
+            if chat.get("folder_id"):
+                folder_ids.add(chat["folder_id"])
+    log.info(f"[PERF] Get chats: {(time.time() - t4)*1000:.0f}ms ({len(chats_dict)} chats)")
     
     # Get only folders that contain chats with media
     t5 = time.time()
@@ -421,10 +421,9 @@ async def get_media_overview(
     if limit > 0:
         media_files = media_files[skip : skip + limit]
     
-    # Convert all to dicts for response
+    # Convert files and folders to dicts for response (chats already dicts from get_chat_metadata_by_ids)
     t7 = time.time()
     files_dict = [f.model_dump() for f in media_files]
-    chats_dict = [chat.model_dump() for chat in chats]
     folders_dict = [folder.model_dump() for folder in folders]
     log.info(f"[PERF] Serialize to dicts: {(time.time() - t7)*1000:.0f}ms")
     

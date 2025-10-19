@@ -555,6 +555,24 @@ class ChatTable:
             )
             return [ChatModel.model_validate(chat) for chat in all_chats]
 
+    def get_chat_metadata_by_ids(self, chat_ids: list[str]) -> list[dict]:
+        """
+        Get minimal chat metadata (id, title, folder_id) without loading full chat history.
+        Optimized for media page and other cases where only metadata is needed.
+        """
+        with get_db() as db:
+            # Only select needed columns, avoiding expensive chat JSON column
+            results = (
+                db.query(Chat.id, Chat.title, Chat.folder_id)
+                .filter(Chat.id.in_(chat_ids))
+                .filter_by(archived=False)
+                .all()
+            )
+            return [
+                {"id": r.id, "title": r.title, "folder_id": r.folder_id}
+                for r in results
+            ]
+
     def get_chat_by_id(self, id: str) -> Optional[ChatModel]:
         try:
             with get_db() as db:
