@@ -117,6 +117,8 @@ export interface FlowNode {
 	data: NodeData;
 	width?: number;
 	height?: number;
+	sourcePosition?: 'left' | 'right' | 'top' | 'bottom';
+	targetPosition?: 'left' | 'right' | 'top' | 'bottom';
 }
 
 export interface FlowEdge {

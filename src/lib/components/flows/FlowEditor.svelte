@@ -51,10 +51,206 @@
 	export let lastExecutionResults: Record<string, any> = {}; // Passed from parent page
 	export let viewMode: 'edit' | 'execution' = 'edit'; // Toggle between edit and execution history - can be controlled by parent
 	
-	let showNodeLibrary = true;
+	let showNodeLibrary = false; // Will be set based on whether flow is new or existing
 	let showNodeConfig = false;
 	
-	$: showNodeConfig = $selectedNode !== null;
+	// Show node library by default only for new flows (no nodes)
+	$: if ($flowNodes.length === 0 && !showNodeLibrary) {
+		showNodeLibrary = true;
+	}
+	
+	// Responsive handle positioning
+	let isMobile = false;
+	let windowWidth = 1024; // Default to desktop
+	let previousMobileState = false;
+	let flowKey = 0; // Used to force re-render and trigger fitView
+	
+	$: isMobile = windowWidth < 768;
+	
+	// Function to estimate node height based on type and content
+	function estimateNodeHeight(node: FlowNode): number {
+		// Use actual height if available
+		if (node.height) return node.height;
+		
+		// Base heights for different node types
+		const baseHeights: Record<string, number> = {
+			input: 200,      // Usually has content/media
+			model: 150,      // Compact with model info
+			output: 150,     // Compact with format
+			transform: 150,
+			knowledge: 150,
+			websearch: 150,
+			conditional: 180,
+			loop: 180,
+			merge: 150
+		};
+		
+		let estimatedHeight = baseHeights[node.type] || 150;
+		
+		// Adjust for input nodes with media
+		if (node.type === 'input' && (node.data as any).mediaFileId) {
+			estimatedHeight = 300; // Taller for image preview
+		}
+		
+		return estimatedHeight;
+	}
+	
+	// Function to reorganize node positions based on layout direction
+	function reorganizeNodePositions(nodes: FlowNode[], edges: FlowEdge[], isVertical: boolean) {
+		if (nodes.length === 0) return nodes;
+		
+		// Create a map of nodes by id for quick lookup
+		const nodeMap = new Map(nodes.map(n => [n.id, n]));
+		
+		// Build adjacency list (which nodes connect to which)
+		const adjacency = new Map<string, string[]>();
+		const inDegree = new Map<string, number>();
+		
+		nodes.forEach(node => {
+			adjacency.set(node.id, []);
+			inDegree.set(node.id, 0);
+		});
+		
+		edges.forEach(edge => {
+			if (adjacency.has(edge.source)) {
+				adjacency.get(edge.source)!.push(edge.target);
+			}
+			if (inDegree.has(edge.target)) {
+				inDegree.set(edge.target, inDegree.get(edge.target)! + 1);
+			}
+		});
+		
+		// Find starting nodes (nodes with no inputs)
+		const startNodes = nodes.filter(n => inDegree.get(n.id) === 0);
+		
+		// Layout configuration
+		const HORIZONTAL_SPACING = 300; // Space between nodes going left-to-right
+		const NODE_GAP = 50;            // Tighter gap between nodes in vertical layout for consistency
+		const BRANCH_SPACING_HORIZONTAL = 150; // Space between parallel branches (horizontal layout)
+		const BRANCH_SPACING_VERTICAL = 350;   // Space between parallel branches (vertical layout) - wider for node width
+		const START_X = 100;
+		const START_Y = 50;  // Reduced to give more viewport space
+		
+		// Position nodes based on layout
+		const positioned = new Set<string>();
+		const newPositions = new Map<string, { x: number; y: number }>();
+		const depthYPositions = new Map<number, number>(); // Track Y position for each depth level
+		
+		function positionNode(nodeId: string, depth: number, offset: number = 0, parentNodeId?: string) {
+			if (positioned.has(nodeId)) return;
+			positioned.add(nodeId);
+			
+			const currentNode = nodeMap.get(nodeId);
+			if (!currentNode) return;
+			
+			if (isVertical) {
+				// Vertical layout: adaptive spacing based on previous node height
+				let yPosition: number;
+				
+				if (depth === 0 || !depthYPositions.has(depth)) {
+					// First node at this depth
+					yPosition = START_Y + (depth === 0 ? 0 : depthYPositions.get(depth - 1)! + NODE_GAP);
+				} else {
+					// Use existing position for this depth
+					yPosition = depthYPositions.get(depth)!;
+				}
+				
+				// If there's a parent, calculate position based on parent's position + height + gap
+				if (parentNodeId) {
+					const parentNode = nodeMap.get(parentNodeId);
+					const parentPos = newPositions.get(parentNodeId);
+					if (parentNode && parentPos) {
+						const parentHeight = estimateNodeHeight(parentNode);
+						yPosition = parentPos.y + parentHeight + NODE_GAP;
+					}
+				}
+				
+				newPositions.set(nodeId, {
+					x: START_X + (offset * BRANCH_SPACING_VERTICAL),
+					y: yPosition
+				});
+				
+				// Update depth Y position for next node
+				depthYPositions.set(depth, yPosition);
+				
+			} else {
+				// Horizontal layout: spread left to right, stack branches vertically
+				newPositions.set(nodeId, {
+					x: START_X + (depth * HORIZONTAL_SPACING),
+					y: START_Y + (offset * BRANCH_SPACING_HORIZONTAL)
+				});
+			}
+			
+			// Position children
+			const children = adjacency.get(nodeId) || [];
+			children.forEach((childId, index) => {
+				positionNode(childId, depth + 1, index, nodeId);
+			});
+		}
+		
+		// Position all start nodes and their descendants
+		startNodes.forEach((node, index) => {
+			positionNode(node.id, 0, index);
+		});
+		
+		// Position any remaining unconnected nodes
+		let unconnectedYOffset = 0;
+		nodes.forEach((node, index) => {
+			if (!positioned.has(node.id)) {
+				if (isVertical) {
+					// Get the max Y position from already positioned nodes
+					let maxY = START_Y;
+					newPositions.forEach(pos => {
+						if (pos.y > maxY) maxY = pos.y;
+					});
+					
+					newPositions.set(node.id, {
+						x: START_X + BRANCH_SPACING_VERTICAL,
+						y: maxY + 200 + unconnectedYOffset // Add below existing nodes
+					});
+					unconnectedYOffset += estimateNodeHeight(node) + NODE_GAP;
+				} else {
+					newPositions.set(node.id, {
+						x: START_X + (positioned.size * HORIZONTAL_SPACING),
+						y: START_Y + BRANCH_SPACING_HORIZONTAL
+					});
+				}
+				positioned.add(node.id);
+			}
+		});
+		
+		// Apply new positions to nodes
+		return nodes.map(node => ({
+			...node,
+			position: newPositions.get(node.id) || node.position
+		}));
+	}
+	
+	// Update handle positions and reorganize when mobile state changes
+	$: if (typeof window !== 'undefined' && isMobile !== previousMobileState) {
+		previousMobileState = isMobile;
+		flowNodes.update((nodes: FlowNode[]): FlowNode[] => {
+			// First update handle positions
+			const sourcePos: 'left' | 'right' | 'top' | 'bottom' = isMobile ? 'bottom' : 'right';
+			const targetPos: 'left' | 'right' | 'top' | 'bottom' = isMobile ? 'top' : 'left';
+			
+			let updatedNodes: FlowNode[] = nodes.map((node: FlowNode): FlowNode => ({
+				...node,
+				sourcePosition: sourcePos,
+				targetPosition: targetPos
+			}));
+			
+			// Then reorganize positions based on layout
+			updatedNodes = reorganizeNodePositions(updatedNodes, $flowEdges, isMobile);
+			
+			// Increment key to trigger fitView (SvelteFlow will auto-fit on re-render)
+			setTimeout(() => {
+				flowKey++;
+			}, 100);
+			
+			return updatedNodes;
+		});
+	}
 	
 	// Debug: Log when execution results change
 	$: if (Object.keys(lastExecutionResults).length > 0) {
@@ -69,8 +265,16 @@
 		selectedNode.set(node);
 	};
 	
+	// Listen for config button clicks from nodes
+	if (typeof window !== 'undefined') {
+		window.addEventListener('open-node-config', () => {
+			showNodeConfig = true;
+		});
+	}
+	
 	const handlePaneClick = () => {
 		selectedNode.set(null);
+		showNodeConfig = false; // Close config panel when clicking canvas
 	};
 	
 	const handleClearResults = () => {
@@ -142,6 +346,10 @@
 			x: Math.random() * 500,
 			y: Math.random() * 500
 		};
+		
+		// Set handle positions based on screen size
+		const sourcePosition = isMobile ? 'bottom' : 'right';
+		const targetPosition = isMobile ? 'top' : 'left';
 		
 		let nodeData: any = { label: type.charAt(0).toUpperCase() + type.slice(1) };
 		
@@ -226,7 +434,9 @@
 			id,
 			type,
 			position: nodePosition,
-			data: nodeData
+			data: nodeData,
+			sourcePosition,
+			targetPosition
 		};
 		
 		addNode(newNode);
@@ -270,34 +480,37 @@
 	};
 </script>
 
+<svelte:window bind:innerWidth={windowWidth} />
+
 <div 
 	class="flow-editor-container w-full h-full relative"
 	on:keydown={handleKeyDown}
 	role="application"
 	tabindex="-1"
 >
-	<SvelteFlow
-		nodes={flowNodes}
-		edges={flowEdges}
-		{nodeTypes}
-		on:nodeclick={handleNodeClick}
-		on:paneclick={handlePaneClick}
-		on:connect={handleConnect}
-		on:nodeschange={handleNodesChange}
-		on:edgeschange={handleEdgesChange}
-		deleteKeyCode={null}
-		multiSelectionKeyCode={null}
-		selectionKeyCode={null}
-		edgesUpdatable={true}
-		edgesFocusable={true}
-		panOnDrag={[1, 2]}
-		defaultEdgeOptions={{
-			type: 'default',
-			style: 'stroke-width: 3;'
-		}}
-		fitView
-		class="bg-gray-50 dark:bg-gray-900"
-	>
+	{#key flowKey}
+		<SvelteFlow
+			nodes={flowNodes}
+			edges={flowEdges}
+			{nodeTypes}
+			on:nodeclick={handleNodeClick}
+			on:paneclick={handlePaneClick}
+			on:connect={handleConnect}
+			on:nodeschange={handleNodesChange}
+			on:edgeschange={handleEdgesChange}
+			deleteKeyCode={null}
+			multiSelectionKeyCode={null}
+			selectionKeyCode={null}
+			edgesUpdatable={true}
+			edgesFocusable={true}
+			panOnDrag={[1, 2]}
+			defaultEdgeOptions={{
+				type: 'default',
+				style: 'stroke-width: 3;'
+			}}
+			fitView
+			class="bg-gray-50 dark:bg-gray-900"
+		>
 		<Background
 			variant="dots"
 			gap={16}
@@ -310,24 +523,26 @@
 			maskColor="rgb(0, 0, 0, 0.1)"
 		/>
 		
-		<!-- Mode Toggle Panel -->
-		<Panel position="top-center" class="m-4">
-			<div class="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-1">
+		<!-- Mode Toggle Panel - Responsive -->
+		<Panel position="top-center" class="m-2 md:m-4">
+			<div class="flex items-center gap-1 md:gap-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-1">
 				<button
 					on:click={() => viewMode = 'edit'}
-					class="px-4 py-2 rounded-md font-medium transition-all {viewMode === 'edit' 
+					class="px-2 py-1 md:px-4 md:py-2 rounded-md font-medium transition-all text-xs md:text-sm {viewMode === 'edit' 
 						? 'bg-blue-600 text-white shadow-md' 
 						: 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}"
 				>
-					✏️ Edit Mode
+					<span class="hidden sm:inline">✏️ Edit Mode</span>
+					<span class="sm:hidden">✏️ Edit</span>
 				</button>
 				<button
 					on:click={() => viewMode = 'execution'}
-					class="px-4 py-2 rounded-md font-medium transition-all {viewMode === 'execution' 
+					class="px-2 py-1 md:px-4 md:py-2 rounded-md font-medium transition-all text-xs md:text-sm {viewMode === 'execution' 
 						? 'bg-green-600 text-white shadow-md' 
 						: 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'}"
 				>
-					📊 Execution History
+					<span class="hidden sm:inline">📊 Execution History</span>
+					<span class="sm:hidden">📊 History</span>
 				</button>
 				
 				<!-- Clear Results Button (only show if results exist) -->
@@ -335,20 +550,21 @@
 					<div class="w-px h-6 bg-gray-300 dark:bg-gray-600"></div>
 					<button
 						on:click={handleClearResults}
-						class="px-3 py-2 rounded-md font-medium text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all flex items-center gap-1"
+						class="px-2 py-1 md:px-3 md:py-2 rounded-md font-medium text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all flex items-center gap-1"
 						title="Clear execution results"
 					>
-						🗑️ Clear Results
+						<span class="hidden sm:inline">🗑️ Clear Results</span>
+						<span class="sm:hidden">🗑️</span>
 					</button>
 				{/if}
 			</div>
 		</Panel>
 		
-		<!-- Top Panel with Add Node Button -->
-		<Panel position="top-left" class="m-4">
+		<!-- Top Panel with Add Node Button - Responsive -->
+		<Panel position="top-left" class="m-2 md:m-4">
 			<button
 				on:click={toggleNodeLibrary}
-				class="px-5 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all flex items-center gap-2 border-2 border-blue-500"
+				class="px-3 py-2 md:px-5 md:py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all flex items-center gap-2 border-2 border-blue-500 text-sm md:text-base"
 			>
 				<svg
 					xmlns="http://www.w3.org/2000/svg"
@@ -371,10 +587,10 @@
 			</button>
 		</Panel>
 		
-		<!-- Instructions Panel -->
+		<!-- Instructions Panel - Responsive -->
 		{#if $flowNodes.length === 0}
-			<Panel position="top-center" class="m-4">
-				<div class="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-300 dark:border-blue-600 rounded-lg shadow-xl p-6 max-w-lg">
+			<Panel position="top-center" class="m-2 md:m-4">
+				<div class="bg-blue-50 dark:bg-blue-900/20 border-2 border-blue-300 dark:border-blue-600 rounded-lg shadow-xl p-4 md:p-6 max-w-xs md:max-w-lg">
 					<h3 class="text-lg font-bold mb-3 text-blue-900 dark:text-blue-100">👋 Welcome to Flow Builder!</h3>
 					<div class="space-y-2 text-sm text-gray-700 dark:text-gray-300">
 						<p class="font-medium">To get started:</p>
@@ -389,17 +605,26 @@
 			</Panel>
 		{/if}
 	</SvelteFlow>
+	{/key}
 	
-	<!-- Node Library Panel -->
+	<!-- Node Library Panel - Responsive -->
 	{#if showNodeLibrary}
-		<div class="absolute left-4 top-20 z-10 nopan nodrag nowheel">
+		<div class="absolute z-10 nopan nodrag nowheel
+			left-4 right-4 bottom-4 max-h-96
+			md:left-4 md:right-auto md:top-20 md:bottom-auto md:max-h-none
+			w-full md:w-72 max-w-md md:max-w-none
+			overflow-y-auto md:overflow-visible">
 			<NodeLibrary on:addnode={(e) => handleAddNode(e.detail.type)} />
 		</div>
 	{/if}
 	
-	<!-- Node Configuration Panel -->
+	<!-- Node Configuration Panel - Responsive -->
 	{#if showNodeConfig && $selectedNode}
-		<div class="absolute right-4 top-4 bottom-4 w-80 z-10 nopan nodrag nowheel">
+		<div class="absolute z-10 nopan nodrag nowheel
+			left-4 right-4 bottom-4 max-h-[70vh]
+			md:right-4 md:left-auto md:top-4 md:bottom-4 md:max-h-none
+			w-auto md:w-80
+			overflow-y-auto md:overflow-visible">
 			<NodeConfig
 				node={$selectedNode}
 				nodes={$flowNodes}

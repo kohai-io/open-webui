@@ -143,10 +143,13 @@
 					updateData.error = result.error;
 				} else if (status === 'success') {
 					updateData.error = undefined;
-					// Preserve iterationResults for Output nodes
+					// Update value for output nodes
+					if (result?.value !== undefined) {
+						updateData.value = result.value;
+					}
+					// Preserve iterationResults for Output nodes (from loops)
 					if (result?.iterationResults) {
 						updateData.iterationResults = result.iterationResults;
-						updateData.value = result.value; // Also update the current value
 					}
 				}
 				updateNodeData(nodeId, updateData);
@@ -297,17 +300,17 @@
 	</div>
 {:else if flow}
 	<div class="flex flex-col h-full">
-		<!-- Header -->
-		<div class="flex items-center justify-between mb-4 p-4 border-b border-gray-200 dark:border-gray-700">
-			<div class="flex items-center gap-3 flex-1 max-w-xl">
+		<!-- Header - Responsive -->
+		<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-0 mb-2 sm:mb-4 p-3 sm:p-4 border-b border-gray-200 dark:border-gray-700">
+			<div class="flex items-center gap-2 sm:gap-3 flex-1 w-full sm:max-w-xl">
 				<button
 					on:click={handleBack}
-					class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+					class="p-1.5 sm:p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
 					title="Back to flows"
 				>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
-						class="w-5 h-5"
+						class="w-4 h-4 sm:w-5 sm:h-5"
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
@@ -319,31 +322,31 @@
 						<polyline points="12 19 5 12 12 5" />
 					</svg>
 				</button>
-				<div class="flex-1">
+				<div class="flex-1 min-w-0">
 					<input
 						type="text"
 						value={flow.name}
 						on:input={(e) => updateFlowName(e.currentTarget.value)}
-						class="w-full text-2xl font-semibold bg-transparent border-none focus:outline-none focus:ring-0 p-0"
+						class="w-full text-lg sm:text-2xl font-semibold bg-transparent border-none focus:outline-none focus:ring-0 p-0"
 					/>
 					<input
 						type="text"
 						value={flow.description || ''}
 						on:input={(e) => updateFlowDescription(e.currentTarget.value)}
 						placeholder="Add description (optional)..."
-						class="w-full text-sm text-gray-500 dark:text-gray-400 bg-transparent border-none focus:outline-none focus:ring-0 p-0 mt-1"
+						class="w-full text-xs sm:text-sm text-gray-500 dark:text-gray-400 bg-transparent border-none focus:outline-none focus:ring-0 p-0 mt-1 hidden sm:block"
 					/>
 				</div>
 			</div>
-			<div class="flex items-center gap-2">
+			<div class="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
 				<button
 					on:click={() => (showHistory = !showHistory)}
-					class="px-4 py-2 {showHistory ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-100 dark:bg-gray-800'} hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors flex items-center gap-2"
+					class="px-2 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm {showHistory ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-100 dark:bg-gray-800'} hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors flex items-center gap-1 sm:gap-2 flex-1 sm:flex-initial justify-center"
 					title="Execution History"
 				>
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
-						class="w-4 h-4"
+						class="w-3 h-3 sm:w-4 sm:h-4"
 						viewBox="0 0 24 24"
 						fill="none"
 						stroke="currentColor"
@@ -354,53 +357,53 @@
 						<path d="M3 3v5h5" />
 						<path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" />
 					</svg>
-					History
+					<span class="hidden sm:inline">History</span>
 				</button>
 				{#if executing || $isExecuting}
 					<button
 						on:click={stopFlow}
-						class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center gap-2"
+						class="px-2 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center gap-1 sm:gap-2 flex-1 sm:flex-initial justify-center"
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
-							class="w-4 h-4"
+							class="w-3 h-3 sm:w-4 sm:h-4"
 							viewBox="0 0 24 24"
 							fill="currentColor"
 						>
 							<rect x="6" y="6" width="12" height="12" />
 						</svg>
-						Stop
+						<span class="hidden xs:inline">Stop</span>
 					</button>
 				{:else}
 					<button
 						on:click={handleExecute}
 						disabled={executing || $isExecuting}
-						class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+						class="px-2 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 sm:gap-2 flex-1 sm:flex-initial justify-center"
 					>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
-							class="w-4 h-4"
+							class="w-3 h-3 sm:w-4 sm:h-4"
 							viewBox="0 0 24 24"
 							fill="currentColor"
 						>
 							<polygon points="5 3 19 12 5 21 5 3" />
 						</svg>
-						Run Flow
+						<span class="hidden xs:inline">Run</span><span class="hidden sm:inline"> Flow</span>
 					</button>
 				{/if}
 				<button
 					on:click={handleSave}
 					disabled={saving}
-					class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+					class="px-2 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-1 sm:flex-initial justify-center"
 				>
 					{saving ? 'Saving...' : 'Save'}
 				</button>
 			</div>
 		</div>
 
-		<!-- Flow Editor with History Panel -->
-		<div class="flex-1 flex overflow-hidden">
-			<div class="flex-1">
+		<!-- Flow Editor with History Panel - Responsive Layout -->
+		<div class="flex-1 flex flex-col md:flex-row overflow-hidden">
+			<div class="flex-1 order-2 md:order-1">
 				<FlowEditor 
 					{lastExecutionResults}
 					viewMode={editorViewMode}
@@ -414,7 +417,7 @@
 				/>
 			</div>
 			{#if showHistory}
-				<div class="w-96">
+				<div class="h-48 md:h-auto md:w-96 border-b md:border-b-0 md:border-l border-gray-200 dark:border-gray-700 order-1 md:order-2">
 					<ExecutionHistory 
 						{flowId} 
 						onClose={() => (showHistory = false)}

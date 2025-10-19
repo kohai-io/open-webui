@@ -83,9 +83,9 @@
 	};
 </script>
 
-<div class="node-library bg-white dark:bg-gray-800 border-2 border-blue-300 dark:border-blue-600 rounded-lg shadow-2xl p-4 w-72">
-	<h3 class="font-bold text-lg mb-3 text-blue-900 dark:text-blue-100 flex items-center gap-2">
-		<svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+<div class="node-library bg-white dark:bg-gray-800 border-2 border-blue-300 dark:border-blue-600 rounded-lg shadow-2xl p-3 md:p-4 w-full md:w-72">
+	<h3 class="font-bold text-base md:text-lg mb-2 md:mb-3 text-blue-900 dark:text-blue-100 flex items-center gap-2">
+		<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 md:w-5 md:h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 			<rect x="3" y="3" width="7" height="7" />
 			<rect x="14" y="3" width="7" height="7" />
 			<rect x="14" y="14" width="7" height="7" />
@@ -94,18 +94,18 @@
 		Available Nodes
 	</h3>
 	
-	<div class="space-y-2">
+	<div class="space-y-1.5 md:space-y-2">
 		{#each nodeTemplates as template}
 			<button
 				on:click={() => addNode(template.type)}
-				class="w-full flex items-start gap-3 p-4 border-2 {template.color} rounded-xl transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-md hover:shadow-lg bg-white dark:bg-gray-900"
+				class="w-full flex items-start gap-2 md:gap-3 p-2.5 md:p-4 border-2 {template.color} rounded-lg md:rounded-xl transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-md hover:shadow-lg bg-white dark:bg-gray-900"
 			>
-				<div class="text-3xl">{template.icon}</div>
-				<div class="flex-1 text-left">
-					<div class="font-bold text-gray-900 dark:text-gray-100 mb-1">
+				<div class="text-2xl md:text-3xl flex-shrink-0">{template.icon}</div>
+				<div class="flex-1 text-left min-w-0">
+					<div class="font-bold text-sm md:text-base text-gray-900 dark:text-gray-100 mb-0.5 md:mb-1">
 						{template.label}
 					</div>
-					<div class="text-xs text-gray-600 dark:text-gray-400">
+					<div class="text-xs text-gray-600 dark:text-gray-400 line-clamp-1 md:line-clamp-none">
 						{template.description}
 					</div>
 				</div>
@@ -113,7 +113,7 @@
 		{/each}
 	</div>
 	
-	<div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+	<div class="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-gray-200 dark:border-gray-700 hidden md:block">
 		<p class="text-xs text-gray-500 dark:text-gray-400">
 			Click a node to add it to the canvas. Connect nodes by dragging from one handle to another.
 		</p>
