@@ -1012,13 +1012,30 @@ export class FlowExecutor {
 			query = query.replace(/\{\{\s*input\s*\}\}/g, inputStr);
 		}
 
-		// Replace {{node_id.output}} patterns with node results
-		query = query.replace(/\{\{\s*([a-zA-Z0-9_-]+)\.output\s*\}\}/g, (match: string, nodeId: string) => {
+		// Replace {{node_id.output.path}} patterns with node results (support nested paths)
+		query = query.replace(/\{\{\s*([a-zA-Z0-9_-]+)\.output(\.[\w.]+)?\s*\}\}/g, (match: string, nodeId: string, path: string) => {
 			const result = this.getNodeResult(nodeId);
-			if (result !== undefined) {
-				return typeof result === 'string' ? result : JSON.stringify(result);
+			if (result === undefined) {
+				console.warn(`Node ${nodeId} not found for interpolation in web search query`);
+				return match;
 			}
-			return match; // Keep original if node not found
+			
+			// If there's a path after .output, navigate to it
+			if (path) {
+				const keys = path.substring(1).split('.'); // Remove leading dot and split
+				let value = result;
+				for (const key of keys) {
+					if (value && typeof value === 'object' && key in value) {
+						value = value[key];
+					} else {
+						console.warn(`Path ${key} not found in ${nodeId} result for web search`);
+						return match;
+					}
+				}
+				return typeof value === 'string' ? value : JSON.stringify(value);
+			}
+			
+			return typeof result === 'string' ? result : JSON.stringify(result);
 		});
 
 		console.log('Interpolated query:', query);
