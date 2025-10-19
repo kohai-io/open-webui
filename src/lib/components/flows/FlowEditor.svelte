@@ -518,10 +518,12 @@
 			color="#94a3b8"
 		/>
 		<Controls />
-		<MiniMap
-			nodeColor="#3b82f6"
-			maskColor="rgb(0, 0, 0, 0.1)"
-		/>
+		{#if !isMobile}
+			<MiniMap
+				nodeColor="#3b82f6"
+				maskColor="rgb(0, 0, 0, 0.1)"
+			/>
+		{/if}
 		
 		<!-- Mode Toggle Panel - Responsive -->
 		<Panel position="top-center" class="m-2 md:m-4">
