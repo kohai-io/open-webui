@@ -1,6 +1,6 @@
 // Flow-based model pipeline type definitions
 
-export type NodeType = 'input' | 'model' | 'output' | 'transform' | 'conditional' | 'loop' | 'merge';
+export type NodeType = 'input' | 'model' | 'output' | 'transform' | 'conditional' | 'loop' | 'merge' | 'knowledge' | 'websearch';
 
 export type NodeStatus = 'idle' | 'running' | 'success' | 'error';
 
@@ -73,6 +73,25 @@ export interface MergeNodeData extends BaseNodeData {
 	separator?: string;
 }
 
+export interface KnowledgeNodeData extends BaseNodeData {
+	knowledgeBaseId?: string;
+	knowledgeBaseName?: string;
+	query?: string;
+	topK?: number;
+	confidenceThreshold?: number;
+	useReranking?: boolean;
+	hybridSearch?: boolean;
+	includeMetadata?: boolean;
+	result?: any;
+}
+
+export interface WebSearchNodeData extends BaseNodeData {
+	query?: string;
+	engine?: string;
+	maxResults?: number;
+	result?: any;
+}
+
 export type NodeData =
 	| InputNodeData
 	| ModelNodeData
@@ -80,7 +99,9 @@ export type NodeData =
 	| TransformNodeData
 	| ConditionalNodeData
 	| LoopNodeData
-	| MergeNodeData;
+	| MergeNodeData
+	| KnowledgeNodeData
+	| WebSearchNodeData;
 
 export interface FlowNode {
 	id: string;

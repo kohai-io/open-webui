@@ -2,8 +2,9 @@
 	import { createEventDispatcher, onMount } from 'svelte';
 	import { getModels as getAPIModels } from '$lib/apis';
 	import { getFiles } from '$lib/apis/files';
+	import { getKnowledgeBases } from '$lib/apis/knowledge';
 	import { models as modelsStore } from '$lib/stores';
-	import type { FlowNode, ModelNodeData, InputNodeData, OutputNodeData } from '$lib/types/flows';
+	import type { FlowNode, ModelNodeData, InputNodeData, OutputNodeData, KnowledgeNodeData } from '$lib/types/flows';
 	
 	export let node: FlowNode;
 	
@@ -14,6 +15,8 @@
 	let showAdvancedSettings = false;
 	let mediaFiles: any[] = [];
 	let loadingFiles = false;
+	let knowledgeBases: any[] = [];
+	let loadingKnowledgeBases = false;
 	
 	// Local state for editing (cast as any to work with union types in Svelte 4)
 	let localData: any = { ...node.data };
@@ -28,6 +31,8 @@
 			await loadModels();
 		} else if (node.type === 'input') {
 			await loadMediaFiles();
+		} else if (node.type === 'knowledge') {
+			await loadKnowledgeBases();
 		}
 	});
 	
@@ -81,6 +86,21 @@
 			console.error('Error loading media files:', error);
 		} finally {
 			loadingFiles = false;
+		}
+	};
+
+	const loadKnowledgeBases = async () => {
+		loadingKnowledgeBases = true;
+		try {
+			const token = localStorage.getItem('token') || '';
+			const data = await getKnowledgeBases(token);
+			if (data) {
+				knowledgeBases = data;
+			}
+		} catch (error) {
+			console.error('Error loading knowledge bases:', error);
+		} finally {
+			loadingKnowledgeBases = false;
 		}
 	};
 	
@@ -403,6 +423,207 @@
 					</div>
 				</div>
 			{/if}
+		{:else if node.type === 'knowledge'}
+			<!-- Knowledge Node Config -->
+			<div>
+				<label for="knowledge-base-select" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+					Knowledge Base
+				</label>
+				{#if loadingKnowledgeBases}
+					<div class="text-sm text-gray-500">Loading knowledge bases...</div>
+				{:else if knowledgeBases.length === 0}
+					<p class="text-xs text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+						No knowledge bases available. Create a knowledge base first to use this node.
+					</p>
+				{:else}
+					<select
+						id="knowledge-base-select"
+						value={localData.knowledgeBaseId}
+						on:change={(e) => {
+							const target = e.target;
+							if (target instanceof HTMLSelectElement) {
+								const selectedKB = knowledgeBases.find(kb => kb.id === target.value);
+								localData.knowledgeBaseId = target.value;
+								localData.knowledgeBaseName = selectedKB?.name || '';
+								updateData();
+							}
+						}}
+						class="nopan nodrag nowheel w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+					>
+						<option value="">Select a knowledge base</option>
+						{#each knowledgeBases as kb}
+							<option value={kb.id}>{kb.name}</option>
+						{/each}
+					</select>
+				{/if}
+			</div>
+			
+			<div>
+				<label for="knowledge-query" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+					Query
+				</label>
+				<textarea
+					id="knowledge-query"
+					value={localData.query}
+					on:input={(e) => {
+						const target = e.target;
+						if (target instanceof HTMLTextAreaElement) {
+							localData.query = target.value;
+						}
+					}}
+					on:blur={updateData}
+					placeholder="Enter query... Use {'{'}{'{'} input {'}'}{'}'}  to reference previous node"
+					rows="4"
+					class="nopan nodrag nowheel w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+				/>
+				<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+					Use <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{'}{'{'} input {'}'}{'}'}  </code> to reference the previous node's output
+				</p>
+			</div>
+			
+			<div>
+				<label for="knowledge-topk" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+					Top K Results: {localData.topK || 4}
+				</label>
+				<input
+					id="knowledge-topk"
+					type="range"
+					min="1"
+					max="20"
+					value={localData.topK || 4}
+					on:input={(e) => {
+						const target = e.target;
+						if (target instanceof HTMLInputElement) {
+							localData.topK = parseInt(target.value);
+						}
+					}}
+					on:change={updateData}
+					class="nopan nodrag nowheel w-full"
+				/>
+				<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+					Number of relevant chunks to retrieve
+				</p>
+			</div>
+			
+			<div>
+				<label for="knowledge-confidence" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+					Confidence Threshold: {localData.confidenceThreshold || 0}
+				</label>
+				<input
+					id="knowledge-confidence"
+					type="range"
+					min="0"
+					max="1"
+					step="0.05"
+					value={localData.confidenceThreshold || 0}
+					on:input={(e) => {
+						const target = e.target;
+						if (target instanceof HTMLInputElement) {
+							localData.confidenceThreshold = parseFloat(target.value);
+						}
+					}}
+					on:change={updateData}
+					class="nopan nodrag nowheel w-full"
+				/>
+				<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+					Minimum relevance score (0 = all results)
+				</p>
+			</div>
+			
+			<div class="space-y-2">
+				<label class="flex items-center gap-2 cursor-pointer">
+					<input
+						type="checkbox"
+						bind:checked={localData.useReranking}
+						on:change={updateData}
+						class="nodrag w-4 h-4 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
+					/>
+					<span class="text-sm text-gray-700 dark:text-gray-300">Use Reranking</span>
+				</label>
+				<p class="text-xs text-gray-500 dark:text-gray-400 ml-6">
+					Rerank results for better relevance (slower but more accurate)
+				</p>
+				
+				<label class="flex items-center gap-2 cursor-pointer">
+					<input
+						type="checkbox"
+						bind:checked={localData.hybridSearch}
+						on:change={updateData}
+						class="nodrag w-4 h-4 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
+					/>
+					<span class="text-sm text-gray-700 dark:text-gray-300">Hybrid Search</span>
+				</label>
+				<p class="text-xs text-gray-500 dark:text-gray-400 ml-6">
+					Combine semantic and keyword search
+				</p>
+				
+				<label class="flex items-center gap-2 cursor-pointer">
+					<input
+						type="checkbox"
+						bind:checked={localData.includeMetadata}
+						on:change={updateData}
+						class="nodrag w-4 h-4 text-purple-600 rounded focus:ring-2 focus:ring-purple-500"
+					/>
+					<span class="text-sm text-gray-700 dark:text-gray-300">Include Metadata</span>
+				</label>
+				<p class="text-xs text-gray-500 dark:text-gray-400 ml-6">
+					Include source file information in results
+				</p>
+			</div>
+		{:else if node.type === 'websearch'}
+			<!-- Web Search Node Config -->
+			<div>
+				<label for="websearch-query" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+					Search Query
+				</label>
+				<textarea
+					id="websearch-query"
+					value={localData.query}
+					on:input={(e) => {
+						const target = e.target;
+						if (target instanceof HTMLTextAreaElement) {
+							localData.query = target.value;
+						}
+					}}
+					on:blur={updateData}
+					placeholder="Enter search query... Use {'{'}{'{'} input {'}'}{'}'}  to reference previous node"
+					rows="3"
+					class="nopan nodrag nowheel w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
+				/>
+				<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+					Use <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{'}{'{'} input {'}'}{'}'}  </code> to reference the previous node's output
+				</p>
+			</div>
+			
+			<div>
+				<label for="websearch-maxresults" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+					Max Results: {localData.maxResults || 5}
+				</label>
+				<input
+					id="websearch-maxresults"
+					type="range"
+					min="1"
+					max="20"
+					value={localData.maxResults || 5}
+					on:input={(e) => {
+						const target = e.target;
+						if (target instanceof HTMLInputElement) {
+							localData.maxResults = parseInt(target.value);
+						}
+					}}
+					on:change={updateData}
+					class="nopan nodrag nowheel w-full"
+				/>
+				<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+					Maximum number of search results to retrieve
+				</p>
+			</div>
+			
+			<div class="p-3 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg border border-cyan-200 dark:border-cyan-800">
+				<p class="text-xs text-gray-700 dark:text-gray-300">
+					<strong>Note:</strong> Web search uses the configured search engine in your Open WebUI settings. Results are stored in a temporary collection and can be queried by downstream nodes.
+				</p>
+			</div>
 		{:else if node.type === 'transform'}
 			<!-- Transform Node Config -->
 			<div>

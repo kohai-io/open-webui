@@ -23,6 +23,8 @@
 	import ModelNode from './nodes/ModelNode.svelte';
 	import OutputNode from './nodes/OutputNode.svelte';
 	import TransformNode from './nodes/TransformNode.svelte';
+	import KnowledgeNode from './nodes/KnowledgeNode.svelte';
+	import WebSearchNode from './nodes/WebSearchNode.svelte';
 	
 	// Panels
 	import NodeLibrary from './panels/NodeLibrary.svelte';
@@ -32,7 +34,9 @@
 		model: ModelNode,
 		input: InputNode,
 		output: OutputNode,
-		transform: TransformNode
+		transform: TransformNode,
+		knowledge: KnowledgeNode,
+		websearch: WebSearchNode
 	};
 	
 	let showNodeLibrary = true;
@@ -128,6 +132,27 @@
 					prompt: '',
 					useAdvancedSettings: false,
 					temperature: 0.7
+				};
+				break;
+			case 'knowledge':
+				nodeData = {
+					label: 'Knowledge',
+					knowledgeBaseId: '',
+					knowledgeBaseName: '',
+					query: '{{input}}',
+					topK: 4,
+					confidenceThreshold: 0,
+					useReranking: false,
+					hybridSearch: false,
+					includeMetadata: true
+				};
+				break;
+			case 'websearch':
+				nodeData = {
+					label: 'Web Search',
+					query: '{{input}}',
+					engine: '',
+					maxResults: 5
 				};
 				break;
 			case 'transform':

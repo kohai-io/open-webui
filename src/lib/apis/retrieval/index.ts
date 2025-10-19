@@ -408,7 +408,7 @@ export const processWebSearch = async (
 			Authorization: `Bearer ${token}`
 		},
 		body: JSON.stringify({
-			query,
+			queries: [query], // Backend expects queries as an array
 			collection_name: collection_name ?? ''
 		})
 	})

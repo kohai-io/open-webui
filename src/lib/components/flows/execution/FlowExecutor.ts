@@ -1,6 +1,8 @@
 import type { FlowNode, FlowEdge, FlowExecutionContext, FlowExecutionResult } from '$lib/types/flows';
 import { chatCompletion } from '$lib/apis/openai';
 import { uploadFile } from '$lib/apis/files';
+import { queryDoc, processWebSearch } from '$lib/apis/retrieval';
+import { getKnowledgeById } from '$lib/apis/knowledge';
 import { WEBUI_BASE_URL } from '$lib/constants';
 
 export class FlowExecutor {
@@ -166,6 +168,12 @@ export class FlowExecutor {
 					break;
 				case 'transform':
 					result = await this.executeTransformNode(node, inputs);
+					break;
+				case 'knowledge':
+					result = await this.executeKnowledgeNode(node, inputs);
+					break;
+				case 'websearch':
+					result = await this.executeWebSearchNode(node, inputs);
 					break;
 				default:
 					throw new Error(`Unknown node type: ${node.type}`);
@@ -799,6 +807,186 @@ export class FlowExecutor {
 				
 			default:
 				return input;
+		}
+	}
+
+	private async executeKnowledgeNode(node: FlowNode, inputs: any[]): Promise<any> {
+		const data = node.data as any;
+		
+		if (!data.knowledgeBaseId) {
+			throw new Error('No knowledge base selected');
+		}
+
+		if (!data.query) {
+			throw new Error('No query provided');
+		}
+
+		console.log('=== Knowledge Node Execution ===');
+		console.log('Knowledge Base:', data.knowledgeBaseId);
+		console.log('Query template:', data.query);
+
+		// Interpolate query with inputs
+		let query = data.query;
+		
+		// Replace {{input}} with the first input
+		if (inputs.length > 0) {
+			const inputStr = typeof inputs[0] === 'string' ? inputs[0] : JSON.stringify(inputs[0]);
+			query = query.replace(/\{\{\s*input\s*\}\}/g, inputStr);
+		}
+
+		// Replace {{node_id.output}} patterns with node results
+		query = query.replace(/\{\{\s*([a-zA-Z0-9_-]+)\.output\s*\}\}/g, (match: string, nodeId: string) => {
+			const result = this.nodeResults.get(nodeId);
+			if (result !== undefined) {
+				return typeof result === 'string' ? result : JSON.stringify(result);
+			}
+			return match; // Keep original if node not found
+		});
+
+		console.log('Interpolated query:', query);
+
+		try {
+			// Get auth token
+			const token = localStorage.getItem('token') || '';
+			
+			// Get knowledge base details to find collection name
+			const knowledgeBase = await getKnowledgeById(token, data.knowledgeBaseId);
+			console.log('Knowledge base object:', knowledgeBase);
+			
+			if (!knowledgeBase) {
+				throw new Error('Knowledge base not found');
+			}
+
+			// The collection name is typically just the knowledge base ID
+			let collectionName = knowledgeBase.data?.collection_name 
+				|| knowledgeBase.collection_name 
+				|| data.knowledgeBaseId; // Use the ID directly as collection name
+			
+			console.log('Using collection name:', collectionName);
+
+			// Query the knowledge base using the retrieval API
+			const topK = data.topK || 4;
+			const result = await queryDoc(token, collectionName, query, topK);
+			
+			console.log('Knowledge query result:', result);
+
+			// Format the results
+			if (result && result.documents && result.documents.length > 0) {
+				// Extract relevant chunks with metadata
+				const chunks = result.documents.map((doc: any, index: number) => {
+					const metadata = result.metadatas?.[index] || {};
+					const distance = result.distances?.[index];
+					
+					return {
+						content: doc,
+						metadata: data.includeMetadata ? metadata : undefined,
+						relevanceScore: distance !== undefined ? (1 - distance) : undefined
+					};
+				});
+
+				// Filter by confidence threshold if specified
+				const filteredChunks = data.confidenceThreshold
+					? chunks.filter((chunk: any) => 
+						!chunk.relevanceScore || chunk.relevanceScore >= data.confidenceThreshold
+					)
+					: chunks;
+
+				if (filteredChunks.length === 0) {
+					return {
+						chunks: [],
+						message: 'No results met the confidence threshold'
+					};
+				}
+
+				// Return formatted results
+				return {
+					chunks: filteredChunks,
+					count: filteredChunks.length,
+					query: query,
+					knowledgeBase: knowledgeBase.name
+				};
+			} else {
+				return {
+					chunks: [],
+					message: 'No relevant documents found'
+				};
+			}
+		} catch (error) {
+			console.error('Knowledge query error:', error);
+			throw new Error(`Knowledge query failed: ${(error as Error).message}`);
+		}
+	}
+
+	private async executeWebSearchNode(node: FlowNode, inputs: any[]): Promise<any> {
+		const data = node.data as any;
+		
+		if (!data.query) {
+			throw new Error('No search query provided');
+		}
+
+		console.log('=== Web Search Node Execution ===');
+		console.log('Query template:', data.query);
+
+		// Interpolate query with inputs
+		let query = data.query;
+		
+		// Replace {{input}} with the first input
+		if (inputs.length > 0) {
+			const inputStr = typeof inputs[0] === 'string' ? inputs[0] : JSON.stringify(inputs[0]);
+			query = query.replace(/\{\{\s*input\s*\}\}/g, inputStr);
+		}
+
+		// Replace {{node_id.output}} patterns with node results
+		query = query.replace(/\{\{\s*([a-zA-Z0-9_-]+)\.output\s*\}\}/g, (match: string, nodeId: string) => {
+			const result = this.nodeResults.get(nodeId);
+			if (result !== undefined) {
+				return typeof result === 'string' ? result : JSON.stringify(result);
+			}
+			return match; // Keep original if node not found
+		});
+
+		console.log('Interpolated query:', query);
+
+		try {
+			// Get auth token
+			const token = localStorage.getItem('token') || '';
+			
+			// Perform web search - Note: processWebSearch expects query and optional collection_name
+			// We'll let it create a temporary collection automatically by passing undefined
+			const result = await processWebSearch(token, query, undefined);
+			
+			console.log('Web search result:', result);
+
+			if (!result) {
+				throw new Error('No search results returned');
+			}
+
+			// The result contains the search results
+			// Format as a string for easy use in downstream nodes
+			const resultText = result.filenames && result.filenames.length > 0
+				? `Web search found ${result.filenames.length} results for "${query}":\n${result.filenames.join('\n')}`
+				: `No results found for "${query}"`;
+
+			// Return formatted result
+			return {
+				query: query,
+				filenames: result.filenames || [],
+				collection_name: result.collection_name,
+				status: result.status,
+				text: resultText
+			};
+		} catch (error) {
+			console.error('Web search error:', error);
+			// Try to extract the actual error message
+			let errorMessage = 'Unknown error';
+			if (Array.isArray(error)) {
+				errorMessage = error.map((e: any) => e.msg || JSON.stringify(e)).join(', ');
+			} else if (error instanceof Error) {
+				errorMessage = error.message;
+			} else if (typeof error === 'string') {
+				errorMessage = error;
+			}
+			throw new Error(`Web search failed: ${errorMessage}`);
 		}
 	}
 }

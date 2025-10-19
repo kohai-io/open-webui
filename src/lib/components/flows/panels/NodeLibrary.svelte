@@ -28,6 +28,20 @@
 			color: 'border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20'
 		},
 		{
+			type: 'knowledge',
+			label: 'Knowledge',
+			icon: '📚',
+			description: 'Query knowledge base (RAG)',
+			color: 'border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20'
+		},
+		{
+			type: 'websearch',
+			label: 'Web Search',
+			icon: '🌐',
+			description: 'Search the internet',
+			color: 'border-cyan-500 hover:bg-cyan-50 dark:hover:bg-cyan-900/20'
+		},
+		{
 			type: 'transform',
 			label: 'Transform',
 			icon: '🔄',
