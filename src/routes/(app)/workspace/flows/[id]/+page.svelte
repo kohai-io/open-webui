@@ -135,9 +135,11 @@
 		try {
 			// Create executor with callback for status updates
 			currentExecutor = new FlowExecutor(nodes, edges, (nodeId, status, result) => {
-				// Clear error field on success, keep it on error
-				const updateData = { status, ...(result || {}) };
-				if (status === 'success') {
+				// Only update status and error - DON'T spread result to avoid overwriting config
+				const updateData: any = { status };
+				if (status === 'error' && result?.error) {
+					updateData.error = result.error;
+				} else if (status === 'success') {
 					updateData.error = undefined;
 				}
 				updateNodeData(nodeId, updateData);
@@ -347,7 +349,12 @@
 			<div class="flex-1">
 				<FlowEditor 
 					{lastExecutionResults} 
-					on:clearResults={() => lastExecutionResults = {}}
+					on:clearResults={() => {
+						console.log('🔄 Received clearResults event, clearing data...');
+						lastExecutionResults = {};
+						clearNodeStates(); // Also clear node status/results
+						console.log('✅ lastExecutionResults and node states cleared');
+					}}
 				/>
 			</div>
 			{#if showHistory}

@@ -992,12 +992,22 @@ export class FlowExecutor {
 			// Get auth token
 			const token = localStorage.getItem('token') || '';
 			
-			// Perform web search - the backend handles both search queries AND URLs
-			// When given a URL, it will fetch and scrape the content server-side (no CORS issues)
-			console.log('Performing web search/URL fetch via backend for:', query);
-			const searchResult = await processWebSearch(token, query, undefined);
+			// Detect if query is a URL vs a search query
+			const isUrl = query.startsWith('http://') || query.startsWith('https://');
 			
-			console.log('Web search result:', searchResult);
+			let searchResult;
+			if (isUrl) {
+				// Use processWeb for URL scraping
+				console.log('Fetching and scraping URL via backend:', query);
+				const { processWeb } = await import('$lib/apis/retrieval');
+				searchResult = await processWeb(token, '', query);
+			} else {
+				// Use processWebSearch for search queries
+				console.log('Performing web search via backend for:', query);
+				searchResult = await processWebSearch(token, query, undefined);
+			}
+			
+			console.log('Web search/URL result:', searchResult);
 
 			if (!searchResult || !searchResult.status) {
 				throw new Error('No search results returned');

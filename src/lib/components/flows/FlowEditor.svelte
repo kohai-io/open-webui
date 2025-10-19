@@ -56,6 +56,11 @@
 	
 	$: showNodeConfig = $selectedNode !== null;
 	
+	// Debug: Log when execution results change
+	$: if (Object.keys(lastExecutionResults).length > 0) {
+		console.log('🔍 FlowEditor: Execution results updated, count:', Object.keys(lastExecutionResults).length);
+	}
+	
 	const handleNodeClick = (event: CustomEvent) => {
 		const node = event.detail.node as FlowNode;
 		selectedNode.set(node);
@@ -66,8 +71,10 @@
 	};
 	
 	const handleClearResults = () => {
+		console.log('🗑️ Clear Results clicked');
 		// Dispatch event to parent to clear execution results
 		dispatch('clearResults');
+		console.log('✅ clearResults event dispatched');
 		// Also switch back to edit mode
 		viewMode = 'edit';
 	};
