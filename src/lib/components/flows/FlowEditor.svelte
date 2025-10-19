@@ -345,6 +345,8 @@
 		<div class="absolute right-4 top-4 bottom-4 w-80 z-10 nopan nodrag nowheel">
 			<NodeConfig
 				node={$selectedNode}
+				nodes={$flowNodes}
+				edges={$flowEdges}
 				on:update={(e) => updateNodeData($selectedNode.id, e.detail)}
 				on:delete={() => handleNodeDelete($selectedNode.id)}
 				on:close={() => selectedNode.set(null)}

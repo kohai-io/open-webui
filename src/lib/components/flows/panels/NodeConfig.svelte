@@ -4,9 +4,11 @@
 	import { getFiles } from '$lib/apis/files';
 	import { getKnowledgeBases } from '$lib/apis/knowledge';
 	import { models as modelsStore } from '$lib/stores';
-	import type { FlowNode, ModelNodeData, InputNodeData, OutputNodeData, KnowledgeNodeData } from '$lib/types/flows';
+	import type { FlowNode, FlowEdge, ModelNodeData, InputNodeData, OutputNodeData, KnowledgeNodeData } from '$lib/types/flows';
 	
 	export let node: FlowNode;
+	export let nodes: FlowNode[] = [];
+	export let edges: FlowEdge[] = [];
 	
 	const dispatch = createEventDispatcher();
 	
@@ -20,6 +22,25 @@
 	
 	// Local state for editing (cast as any to work with union types in Svelte 4)
 	let localData: any = { ...node.data };
+	
+	// Helper to get nodes connected to current node
+	function getConnectedSourceNodes(): Array<{id: string, label: string, type: string}> {
+		const sourceEdges = edges.filter(e => e.target === node.id);
+		
+		return sourceEdges.map(edge => {
+			const sourceNode = nodes.find(n => n.id === edge.source);
+			return {
+				id: sourceNode?.id || edge.source,
+				label: sourceNode?.data?.label || sourceNode?.type || 'Unknown',
+				type: sourceNode?.type || 'unknown'
+			};
+		}).filter(n => n.id);
+	}
+	
+	// Get array-capable source nodes (websearch, knowledge, etc.)
+	$: arraySourceOptions = getConnectedSourceNodes().filter(n => 
+		['websearch', 'knowledge', 'loop', 'input'].includes(n.type)
+	);
 	
 	// Initialize config object for transform nodes if it doesn't exist
 	if (node.type === 'transform' && !localData.config) {
@@ -179,6 +200,31 @@
 				class="nopan nodrag nowheel w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
 			/>
 		</div>
+		
+		<!-- Advanced Settings Toggle -->
+		{#if ['loop', 'conditional', 'websearch', 'knowledge'].includes(node.type)}
+			<div class="flex items-center justify-between py-2">
+				<button
+					type="button"
+					on:click={() => showAdvancedSettings = !showAdvancedSettings}
+					class="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 flex items-center gap-1"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="w-3 h-3 transition-transform {showAdvancedSettings ? 'rotate-90' : ''}"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						<polyline points="9 18 15 12 9 6" />
+					</svg>
+					{showAdvancedSettings ? 'Hide' : 'Show'} Advanced Options
+				</button>
+			</div>
+		{/if}
 		
 		{#if node.type === 'input'}
 			<!-- Input Node Config -->
@@ -868,26 +914,69 @@
 			
 			{#if localData.loopType === 'array'}
 				<div>
-					<label for="loop-array" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-						Array Path
+					<label for="loop-array-source" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+						What to loop over?
 					</label>
-					<input
-						id="loop-array"
-						type="text"
-						value={localData.arrayPath}
-						on:input={(e) => {
-							const target = e.target;
-							if (target instanceof HTMLInputElement) {
-								localData.arrayPath = target.value;
-							}
-						}}
-						on:blur={updateData}
-						placeholder="e.g., {'{'}{'{'} input {'}'}{'}'}  or {'{'}{'{'} node_id.output {'}'}{'}'}"
-						class="nopan nodrag nowheel w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-					/>
-					<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-						Path to the array to iterate over
-					</p>
+					
+					{#if arraySourceOptions.length > 0}
+						<select
+							id="loop-array-source"
+							value={localData.arrayPath || ''}
+							on:change={(e) => {
+								const target = e.target;
+								if (target instanceof HTMLSelectElement) {
+									localData.arrayPath = target.value;
+									updateData();
+								}
+							}}
+							class="nopan nodrag nowheel w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+						>
+							<option value="">Select source...</option>
+							{#each arraySourceOptions as source}
+								{#if source.type === 'websearch'}
+									<option value={`{{${source.type}.output.results}}`}>{source.label} → Results</option>
+								{:else if source.type === 'knowledge'}
+									<option value={`{{${source.type}.output.chunks}}`}>{source.label} → Chunks</option>
+								{:else if source.type === 'input'}
+									<option value={`{{${source.type}.output}}`}>{source.label}</option>
+								{:else}
+									<option value={`{{${source.type}.output}}`}>{source.label}</option>
+								{/if}
+							{/each}
+						</select>
+						<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+							✅ Auto-detected from connected nodes
+						</p>
+					{:else}
+						<div class="p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+							<p class="text-xs text-gray-700 dark:text-gray-300">
+								⚠️ Connect a Web Search or Knowledge node first
+							</p>
+						</div>
+					{/if}
+					
+					<!-- Advanced: Manual input -->
+					{#if showAdvancedSettings}
+						<div class="mt-2">
+							<label for="loop-array-manual" class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+								Or enter manually:
+							</label>
+							<input
+								id="loop-array-manual"
+								type="text"
+								value={localData.arrayPath}
+								on:input={(e) => {
+									const target = e.target;
+									if (target instanceof HTMLInputElement) {
+										localData.arrayPath = target.value;
+									}
+								}}
+								on:blur={updateData}
+								placeholder="e.g., {'{'}{'{'} websearch.output.results {'}'}{'}'}"
+								class="nopan nodrag nowheel w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+							/>
+						</div>
+					{/if}
 				</div>
 			{/if}
 			
