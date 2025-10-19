@@ -40,7 +40,7 @@
   let pageSize = 24; // items per "page" (client-side)
   let visibleCount = pageSize;
   let viewMode: ViewMode = 'grid';
-  let groupBy: GroupBy = 'hierarchy';
+  let groupBy: GroupBy = 'none'; // Default to gallery view (faster for large libraries)
   // Sorting state
   let sortBy: SortBy = 'updated';
   let sortDir: SortDir = 'desc';
