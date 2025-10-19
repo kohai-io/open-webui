@@ -119,6 +119,19 @@ export class FlowExecutor {
 		console.log('Flow execution aborted by user');
 	}
 
+	/**
+	 * Check if a node should only be executed by its parent loop (EACH branch)
+	 * and not in the normal topological execution
+	 */
+	private isEachOnlyNode(nodeId: string): boolean {
+		// Check if ALL incoming edges are from EACH handles
+		const incomingEdges = this.edges.filter(e => e.target === nodeId);
+		if (incomingEdges.length === 0) return false;
+		
+		const eachEdges = incomingEdges.filter(e => e.sourceHandle === 'each');
+		return eachEdges.length > 0 && eachEdges.length === incomingEdges.length;
+	}
+
 	async execute(): Promise<FlowExecutionResult> {
 		this.startTime = Date.now();
 		this.nodeResults.clear();
@@ -134,6 +147,14 @@ export class FlowExecutor {
 				if (this.aborted) {
 					throw new Error('Flow execution aborted by user');
 				}
+				
+				// Skip nodes that are only connected via EACH handles
+				// These will be executed by their parent Loop node
+				if (this.isEachOnlyNode(nodeId)) {
+					console.log(`Skipping ${nodeId} - will be executed by Loop's EACH branch`);
+					continue;
+				}
+				
 				await this.executeNode(nodeId);
 			}
 
@@ -383,6 +404,32 @@ export class FlowExecutor {
 			// No inputs but has {{input}} template - remove it
 			prompt = prompt.replace(/\{\{\s*input\s*\}\}/g, '').trim();
 		}
+
+		// Replace {{node_id.output.path}} patterns with node results
+		prompt = prompt.replace(/\{\{\s*([a-zA-Z0-9_-]+)\.output(\.[\w.]+)?\s*\}\}/g, (match: string, nodeId: string, path: string) => {
+			const result = this.getNodeResult(nodeId);
+			if (result === undefined) {
+				console.warn(`Node ${nodeId} not found for interpolation, keeping placeholder`);
+				return match;
+			}
+			
+			// If there's a path after .output, navigate to it
+			if (path) {
+				const keys = path.substring(1).split('.'); // Remove leading dot and split
+				let value = result;
+				for (const key of keys) {
+					if (value && typeof value === 'object' && key in value) {
+						value = value[key];
+					} else {
+						console.warn(`Path ${key} not found in ${nodeId} result`);
+						return match;
+					}
+				}
+				return typeof value === 'string' ? value : JSON.stringify(value);
+			}
+			
+			return typeof result === 'string' ? result : JSON.stringify(result);
+		});
 
 		// Prompt should now contain the file path if we have images
 		if (!prompt) {
@@ -980,7 +1027,81 @@ export class FlowExecutor {
 			// Get auth token
 			const token = localStorage.getItem('token') || '';
 			
-			// Perform web search - Note: processWebSearch expects query and optional collection_name
+			// Check if query is a URL - if so, fetch content from that URL
+			const urlPattern = /^https?:\/\//i;
+			if (urlPattern.test(query.trim())) {
+				console.log('Detected URL input - fetching content from:', query);
+				
+				try {
+					// Fetch content from the URL
+					const response = await fetch(query.trim());
+					if (!response.ok) {
+						throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+					}
+					
+					const contentType = response.headers.get('content-type') || '';
+					let content = '';
+					let title = query;
+					
+					if (contentType.includes('text/html')) {
+						const html = await response.text();
+						
+						// Extract title from HTML
+						const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+						if (titleMatch) {
+							title = titleMatch[1].trim();
+						}
+						
+						// Extract text content (remove HTML tags)
+						content = html
+							.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+							.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+							.replace(/<[^>]+>/g, ' ')
+							.replace(/\s+/g, ' ')
+							.trim();
+					} else if (contentType.includes('text/')) {
+						content = await response.text();
+					} else if (contentType.includes('application/json')) {
+						const json = await response.json();
+						content = JSON.stringify(json, null, 2);
+					} else {
+						content = `Binary content (${contentType})`;
+					}
+					
+					// Limit content length
+					const maxLength = 10000;
+					if (content.length > maxLength) {
+						content = content.substring(0, maxLength) + '...\n\n[Content truncated]';
+					}
+					
+					console.log('Fetched URL content, length:', content.length);
+					
+					// Return in same format as web search
+					return {
+						query: query,
+						results: [{
+							title: title,
+							url: query,
+							content: content,
+							snippet: content.substring(0, 200) + '...',
+							metadata: {
+								source: query,
+								contentType: contentType,
+								fetchedAt: new Date().toISOString()
+							}
+						}],
+						count: 1,
+						collection_name: undefined,
+						text: `Fetched content from: ${title}\nURL: ${query}\n\n${content.substring(0, 500)}...`
+					};
+				} catch (fetchError) {
+					console.error('URL fetch error:', fetchError);
+					throw new Error(`Failed to fetch URL: ${(fetchError as Error).message}`);
+				}
+			}
+			
+			// Not a URL - perform normal web search
+			// Note: processWebSearch expects query and optional collection_name
 			// We'll let it create a temporary collection automatically by passing undefined
 			const searchResult = await processWebSearch(token, query, undefined);
 			
@@ -1236,10 +1357,47 @@ export class FlowExecutor {
 
 			console.log(`Loop completed with ${results.length} iterations`);
 
-			return {
+			// Get edges connected to this loop node
+			const eachEdges = this.edges.filter(e => e.source === node.id && e.sourceHandle === 'each');
+			const doneEdges = this.edges.filter(e => e.source === node.id && (e.sourceHandle === 'done' || !e.sourceHandle));
+			
+			console.log(`Found ${eachEdges.length} EACH edges, ${doneEdges.length} DONE edges`);
+			
+			// Execute EACH branch for every iteration
+			if (eachEdges.length > 0) {
+				console.log('Executing EACH branch for each iteration...');
+				
+				for (const result of results) {
+					console.log(`Processing iteration ${result.iteration}...`);
+					
+					// Store the current iteration result temporarily
+					// This allows {{loop.output.value.xxx}} to work
+					const originalLoopResult = this.nodeResults.get(node.id);
+					this.nodeResults.set(node.id, result);
+					
+					// Execute all nodes connected to EACH handle
+					for (const edge of eachEdges) {
+						const targetNode = this.nodes.get(edge.target);
+						if (targetNode) {
+							console.log(`  Executing ${targetNode.type} node ${targetNode.id} for iteration ${result.iteration}`);
+							await this.executeNode(targetNode.id);
+						}
+					}
+					
+					// Restore original result (we'll set the final one after all iterations)
+					if (originalLoopResult !== undefined) {
+						this.nodeResults.set(node.id, originalLoopResult);
+					}
+				}
+			}
+			
+			// Store final aggregated result for DONE branches
+			const aggregatedResult = {
 				iterations: results.length,
 				results: results
 			};
+			
+			return aggregatedResult;
 		} catch (error) {
 			console.error('Loop execution error:', error);
 			throw new Error(`Loop failed: ${(error as Error).message}`);

@@ -667,19 +667,26 @@
 			
 			<div class="p-3 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg border border-cyan-200 dark:border-cyan-800">
 				<p class="text-xs text-gray-700 dark:text-gray-300 mb-2">
+					<strong>Two Modes:</strong>
+				</p>
+				<ul class="text-xs text-gray-600 dark:text-gray-400 list-disc list-inside space-y-1 mb-2">
+					<li><strong>Search Mode:</strong> Query text → Returns search results</li>
+					<li><strong>URL Mode:</strong> Query is URL → Fetches content from that URL</li>
+				</ul>
+				<p class="text-xs text-gray-700 dark:text-gray-300 mb-2">
 					<strong>Output Structure:</strong> Returns an array of results, each with:
 				</p>
 				<ul class="text-xs text-gray-600 dark:text-gray-400 list-disc list-inside space-y-1">
 					<li><code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">title</code> - Page title</li>
 					<li><code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">url</code> - Source URL</li>
-					<li><code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">content</code> - Full content</li>
+					<li><code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">content</code> - Full content (HTML text extracted)</li>
 					<li><code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">snippet</code> - Short preview</li>
 				</ul>
 				<p class="text-xs text-gray-700 dark:text-gray-300 mt-2">
-					<strong>Loop over results:</strong> Use <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{'}{'{'} websearch.output.results {'}'}{'}'}</code> in Loop node
+					<strong>Common Pattern:</strong> Search → Loop → Web Search (URL mode) → Process content
 				</p>
 				<p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-					💡 You can use node type (e.g., <code>websearch</code>) instead of full ID
+					💡 Pass <code class="bg-gray-100 dark:bg-gray-700 px-1 rounded">{'{'}{'{'} loop.output.value.url {'}'}{'}'}</code> to fetch each URL
 				</p>
 			</div>
 		{:else if node.type === 'transform'}
