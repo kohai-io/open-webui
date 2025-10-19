@@ -1044,82 +1044,9 @@ export class FlowExecutor {
 			// Get auth token
 			const token = localStorage.getItem('token') || '';
 			
-			// Check if query is a URL - if so, fetch content from that URL
-			const urlPattern = /^https?:\/\//i;
-			if (urlPattern.test(query.trim())) {
-				console.log('Detected URL input - fetching content from:', query);
-				
-				try {
-					// Fetch content from the URL
-					const response = await fetch(query.trim());
-					if (!response.ok) {
-						throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-					}
-					
-					const contentType = response.headers.get('content-type') || '';
-					let content = '';
-					let title = query;
-					
-					if (contentType.includes('text/html')) {
-						const html = await response.text();
-						
-						// Extract title from HTML
-						const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
-						if (titleMatch) {
-							title = titleMatch[1].trim();
-						}
-						
-						// Extract text content (remove HTML tags)
-						content = html
-							.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-							.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-							.replace(/<[^>]+>/g, ' ')
-							.replace(/\s+/g, ' ')
-							.trim();
-					} else if (contentType.includes('text/')) {
-						content = await response.text();
-					} else if (contentType.includes('application/json')) {
-						const json = await response.json();
-						content = JSON.stringify(json, null, 2);
-					} else {
-						content = `Binary content (${contentType})`;
-					}
-					
-					// Limit content length
-					const maxLength = 10000;
-					if (content.length > maxLength) {
-						content = content.substring(0, maxLength) + '...\n\n[Content truncated]';
-					}
-					
-					console.log('Fetched URL content, length:', content.length);
-					
-					// Return in same format as web search
-					return {
-						query: query,
-						results: [{
-							title: title,
-							url: query,
-							content: content,
-							snippet: content.substring(0, 200) + '...',
-							metadata: {
-								source: query,
-								contentType: contentType,
-								fetchedAt: new Date().toISOString()
-							}
-						}],
-						count: 1,
-						collection_name: undefined,
-						text: `Fetched content from: ${title}\nURL: ${query}\n\n${content.substring(0, 500)}...`
-					};
-				} catch (fetchError) {
-					console.error('URL fetch error:', fetchError);
-					throw new Error(`Failed to fetch URL: ${(fetchError as Error).message}`);
-				}
-			}
-			
-			// Not a URL - perform normal web search
-			// Note: processWebSearch expects query and optional collection_name
-			// We'll let it create a temporary collection automatically by passing undefined
+			// Perform web search - the backend handles both search queries AND URLs
+			// When given a URL, it will fetch and scrape the content server-side (no CORS issues)
+			console.log('Performing web search/URL fetch via backend for:', query);
 			const searchResult = await processWebSearch(token, query, undefined);
 			
 			console.log('Web search result:', searchResult);
@@ -1269,6 +1196,34 @@ export class FlowExecutor {
 		};
 	}
 
+	/**
+	 * Recursively execute a node and all its downstream nodes in the EACH branch
+	 */
+	private async executeEachBranch(nodeId: string, iteration: number): Promise<void> {
+		const node = this.nodes.get(nodeId);
+		if (!node) return;
+		
+		console.log(`  Executing ${node.type} node ${nodeId} for iteration ${iteration}`);
+		
+		// Execute this node
+		await this.executeNode(nodeId);
+		
+		// Find downstream nodes (but NOT nodes connected via DONE handle from other nodes)
+		const downstreamEdges = this.edges.filter(e => 
+			e.source === nodeId && 
+			e.sourceHandle !== 'done' // Don't follow DONE branches during EACH execution
+		);
+		
+		// Recursively execute downstream nodes
+		for (const edge of downstreamEdges) {
+			// Check if target node is not EACH-only (avoid re-executing loop children)
+			const isTargetEachOnly = this.isEachOnlyNode(edge.target);
+			if (!isTargetEachOnly) {
+				await this.executeEachBranch(edge.target, iteration);
+			}
+		}
+	}
+
 	private async executeLoopNode(node: FlowNode, inputs: any[]): Promise<any> {
 		const data = node.data as any;
 		
@@ -1392,13 +1347,9 @@ export class FlowExecutor {
 					const originalLoopResult = this.nodeResults.get(node.id);
 					this.nodeResults.set(node.id, result);
 					
-					// Execute all nodes connected to EACH handle
+					// Execute all nodes connected to EACH handle AND their downstream nodes
 					for (const edge of eachEdges) {
-						const targetNode = this.nodes.get(edge.target);
-						if (targetNode) {
-							console.log(`  Executing ${targetNode.type} node ${targetNode.id} for iteration ${result.iteration}`);
-							await this.executeNode(targetNode.id);
-						}
+						await this.executeEachBranch(edge.target, result.iteration);
 					}
 					
 					// Restore original result (we'll set the final one after all iterations)
