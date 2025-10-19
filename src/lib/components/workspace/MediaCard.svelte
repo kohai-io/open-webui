@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { createEventDispatcher } from 'svelte';
+  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
   import { classify, contentUrl } from '$lib/utils/media';
   import type { MediaFile } from '$lib/types/media';
 
@@ -14,6 +14,33 @@
     'delete': MediaFile;
     'toggle-select': string;
   }>();
+  
+  // Intersection Observer for true lazy loading
+  let cardElement: HTMLElement;
+  let isVisible = false;
+  let observer: IntersectionObserver | undefined;
+  
+  onMount(() => {
+    observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting && !isVisible) {
+            isVisible = true;
+            observer?.unobserve(entry.target);
+          }
+        });
+      },
+      { rootMargin: '200px' } // Start loading 200px before entering viewport
+    );
+    
+    if (cardElement) {
+      observer.observe(cardElement);
+    }
+  });
+  
+  onDestroy(() => {
+    observer?.disconnect();
+  });
 
   const openPreview = () => {
     dispatch('preview', item);
@@ -50,6 +77,7 @@
 
 {#if mediaType === 'image'}
   <a 
+    bind:this={cardElement}
     class="group block rounded-xl overflow-hidden border border-gray-100 dark:border-gray-900 bg-white dark:bg-gray-900 hover:shadow-sm transition" 
     href={contentUrl(item.id)} 
     target="_blank" 
@@ -57,13 +85,17 @@
     on:click|preventDefault={openPreview}
   >
     <div class="aspect-video bg-gray-50 dark:bg-gray-950 flex items-center justify-center overflow-hidden cursor-zoom-in relative">
-      <img 
-        src={contentUrl(item.id)} 
-        alt={item.filename} 
-        loading="lazy" 
-        decoding="async"
-        class="w-full h-full object-contain animate-[fadeIn_0.3s_ease-in]"
-      />
+      {#if isVisible}
+        <img 
+          src={contentUrl(item.id)} 
+          alt={item.filename} 
+          loading="lazy" 
+          decoding="async"
+          class="w-full h-full object-contain animate-[fadeIn_0.3s_ease-in]"
+        />
+      {:else}
+        <div class="text-gray-400 dark:text-gray-600">📷</div>
+      {/if}
     </div>
     <div class="px-3 py-2 flex items-center justify-between gap-2">
       <div class="text-xs text-gray-700 dark:text-gray-300 truncate flex-1 min-w-0">{item.filename}</div>
@@ -105,7 +137,7 @@
     </div>
   </a>
 {:else if mediaType === 'video'}
-  <div class="group block rounded-xl overflow-hidden border border-gray-100 dark:border-gray-900 bg-white dark:bg-gray-900 hover:shadow-sm transition">
+  <div bind:this={cardElement} class="group block rounded-xl overflow-hidden border border-gray-100 dark:border-gray-900 bg-white dark:bg-gray-900 hover:shadow-sm transition">
     <div 
       class="aspect-video bg-black cursor-zoom-in relative" 
       role="button" 
@@ -114,9 +146,13 @@
       on:click={openPreview}
       on:keydown={(e) => handleKeydown(e, openPreview)}
     >
-      <video src={`${contentUrl(item.id)}#t=0.1`} class="w-full h-full pointer-events-none" preload="metadata">
-        <track kind="captions" srclang="en" label="captions" />
-      </video>
+      {#if isVisible}
+        <video src={`${contentUrl(item.id)}#t=0.1`} class="w-full h-full pointer-events-none" preload="metadata">
+          <track kind="captions" srclang="en" label="captions" />
+        </video>
+      {:else}
+        <div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-600">🎬</div>
+      {/if}
       <div class="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition">
         <div class="w-12 h-12 rounded-full bg-white/90 dark:bg-gray-900/90 flex items-center justify-center shadow-lg">
           <svg class="w-6 h-6 text-gray-800 dark:text-gray-200 ml-0.5" fill="currentColor" viewBox="0 0 16 16">
@@ -165,7 +201,7 @@
     </div>
   </div>
 {:else if mediaType === 'audio'}
-  <div class="group block rounded-xl overflow-hidden border border-gray-100 dark:border-gray-900 bg-white dark:bg-gray-900 hover:shadow-sm transition">
+  <div bind:this={cardElement} class="group block rounded-xl overflow-hidden border border-gray-100 dark:border-gray-900 bg-white dark:bg-gray-900 hover:shadow-sm transition">
     <div 
       class="p-3 cursor-zoom-in" 
       role="button" 
@@ -174,9 +210,13 @@
       on:click={openPreview}
       on:keydown={(e) => handleKeydown(e, openPreview)}
     >
-      <audio controls src={contentUrl(item.id)} class="w-full">
-        <track kind="captions" srclang="en" label="captions" />
-      </audio>
+      {#if isVisible}
+        <audio controls src={contentUrl(item.id)} class="w-full">
+          <track kind="captions" srclang="en" label="captions" />
+        </audio>
+      {:else}
+        <div class="text-center text-gray-400 dark:text-gray-600 py-8">🎵</div>
+      {/if}
     </div>
     <div class="px-3 pb-3 flex items-center justify-between gap-2">
       <div class="text-xs text-gray-700 dark:text-gray-300 truncate flex-1 min-w-0">{item.filename}</div>
@@ -220,6 +260,7 @@
 {:else}
   <!-- Other file types (documents, etc.) -->
   <a 
+    bind:this={cardElement}
     class="group block rounded-xl overflow-hidden border border-gray-100 dark:border-gray-900 bg-white dark:bg-gray-900 hover:shadow-sm transition" 
     href={contentUrl(item.id)} 
     target="_blank" 
