@@ -41,6 +41,7 @@ export interface OutputNodeData extends BaseNodeData {
 	fileType?: 'image' | 'video' | 'audio';
 	fileId?: string;
 	value?: string;
+	iterationResults?: string[]; // Array of results from loop iterations
 }
 
 export interface TransformNodeData {

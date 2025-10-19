@@ -20,6 +20,7 @@
 	let currentExecutor: FlowExecutor | null = null;
 	let showHistory = false;
 	let lastExecutionResults: Record<string, any> = {}; // Store execution results for each node
+	let editorViewMode: 'edit' | 'execution' = 'edit'; // Control editor view mode
 
 	$: flowId = $page.params.id || '';
 
@@ -91,10 +92,11 @@
 				error: undefined
 			};
 			
-			// Only clear value for output nodes (execution results)
+			// Only clear value and iteration results for output nodes (execution results)
 			// Input nodes use value for their input data
 			if (node.type === 'output') {
 				clearData.value = undefined;
+				clearData.iterationResults = undefined;
 			}
 			
 			updateNodeData(node.id, clearData);
@@ -141,6 +143,11 @@
 					updateData.error = result.error;
 				} else if (status === 'success') {
 					updateData.error = undefined;
+					// Preserve iterationResults for Output nodes
+					if (result?.iterationResults) {
+						updateData.iterationResults = result.iterationResults;
+						updateData.value = result.value; // Also update the current value
+					}
 				}
 				updateNodeData(nodeId, updateData);
 			});
@@ -148,7 +155,18 @@
 			// Execute the flow
 			const result = await currentExecutor.execute();
 			
-			// Save execution history to backend
+			// Capture node data (which includes iterationResults) for saving
+			const allNodes = get(flowNodes);
+			const nodeResultsWithIterations: Record<string, any> = {};
+			allNodes.forEach(node => {
+				// For each node, save its complete data including iterationResults
+				nodeResultsWithIterations[node.id] = {
+					...result.nodeResults?.[node.id],
+					...node.data // Include visual data which has iterationResults
+				};
+			});
+			
+			// Save execution history to backend with complete node data
 			try {
 				const token = localStorage.getItem('token') || '';
 				// Map result status to execution status
@@ -157,8 +175,8 @@
 					flow_id: flowId,
 					status: executionStatus,
 					inputs: {}, // Could capture input node values here
-					outputs: result.nodeResults,
-					node_results: result.nodeResults,
+					outputs: nodeResultsWithIterations,
+					node_results: nodeResultsWithIterations,
 					errors: result.errors,
 					execution_time: result.executionTime
 				});
@@ -168,11 +186,12 @@
 			}
 			
 			// Store execution results for each node
-			lastExecutionResults = result.nodeResults || {};
+			lastExecutionResults = nodeResultsWithIterations;
+			console.log('💾 Execution complete, nodeResults with iterations:', nodeResultsWithIterations);
 			
 			if (result.status === 'success') {
 				toast.success(`Flow executed successfully in ${(result.executionTime / 1000).toFixed(2)}s`);
-				console.log('Flow results:', result.nodeResults);
+				console.log('Flow results:', nodeResultsWithIterations);
 			} else if (result.status === 'error') {
 				toast.error('Flow execution failed');
 				console.error('Flow errors:', result.errors);
@@ -220,6 +239,41 @@
 
 	const handleBack = () => {
 		goto('/workspace/flows');
+	};
+	
+	const loadHistoricalExecution = (executionDetail: any) => {
+		console.log('📋 Loading execution results:', executionDetail);
+		const nodeResults = executionDetail.node_results || {};
+		console.log('📋 nodeResults from backend:', nodeResults);
+		lastExecutionResults = nodeResults;
+		
+		// Switch to execution history mode
+		editorViewMode = 'execution';
+		
+		// Apply results to visible node data
+		const nodes = get(flowNodes);
+		nodes.forEach(node => {
+			const result = nodeResults[node.id];
+			if (result !== undefined) {
+				console.log(`Updating ${node.id}:`, result);
+				// Update node with execution result
+				const updateData: Record<string, unknown> = { status: 'success' };
+				
+				// For output nodes, preserve iteration results
+				if (node.type === 'output') {
+					if (result.value !== undefined) updateData.value = result.value;
+					if (result.iterationResults !== undefined) {
+						updateData.iterationResults = result.iterationResults;
+						console.log(`  → Setting iterationResults (${result.iterationResults.length} items)`);
+					}
+				} else {
+					// For other nodes, just update value
+					if (result.value !== undefined) updateData.value = result.value;
+				}
+				
+				updateNodeData(node.id, updateData as any);
+			}
+		});
 	};
 
 	const updateFlowName = (newName: string) => {
@@ -348,18 +402,24 @@
 		<div class="flex-1 flex overflow-hidden">
 			<div class="flex-1">
 				<FlowEditor 
-					{lastExecutionResults} 
+					{lastExecutionResults}
+					viewMode={editorViewMode}
 					on:clearResults={() => {
 						console.log('🔄 Received clearResults event, clearing data...');
 						lastExecutionResults = {};
 						clearNodeStates(); // Also clear node status/results
+						editorViewMode = 'edit'; // Switch back to edit mode
 						console.log('✅ lastExecutionResults and node states cleared');
 					}}
 				/>
 			</div>
 			{#if showHistory}
 				<div class="w-96">
-					<ExecutionHistory flowId={flowId} onClose={() => (showHistory = false)} />
+					<ExecutionHistory 
+						{flowId} 
+						onClose={() => (showHistory = false)}
+						on:selectExecution={(e) => loadHistoricalExecution(e.detail)}
+					/>
 				</div>
 			{/if}
 		</div>

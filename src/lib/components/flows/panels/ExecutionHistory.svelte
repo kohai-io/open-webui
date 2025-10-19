@@ -1,11 +1,14 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { getFlowExecutions, getFlowExecutionStats, deleteFlowExecution } from '$lib/apis/flows/executions';
+	import { createEventDispatcher, onMount } from 'svelte';
+	import { getFlowExecutions, getFlowExecutionStats, deleteFlowExecution, getFlowExecutionById } from '$lib/apis/flows/executions';
 	import type { FlowExecutionListItem, FlowExecutionStats } from '$lib/apis/flows/executions';
 	import { toast } from 'svelte-sonner';
 
 	export let flowId: string;
 	export let onClose: () => void = () => {};
+	export let selectedExecutionId: string | null = null;
+	
+	const dispatch = createEventDispatcher();
 
 	let executions: FlowExecutionListItem[] = [];
 	let stats: FlowExecutionStats | null = null;
@@ -93,6 +96,21 @@
 				return '?';
 		}
 	};
+	
+	const handleExecutionClick = async (executionId: string) => {
+		try {
+			const token = localStorage.getItem('token') || '';
+			const execution = await getFlowExecutionById(token, flowId, executionId);
+			if (execution) {
+				selectedExecutionId = executionId;
+				// Dispatch event with execution details
+				dispatch('selectExecution', execution);
+			}
+		} catch (error) {
+			console.error('Error loading execution details:', error);
+			toast.error('Failed to load execution details');
+		}
+	};
 </script>
 
 <div class="flex flex-col h-full bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700">
@@ -168,8 +186,12 @@
 		{:else}
 			<div class="space-y-2">
 				{#each executions as execution (execution.id)}
-					<div
-						class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:shadow-md transition-shadow"
+					<button
+						type="button"
+						on:click={() => handleExecutionClick(execution.id)}
+						class="w-full text-left border rounded-lg p-3 transition-all {selectedExecutionId === execution.id 
+							? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-md' 
+							: 'border-gray-200 dark:border-gray-700 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600'}"
 					>
 						<div class="flex items-start justify-between mb-2">
 							<div class="flex items-center gap-2">
@@ -188,7 +210,8 @@
 								</div>
 							</div>
 							<button
-								on:click={() => handleDelete(execution.id)}
+								type="button"
+								on:click|stopPropagation={() => handleDelete(execution.id)}
 								class="p-1 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 rounded transition-colors"
 								title="Delete"
 							>
@@ -205,7 +228,7 @@
 						<div class="text-xs text-gray-500 dark:text-gray-400">
 							Duration: {formatDuration(execution.execution_time)}
 						</div>
-					</div>
+					</button>
 				{/each}
 			</div>
 		{/if}

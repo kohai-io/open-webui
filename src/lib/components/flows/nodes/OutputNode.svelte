@@ -8,9 +8,22 @@
 	
 	let expanded = false;
 	let showLightbox = false;
+	let currentIterationIndex = 0;
+	
+	// Handle iteration results array
+	$: iterationResults = data.iterationResults || [];
+	$: hasMultipleResults = iterationResults.length > 1;
+	$: currentValue = hasMultipleResults && currentIterationIndex < iterationResults.length 
+		? iterationResults[currentIterationIndex] 
+		: data.value;
+	
+	// Reset index when results change
+	$: if (iterationResults.length > 0 && currentIterationIndex >= iterationResults.length) {
+		currentIterationIndex = iterationResults.length - 1;
+	}
 	
 	$: fileUrl = data.fileId ? `${WEBUI_BASE_URL}/api/v1/files/${data.fileId}/content` : null;
-	$: hasLongText = data.value && data.value.length > 150;
+	$: hasLongText = currentValue && currentValue.length > 150;
 	
 	function openLightbox() {
 		showLightbox = true;
@@ -55,6 +68,36 @@
 	
 	<!-- Node Body -->
 	<div class="node-body p-3">
+		<!-- Iteration Navigator -->
+		{#if hasMultipleResults}
+			<div class="mb-2 flex items-center gap-2 p-2 bg-purple-50 dark:bg-purple-900/20 rounded border border-purple-200 dark:border-purple-700">
+				<button
+					type="button"
+					on:click={() => currentIterationIndex = Math.max(0, currentIterationIndex - 1)}
+					disabled={currentIterationIndex === 0}
+					class="nodrag p-1 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-800 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+					title="Previous result"
+				>
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+					</svg>
+				</button>
+				<div class="flex-1 text-center text-xs font-medium text-purple-700 dark:text-purple-300">
+					Iteration {currentIterationIndex + 1} of {iterationResults.length}
+				</div>
+				<button
+					type="button"
+					on:click={() => currentIterationIndex = Math.min(iterationResults.length - 1, currentIterationIndex + 1)}
+					disabled={currentIterationIndex === iterationResults.length - 1}
+					class="nodrag p-1 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-800 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+					title="Next result"
+				>
+					<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+					</svg>
+				</button>
+			</div>
+		{/if}
 		{#if data.format === 'file' && fileUrl}
 			<!-- File Output -->
 			<div class="file-preview">
@@ -88,10 +131,10 @@
 			<div class="mt-2 text-xs text-gray-500 dark:text-gray-400">
 				File: {data.fileType}
 			</div>
-		{:else if data.value}
+		{:else if currentValue}
 			<div class="relative">
 				<div class="text-xs text-gray-600 dark:text-gray-400 {expanded ? '' : 'line-clamp-3'} whitespace-pre-wrap">
-					{data.value}
+					{currentValue}
 				</div>
 				{#if hasLongText}
 					<button

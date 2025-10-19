@@ -729,6 +729,8 @@ export class FlowExecutor {
 		}
 	}
 
+	private isInLoopIteration = false; // Track if we're executing within a loop iteration
+	
 	private async executeOutputNode(node: FlowNode, inputs: any[]): Promise<any> {
 		const data = node.data as any;
 		const input = inputs[0];
@@ -803,6 +805,19 @@ export class FlowExecutor {
 			case 'text':
 			default:
 				formattedValue = input;
+		}
+		
+		// If in loop iteration, accumulate results
+		if (this.isInLoopIteration) {
+			// Get accumulated results from previous executions of THIS output node
+			const previousResult = this.nodeResults.get(node.id) as any;
+			const currentResults = previousResult?.iterationResults || [];
+			const newResults = [...currentResults, formattedValue];
+			console.log(`📊 Output node ${node.id} accumulating result ${newResults.length}/${newResults.length}`);
+			return { 
+				value: formattedValue, // Current value (last one)
+				iterationResults: newResults // All accumulated values
+			};
 		}
 		
 		// Return as object with value field so OutputNode can display it
@@ -1001,6 +1016,7 @@ export class FlowExecutor {
 				console.log('Fetching and scraping URL via backend:', query);
 				const { processWeb } = await import('$lib/apis/retrieval');
 				searchResult = await processWeb(token, '', query);
+				console.log('processWeb returned:', JSON.stringify(searchResult, null, 2));
 			} else {
 				// Use processWebSearch for search queries
 				console.log('Performing web search via backend for:', query);
@@ -1013,42 +1029,59 @@ export class FlowExecutor {
 				throw new Error('No search results returned');
 			}
 
-			// Try to query the collection to get the actual documents with metadata
+			// Handle different response structures
 			let results: any[] = [];
 			
-			try {
-				const collectionResult = await queryCollection(
-					token,
-					searchResult.collection_name,
-					query,
-					maxResults || 5
-				);
+			if (isUrl && searchResult.file) {
+				// processWeb returns content directly in file.data.content
+				console.log('Extracting content from processWeb response');
+				const content = searchResult.file?.data?.content || '';
+				const meta = searchResult.file?.meta || {};
+				results = [{
+					title: meta.name || query,
+					url: meta.source || query,
+					content: content,
+					snippet: content.substring(0, 200) + '...',
+					metadata: meta
+				}];
+				console.log('Structured results from URL:', results);
+			} else {
+				// processWebSearch returns collection that needs to be queried
+				console.log('Querying collection for search results');
+				try {
+					const collectionResult = await queryCollection(
+						token,
+						searchResult.collection_name,
+						query,
+						maxResults || 5
+					);
 
-				console.log('Collection query result:', collectionResult);
+					console.log('Collection query result:', collectionResult);
 
-				// Extract structured results with URLs
-				if (collectionResult?.documents?.[0]) {
-					results = collectionResult.documents[0].map((doc: any, index: number) => {
-						const metadata = collectionResult?.metadatas?.[0]?.[index] || {};
-						return {
-							title: metadata.title || metadata.source || `Result ${index + 1}`,
-							url: metadata.source || metadata.url || '',
-							content: doc || '',
-							snippet: doc ? doc.substring(0, 200) + '...' : '',
-							metadata: metadata
-						};
-					});
+					// Extract structured results with URLs
+					if (collectionResult?.documents?.[0]) {
+						results = collectionResult.documents[0].map((doc: any, index: number) => {
+							const metadata = collectionResult?.metadatas?.[0]?.[index] || {};
+							return {
+								title: metadata.title || metadata.source || `Result ${index + 1}`,
+								url: metadata.source || metadata.url || '',
+								content: doc || '',
+								snippet: doc ? doc.substring(0, 200) + '...' : '',
+								metadata: metadata
+							};
+						});
+					}
+				} catch (collectionError) {
+					console.warn('Collection query failed, using filenames only:', collectionError);
+					// Fallback: use filenames from search result
+					results = (searchResult.filenames || []).map((filename: string, index: number) => ({
+						title: filename,
+						url: filename,
+						content: '',
+						snippet: filename,
+						metadata: { source: filename }
+					}));
 				}
-			} catch (collectionError) {
-				console.warn('Collection query failed, using filenames only:', collectionError);
-				// Fallback: use filenames from search result
-				results = (searchResult.filenames || []).map((filename: string, index: number) => ({
-					title: filename,
-					url: filename,
-					content: '',
-					snippet: filename,
-					metadata: { source: filename }
-				}));
 			}
 
 			console.log('Structured results:', results);
@@ -1358,6 +1391,9 @@ export class FlowExecutor {
 			if (eachEdges.length > 0) {
 				console.log('Executing EACH branch for each iteration...');
 				
+				// Set flag to indicate we're in loop iterations
+				this.isInLoopIteration = true;
+				
 				for (const result of results) {
 					console.log(`Processing iteration ${result.iteration}...`);
 					
@@ -1376,6 +1412,9 @@ export class FlowExecutor {
 						this.nodeResults.set(node.id, originalLoopResult);
 					}
 				}
+				
+				// Reset flag after all iterations complete
+				this.isInLoopIteration = false;
 			}
 			
 			// Store final aggregated result for DONE branches

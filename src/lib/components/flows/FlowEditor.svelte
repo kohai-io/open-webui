@@ -49,10 +49,10 @@
 	};
 	
 	export let lastExecutionResults: Record<string, any> = {}; // Passed from parent page
+	export let viewMode: 'edit' | 'execution' = 'edit'; // Toggle between edit and execution history - can be controlled by parent
 	
 	let showNodeLibrary = true;
 	let showNodeConfig = false;
-	let viewMode: 'edit' | 'execution' = 'edit'; // Toggle between edit and execution history
 	
 	$: showNodeConfig = $selectedNode !== null;
 	
@@ -60,6 +60,9 @@
 	$: if (Object.keys(lastExecutionResults).length > 0) {
 		console.log('🔍 FlowEditor: Execution results updated, count:', Object.keys(lastExecutionResults).length);
 	}
+	
+	// Reactive execution result for selected node
+	$: selectedNodeExecutionResult = $selectedNode ? lastExecutionResults[$selectedNode.id] : undefined;
 	
 	const handleNodeClick = (event: CustomEvent) => {
 		const node = event.detail.node as FlowNode;
@@ -402,7 +405,7 @@
 				nodes={$flowNodes}
 				edges={$flowEdges}
 				{viewMode}
-				executionResult={lastExecutionResults[$selectedNode.id]}
+				executionResult={selectedNodeExecutionResult}
 				on:update={(e) => updateNodeData($selectedNode.id, e.detail)}
 				on:delete={() => handleNodeDelete($selectedNode.id)}
 				on:close={() => selectedNode.set(null)}
