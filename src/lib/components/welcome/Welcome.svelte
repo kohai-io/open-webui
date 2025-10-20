@@ -5,7 +5,6 @@
 	import { getModels } from '$lib/apis';
 	import { getModels as getWorkspaceModels } from '$lib/apis/models';
 	import { getFunctions } from '$lib/apis/functions';
-	import { getFlows } from '$lib/apis/flows';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import { toast } from 'svelte-sonner';
@@ -19,7 +18,6 @@
 	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let agents: any[] = [];
-	let flows: any[] = [];
 	let loading = false;
 	let files: any[] = [];
 	let filesInputElement: HTMLInputElement;
@@ -35,11 +33,10 @@
 		loading = true;
 		try {
 			const connections = $config?.features?.enable_direct_connections ? ($settings?.directConnections ?? null) : null;
-			const [allModelsData, workspaceModelsData, functionsData, flowsData] = await Promise.all([
+			const [allModelsData, workspaceModelsData, functionsData] = await Promise.all([
 				getModels(localStorage.token, connections),
 				getWorkspaceModels(localStorage.token),
-				getFunctions(localStorage.token),
-				getFlows(localStorage.token)
+				getFunctions(localStorage.token)
 			]);
 
 			// Merge workspace metadata
@@ -58,11 +55,8 @@
 				m.is_active !== false && 
 				agentIds.has(m.id)
 			);
-
-			// Set flows
-			flows = flowsData || [];
 		} catch (error) {
-			console.error('Error loading agents and flows:', error);
+			console.error('Error loading agents:', error);
 		} finally {
 			loading = false;
 		}
@@ -430,83 +424,7 @@
 					</a>
 				</div>
 			{/if}
-		</div>
-
-		<!-- Flows Section -->
-		<div class="w-full mt-16">
-			<div class="flex items-center justify-between mb-6">
-				<h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200">{$i18n.t('Flows')}</h2>
-				<a
-					href="/workspace/flows"
-					class="text-sm text-blue-600 dark:text-blue-400 hover:underline"
-				>
-					{$i18n.t('View all')}
-				</a>
-			</div>
-
-			{#if loading}
-				<div class="flex justify-center py-16">
-					<div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
-				</div>
-			{:else if flows.length === 0}
-				<div class="text-center py-16">
-					<p class="text-gray-500 dark:text-gray-400 mb-4">{$i18n.t('No flows available yet.')}</p>
-					<a
-						href="/workspace/flows/create"
-						class="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
-					>
-						{$i18n.t('Create Flow')}
-					</a>
-				</div>
-			{:else}
-				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-					{#each flows.slice(0, 7) as flow}
-						<a
-							href="/workspace/flows/{flow.id}"
-							class="flex flex-col p-5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:shadow-md transition text-left relative group"
-						>
-							<div class="flex items-start justify-between mb-3">
-								<div class="flex-1">
-									<h3 class="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">
-										{flow.name}
-									</h3>
-									{#if flow.meta?.category}
-										<span class="inline-block px-2 py-0.5 text-xs rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
-											{flow.meta.category}
-										</span>
-									{/if}
-								</div>
-								<svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
-								</svg>
-							</div>
-							<p class="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-3 flex-1">
-								{flow.description || 'No description'}
-							</p>
-							<div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-500">
-								<span>{flow.nodes?.length || 0} nodes</span>
-								{#if flow.updated_at}
-									<span>{new Date(flow.updated_at * 1000).toLocaleDateString()}</span>
-								{/if}
-							</div>
-						</a>
-					{/each}
-
-					<!-- Create Flow Card -->
-					<a
-						href="/workspace/flows/create"
-						class="flex flex-col items-center justify-center gap-3 p-5 bg-gray-50 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 transition"
-					>
-						<div class="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center">
-							<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-							</svg>
-						</div>
-						<div class="text-sm font-medium text-blue-600 dark:text-blue-400">{$i18n.t('Create Flow')}</div>
-					</a>
-				</div>
-			{/if}
-		</div>
+	</div>
 
 		<!-- Quick Actions (optional) -->
 		<div class="mt-16 w-full">
