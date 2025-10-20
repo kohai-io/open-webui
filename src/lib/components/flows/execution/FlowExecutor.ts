@@ -427,16 +427,8 @@ export class FlowExecutor {
 			data.modelId.toLowerCase().includes('gemini')
 		);
 		
-		// For pipelines: prepend file paths to content for extraction
-		// For native models: keep content clean, use images array
-		if (imageFileIds.length > 0 && isPipeline) {
-			const filePaths = imageFileIds.map(id => `/api/v1/files/${id}/content`).join('\n');
-			prompt = prompt ? `${filePaths}\n\n${prompt}` : filePaths;
-			console.log('✓ Added file paths to content for pipeline extraction');
-		}
-		
 		// Create a chat completion request
-		// For native models with images, use OpenAI vision API format
+		// Use OpenAI vision API format for both pipelines and native models
 		const userMessage: any = {
 			role: 'user'
 		};
@@ -444,10 +436,29 @@ export class FlowExecutor {
 		// Add images for models (format depends on pipeline vs native)
 		if (imageFileIds.length > 0) {
 			if (isPipeline) {
-				// Pipelines can work with just file IDs in images array
-				userMessage.content = prompt;
+				// Pipelines expect OpenAI vision format with file paths in structured content
+				const contentItems: any[] = [];
+				
+				// Add text content first
+				contentItems.push({
+					type: 'text',
+					text: prompt
+				});
+				
+				// Add each file as an image_url item with the file path
+				for (const fileId of imageFileIds) {
+					contentItems.push({
+						type: 'image_url',
+						image_url: {
+							url: `/api/v1/files/${fileId}/content`
+						}
+					});
+				}
+				
+				userMessage.content = contentItems;
+				// Also add file IDs in images array for backward compatibility
 				userMessage.images = imageFileIds;
-				console.log(`✓ Added file IDs for pipeline:`, imageFileIds);
+				console.log(`✓ Structured content for pipeline with ${imageFileIds.length} file(s) in OpenAI vision format`);
 			} else {
 				// Native models use OpenAI vision API format
 				// Fetch media (images/videos) and convert to data URIs (base64) since file endpoints require auth
