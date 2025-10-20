@@ -260,6 +260,9 @@
 	// Reactive execution result for selected node
 	$: selectedNodeExecutionResult = $selectedNode ? lastExecutionResults[$selectedNode.id] : undefined;
 	
+	// Track selected edges for mobile-friendly deletion
+	$: selectedEdges = $flowEdges.filter((edge: any) => edge.selected);
+	
 	const handleNodeClick = (event: CustomEvent) => {
 		const node = event.detail.node as FlowNode;
 		selectedNode.set(node);
@@ -329,8 +332,23 @@
 		changes.forEach((change: any) => {
 			if (change.type === 'remove') {
 				removeEdge(change.id);
+			} else if (change.type === 'select') {
+				// Update edge selection state
+				flowEdges.update((edges) =>
+					edges.map((e) =>
+						e.id === change.id ? { ...e, selected: change.selected } : e
+					)
+				);
 			}
 		});
+	};
+	
+	const handleDeleteSelectedEdges = () => {
+		if (selectedEdges.length > 0) {
+			selectedEdges.forEach((edge: any) => {
+				removeEdge(edge.id);
+			});
+		}
 	};
 	
 	const handleNodeDelete = (nodeId: string) => {
@@ -606,6 +624,36 @@
 				</div>
 			</Panel>
 		{/if}
+		
+		<!-- Floating Delete Button for Selected Edges (Mobile-friendly) -->
+		{#if selectedEdges.length > 0}
+			<Panel position="bottom-center" class="m-2 md:m-4">
+				<div class="flex flex-wrap items-center justify-center gap-2 bg-red-600 text-white px-3 py-2 md:px-4 md:py-3 rounded-lg shadow-xl border-2 border-red-700 animate-fade-in max-w-[90vw]">
+					<div class="flex items-center gap-1.5 md:gap-2">
+						<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M21 4H8l-7 8 7 8h13a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z"/>
+							<line x1="18" y1="9" x2="12" y2="15"/>
+							<line x1="12" y1="9" x2="18" y2="15"/>
+						</svg>
+						<span class="font-semibold text-xs md:text-sm whitespace-nowrap">
+							{selectedEdges.length} connector{selectedEdges.length > 1 ? 's' : ''}
+						</span>
+					</div>
+					<button
+						on:click={handleDeleteSelectedEdges}
+						class="bg-white text-red-600 px-3 py-1.5 md:px-4 md:py-2 rounded-md font-semibold hover:bg-red-50 active:bg-red-100 transition-all shadow-md flex items-center gap-1.5 text-xs md:text-sm min-h-[40px] md:min-h-[44px] whitespace-nowrap"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 md:w-5 md:h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<polyline points="3 6 5 6 21 6"/>
+							<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+							<line x1="10" y1="11" x2="10" y2="17"/>
+							<line x1="14" y1="11" x2="14" y2="17"/>
+						</svg>
+						Delete
+					</button>
+				</div>
+			</Panel>
+		{/if}
 	</SvelteFlow>
 	{/key}
 	
@@ -729,5 +777,20 @@
 		from {
 			stroke-dashoffset: 10;
 		}
+	}
+	
+	@keyframes fade-in {
+		from {
+			opacity: 0;
+			transform: translateY(10px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+	
+	:global(.animate-fade-in) {
+		animation: fade-in 0.2s ease-out;
 	}
 </style>
