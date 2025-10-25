@@ -349,11 +349,36 @@ export class FlowExecutor {
 			
 			const inputStr = typeof input === 'string' ? input : JSON.stringify(input);
 			
-			// Check if it's a UUID (file ID)
-			if (typeof input === 'string' && /^[a-f0-9-]{36}$/i.test(input.trim())) {
-				const fileId = input.trim();
+			// Check if it's a file ID or file path
+			let isFileId = false;
+			let fileId = '';
+			
+			if (typeof input === 'string') {
+				const trimmed = input.trim();
+				
+				// Check if it's a UUID (standard format: 36 chars with hyphens)
+				if (/^[a-f0-9-]{36}$/i.test(trimmed)) {
+					fileId = trimmed;
+					isFileId = true;
+					console.log(`✓ Detected UUID file ID at input ${i}:`, fileId);
+				}
+				// Check if it's a shorter hex ID (common alternative format)
+				else if (/^[a-f0-9]{8,64}$/i.test(trimmed) && trimmed.length >= 8) {
+					fileId = trimmed;
+					isFileId = true;
+					console.log(`✓ Detected hex file ID at input ${i}:`, fileId);
+				}
+				// Check if it's a file API path
+				else if (trimmed.match(/^\/api\/v1\/files\/([a-f0-9-]+)\/content$/i)) {
+					const match = trimmed.match(/^\/api\/v1\/files\/([a-f0-9-]+)\/content$/i);
+					fileId = match![1];
+					isFileId = true;
+					console.log(`✓ Detected file path, extracted ID at input ${i}:`, fileId);
+				}
+			}
+			
+			if (isFileId && fileId) {
 				imageFileIds.push(fileId);
-				console.log(`✓ Detected file ID at input ${i}:`, fileId);
 			} else {
 				// Regular text input
 				textInputs.push(inputStr);
