@@ -58,6 +58,9 @@ export default defineConfig({
 	build: {
 		sourcemap: true
 	},
+	optimizeDeps: {
+		include: ['y-protocols/awareness']
+	},
 	worker: {
 		format: 'es'
 	},
