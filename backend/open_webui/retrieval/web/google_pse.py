@@ -14,7 +14,7 @@ log.setLevel(SRC_LOG_LEVELS["RAG"])
 DEFAULT_TIMEOUT = 10
 
 
-def _fetch_page(api_key: str, search_engine_id: str, query: str, start_index: int, num_results: int, timeout: int = DEFAULT_TIMEOUT) -> list[dict]:
+def _fetch_page(api_key: str, search_engine_id: str, query: str, start_index: int, num_results: int, timeout: int = DEFAULT_TIMEOUT, referer: Optional[str] = None) -> list[dict]:
     """Fetch a single page of results from Google PSE API.
     
     Args:
@@ -24,12 +24,15 @@ def _fetch_page(api_key: str, search_engine_id: str, query: str, start_index: in
         start_index: Starting index for results (1-based)
         num_results: Number of results to fetch (max 10)
         timeout: Request timeout in seconds
+        referer: Optional referer header
         
     Returns:
         List of result items from the API
     """
     url = "https://www.googleapis.com/customsearch/v1"
     headers = {"Content-Type": "application/json"}
+    if referer:
+        headers["Referer"] = referer
     params = {
         "cx": search_engine_id,
         "q": query,
@@ -62,6 +65,7 @@ def search_google_pse(
     filter_list: Optional[list[str]] = None,
     timeout: int = DEFAULT_TIMEOUT,
     parallel_requests: bool = True,
+    referer: Optional[str] = None,
 ) -> list[SearchResult]:
     """Search using Google's Programmable Search Engine API and return the results as a list of SearchResult objects.
     Handles pagination for counts greater than 10 with optional parallel fetching.
@@ -74,6 +78,7 @@ def search_google_pse(
         filter_list (Optional[list[str]], optional): A list of keywords to filter out from results. Defaults to None.
         timeout (int): Request timeout in seconds. Defaults to 10.
         parallel_requests (bool): Whether to fetch pages in parallel. Defaults to True.
+        referer (Optional[str], optional): Referer header for API requests. Defaults to None.
 
     Returns:
         list[SearchResult]: A list of SearchResult objects.
@@ -104,7 +109,8 @@ def search_google_pse(
                     query,
                     start_index,
                     num_results_this_page,
-                    timeout
+                    timeout,
+                    referer
                 )
                 future_to_page[future] = page_num
             
@@ -131,7 +137,7 @@ def search_google_pse(
         
         while remaining_count > 0 and start_index <= 91:  # Max start index is 91 (for 100 results)
             num_results_this_page = min(remaining_count, 10)
-            results = _fetch_page(api_key, search_engine_id, query, start_index, num_results_this_page, timeout)
+            results = _fetch_page(api_key, search_engine_id, query, start_index, num_results_this_page, timeout, referer)
             
             if results:
                 all_results.extend(results)
