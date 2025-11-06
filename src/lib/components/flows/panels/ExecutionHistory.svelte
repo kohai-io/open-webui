@@ -186,10 +186,12 @@
 		{:else}
 			<div class="space-y-2">
 				{#each executions as execution (execution.id)}
-					<button
-						type="button"
+					<div
+						role="button"
+						tabindex="0"
 						on:click={() => handleExecutionClick(execution.id)}
-						class="w-full text-left border rounded-lg p-3 transition-all {selectedExecutionId === execution.id 
+						on:keydown={(e) => e.key === 'Enter' && handleExecutionClick(execution.id)}
+						class="w-full text-left border rounded-lg p-3 transition-all cursor-pointer {selectedExecutionId === execution.id 
 							? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-md' 
 							: 'border-gray-200 dark:border-gray-700 hover:shadow-md hover:border-blue-300 dark:hover:border-blue-600'}"
 					>
@@ -228,7 +230,7 @@
 						<div class="text-xs text-gray-500 dark:text-gray-400">
 							Duration: {formatDuration(execution.execution_time)}
 						</div>
-					</button>
+					</div>
 				{/each}
 			</div>
 		{/if}
