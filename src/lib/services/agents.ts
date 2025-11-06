@@ -3,7 +3,7 @@
  */
 
 import { getModels } from '$lib/apis';
-import { getModels as getWorkspaceModels } from '$lib/apis/models';
+import { getModelItems as getWorkspaceModels } from '$lib/apis/models';
 import { getFunctions } from '$lib/apis/functions';
 import { categorizeAgents, type CategorizedAgents, type AgentModel } from '$lib/utils/agents';
 

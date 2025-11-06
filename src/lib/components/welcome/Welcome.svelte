@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { config, settings, user, showSidebar, mobile, showArchivedChats } from '$lib/stores';
 	import { getModels } from '$lib/apis';
-	import { getModels as getWorkspaceModels } from '$lib/apis/models';
+	import { getModelItems as getWorkspaceModels } from '$lib/apis/models';
 	import { getFunctions } from '$lib/apis/functions';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
