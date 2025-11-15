@@ -9,9 +9,20 @@ export interface AgentModel {
 	user_id?: string;
 	base_model_id?: string;
 	owned_by?: string;
+	access_control?: {
+		read?: {
+			group_ids?: string[];
+			user_ids?: string[];
+		};
+		write?: {
+			group_ids?: string[];
+			user_ids?: string[];
+		};
+	};
 	meta?: {
 		profile_image_url?: string;
 		description?: string;
+		hidden?: boolean;
 	};
 	info?: {
 		user_id?: string;

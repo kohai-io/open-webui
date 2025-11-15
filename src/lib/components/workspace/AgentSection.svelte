@@ -18,6 +18,15 @@
 	export let showCreateButton: boolean = false;
 	export let createHref: string = '/workspace/models/create';
 	export let createLabel: string = 'Create';
+	
+	// Agent action handlers
+	export let onEdit: ((agent: AgentModel) => void) | undefined = undefined;
+	export let onClone: ((agent: AgentModel) => void) | undefined = undefined;
+	export let onExport: ((agent: AgentModel) => void) | undefined = undefined;
+	export let onCopyLink: ((agent: AgentModel) => void) | undefined = undefined;
+	export let onHide: ((agent: AgentModel) => void) | undefined = undefined;
+	export let onDelete: ((agent: AgentModel) => void) | undefined = undefined;
+	export let checkWriteAccess: ((agent: AgentModel) => boolean) | undefined = undefined;
 </script>
 
 <section>
@@ -65,7 +74,17 @@
 	{#if expanded}
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 			{#each agents as agent}
-				<AgentCard {agent} onClick={onAgentClick} />
+				<AgentCard 
+					{agent} 
+					onClick={onAgentClick}
+					hasWriteAccess={checkWriteAccess?.(agent) ?? false}
+					{onEdit}
+					{onClone}
+					{onExport}
+					{onCopyLink}
+					{onHide}
+					{onDelete}
+				/>
 			{/each}
 		</div>
 
