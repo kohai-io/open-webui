@@ -34,6 +34,7 @@
 		updateKnowledgeById
 	} from '$lib/apis/knowledge';
 	import { blobToFile } from '$lib/utils';
+	import { createPicker } from '$lib/utils/google-drive-picker';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Files from './KnowledgeBase/Files.svelte';
@@ -206,6 +207,30 @@
 			}
 		} catch (e) {
 			toast.error(`${e}`);
+		}
+	};
+
+	const uploadGoogleDriveHandler = async () => {
+		try {
+			console.log('Opening Google Drive picker...');
+			const fileData = await createPicker();
+			
+			if (fileData) {
+				console.log('File selected from Google Drive:', fileData.name);
+				const file = new File([fileData.blob], fileData.name, {
+					type: fileData.blob.type
+				});
+				await uploadFileHandler(file);
+			} else {
+				console.log('No file was selected from Google Drive');
+			}
+		} catch (error) {
+			console.error('Google Drive Error:', error);
+			toast.error(
+				$i18n.t('Error accessing Google Drive: {{error}}', {
+					error: error.message
+				})
+			);
 		}
 	};
 
@@ -895,6 +920,8 @@
 												uploadDirectoryHandler();
 											} else if (e.detail.type === 'text') {
 												showAddTextContentModal = true;
+											} else if (e.detail.type === 'google-drive') {
+												uploadGoogleDriveHandler();
 											} else {
 												document.getElementById('files-input').click();
 											}
