@@ -30,6 +30,8 @@
 	};
 
 	onMount(async () => {
+		// Clear session storage for selected models to ensure default models are used
+		sessionStorage.removeItem('selectedModels');
 		loading = true;
 		try {
 			const connections = $config?.features?.enable_direct_connections ? ($settings?.directConnections ?? null) : null;
