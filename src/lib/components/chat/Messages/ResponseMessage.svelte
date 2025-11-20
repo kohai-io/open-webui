@@ -123,6 +123,8 @@
 	$: if (history.messages) {
 		if (JSON.stringify(message) !== JSON.stringify(history.messages[messageId])) {
 			message = JSON.parse(JSON.stringify(history.messages[messageId]));
+			// Clear spoken sentences when message changes
+			spokenSentences.clear();
 		}
 	}
 
@@ -165,6 +167,7 @@
 
 	let speaking = false;
 	let speakingIdx: number | undefined;
+	let spokenSentences: Set<string> = new Set(); // Track already spoken sentences
 
 	let loadingSpeech = false;
 	let generatingImage = false;
@@ -235,6 +238,10 @@
 			speaking = false;
 			speakingIdx = undefined;
 		}
+	};
+
+	const clearSpokenSentences = () => {
+		spokenSentences.clear();
 	};
 
 	const speak = async () => {
@@ -337,7 +344,17 @@
 					}
 				}
 			} else {
+				// Always clear spoken sentences when manually triggered to ensure full playback
+				// This ensures TTS always starts from the beginning
+				clearSpokenSentences();
+				
 				for (const [idx, sentence] of messageContentParts.entries()) {
+					// Skip if already spoken during streaming (shouldn't happen after clearing, but defensive)
+					if (spokenSentences.has(sentence)) {
+						console.log('Skipping already spoken sentence:', sentence.substring(0, 50));
+						continue;
+					}
+
 					const res = await synthesizeOpenAISpeech(
 						localStorage.token,
 						$settings?.audio?.tts?.defaultVoice === $config.audio.tts.voice
@@ -357,6 +374,7 @@
 						const url = URL.createObjectURL(blob);
 
 						$audioQueue.enqueue(url);
+						spokenSentences.add(sentence); // Track this sentence
 						loadingSpeech = false;
 					}
 				}
