@@ -29,6 +29,10 @@
 	export let onSourceClick = () => {};
 	export let onTaskClick = () => {};
 
+	export let messageId = '';
+	export let enableContextMenu = false;
+	export let onImageEdit = () => {};
+
 	let tokens = [];
 
 	const options = {
@@ -65,5 +69,9 @@
 		{onSave}
 		{onUpdate}
 		{onPreview}
+		{messageId}
+		{model}
+		{enableContextMenu}
+		{onImageEdit}
 	/>
 {/key}

@@ -541,7 +541,7 @@ class SafeWebBaseLoader(WebBaseLoader):
         self.trust_env = trust_env
 
     async def _fetch(
-        self, url: str, retries: int = 3, cooldown: int = 2, backoff: float = 1.5
+        self, url: str, retries: int = 1, cooldown: int = 2, backoff: float = 1.5
     ) -> str:
         async with aiohttp.ClientSession(trust_env=self.trust_env) as session:
             for i in range(retries):
@@ -553,15 +553,23 @@ class SafeWebBaseLoader(WebBaseLoader):
                     if not self.session.verify:
                         kwargs["ssl"] = False
 
+                    # Add timeout to prevent infinite hangs on blackholed requests
+                    timeout = aiohttp.ClientTimeout(total=30)  # 30 second max per URL
+
                     async with session.get(
                         url,
                         **(self.requests_kwargs | kwargs),
-                        allow_redirects=False,
+                        allow_redirects=True,  # Changed from False - follow redirects
+                        timeout=timeout,  # Add timeout
                     ) as response:
                         if self.raise_for_status:
                             response.raise_for_status()
                         return await response.text()
-                except aiohttp.ClientConnectionError as e:
+                except (aiohttp.ClientConnectionError, asyncio.TimeoutError) as e:
+                    if isinstance(e, asyncio.TimeoutError):
+                        log.warning(
+                            f"Timeout fetching {url} after 30s - possible WAF blackhole"
+                        )
                     if i == retries - 1:
                         raise
                     else:

@@ -520,16 +520,24 @@ async def chat_memory_handler(
     request: Request, form_data: dict, extra_params: dict, user
 ):
     try:
-        results = await query_memory(
-            request,
-            QueryMemoryForm(
-                **{
-                    "content": get_last_user_message(form_data["messages"]) or "",
-                    "k": 3,
-                }
-            ),
-            user,
-        )
+        # Get last user message content
+        content = get_last_user_message(form_data["messages"]) or ""
+        
+        # Skip memory query if content is empty (e.g., file-only messages)
+        if not content.strip():
+            log.debug("Skipping memory query for empty content (file-only message)")
+            results = None
+        else:
+            results = await query_memory(
+                request,
+                QueryMemoryForm(
+                    **{
+                        "content": content,
+                        "k": 3,
+                    }
+                ),
+                user,
+            )
     except Exception as e:
         log.debug(e)
         results = None
@@ -957,7 +965,19 @@ async def chat_completion_files_handler(
             )
 
         if len(queries) == 0:
-            queries = [get_last_user_message(body["messages"])]
+            last_msg = get_last_user_message(body["messages"])
+            # Only add query if it has content (avoid empty string for file-only messages)
+            if last_msg and last_msg.strip():
+                queries = [last_msg]
+            else:
+                # File-only message with no text - use a generic query or skip RAG
+                log.debug("File-only message detected, skipping RAG query generation")
+                queries = []
+
+        # Skip RAG processing if no valid queries
+        if len(queries) == 0:
+            log.debug("No queries available for RAG processing")
+            return body, {"sources": []}
 
         try:
             # Offload get_sources_from_items to a separate thread

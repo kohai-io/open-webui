@@ -39,6 +39,7 @@
 	export let onSourceClick = (e) => {};
 	export let onTaskClick = (e) => {};
 	export let onAddMessages = (e) => {};
+	export let onImageEdit = (e) => {};
 
 	let contentContainerElement;
 	let floatingButtonsElement;
@@ -143,6 +144,11 @@
 		{done}
 		{editCodeBlock}
 		{topPadding}
+		messageId={messageId}
+		enableContextMenu={done}
+		onImageEdit={(detail) => {
+			onImageEdit(detail);
+		}}
 		sourceIds={(sources ?? []).reduce((acc, source) => {
 			let ids = [];
 			source.document.forEach((document, index) => {

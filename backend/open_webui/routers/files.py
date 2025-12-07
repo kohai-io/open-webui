@@ -120,6 +120,16 @@ def process_uploaded_file(request, file, file_path, file_item, file_metadata, us
             ):
                 process_file(request, ProcessFileForm(file_id=file_item.id), user=user)
                 processed = True
+            elif file.content_type.startswith(("video/", "image/")):
+                # Video and image files (other than webm for transcription) are stored but not processed for RAG
+                log.info(f"Media file uploaded but skipped for RAG processing: {file.content_type}")
+                Files.update_file_data_by_id(
+                    file_item.id,
+                    {
+                        "status": "completed",
+                    },
+                )
+                processed = True
             else:
                 raise Exception(
                     f"File type {file.content_type} is not supported for processing"

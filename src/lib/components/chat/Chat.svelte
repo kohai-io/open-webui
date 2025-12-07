@@ -1704,7 +1704,7 @@
 
 		chatFiles.push(
 			..._files.filter((item) =>
-				['doc', 'text', 'file', 'note', 'chat', 'folder', 'collection'].includes(item.type)
+				['doc', 'text', 'file', 'note', 'chat', 'folder', 'collection', 'video', 'image'].includes(item.type)
 			)
 		);
 		chatFiles = chatFiles.filter(

@@ -42,6 +42,7 @@
 	import ProfileImage from './ProfileImage.svelte';
 	import Skeleton from './Skeleton.svelte';
 	import Image from '$lib/components/common/Image.svelte';
+	import ImageWithContextMenu from './ImageWithContextMenu.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import RateComment from './RateComment.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
@@ -226,6 +227,23 @@
 		if (res) {
 			toast.success($i18n.t('Copying to clipboard was successful!'));
 		}
+	};
+
+	const handleImageEdit = async (detail: {
+		action: string;
+		coords: { normalizedX: number; normalizedY: number };
+		prompt: string;
+		imageUrl: string;
+		brushRadius: number;
+	}) => {
+		const { action, coords, prompt, imageUrl, brushRadius } = detail;
+
+		console.log('Image edit requested:', { action, coords, prompt, imageUrl });
+
+		// Populate the input field with the prompt
+		// User can review and press Enter to send
+		// The pipe (nano_banana_pro) will use edit_mode to pull the previous image from history
+		setInputText(prompt);
 	};
 
 	const stopAudio = () => {
@@ -684,7 +702,20 @@
 								{#each message.files as file}
 									<div>
 										{#if file.type === 'image'}
-											<Image src={file.url} alt={message.content} />
+											{#if message?.done && !readOnly}
+												<ImageWithContextMenu
+													src={file.url}
+													alt={message.content}
+													messageId={message.id}
+													{model}
+													disabled={false}
+													on:edit={(e) => {
+														handleImageEdit(e.detail);
+													}}
+												/>
+											{:else}
+												<Image src={file.url} alt={message.content} />
+											{/if}
 										{:else}
 											<FileItem
 												item={file}
@@ -814,6 +845,9 @@
 										}}
 										onAddMessages={({ modelId, parentId, messages }) => {
 											addMessages({ modelId, parentId, messages });
+										}}
+										onImageEdit={(detail) => {
+											handleImageEdit(detail);
 										}}
 										onSave={({ raw, oldContent, newContent }) => {
 											history.messages[message.id].content = history.messages[

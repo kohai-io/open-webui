@@ -44,6 +44,11 @@
 	export let onTaskClick: Function = () => {};
 	export let onSourceClick: Function = () => {};
 
+	export let messageId: string = '';
+	export let model: any = null;
+	export let enableContextMenu: boolean = false;
+	export let onImageEdit: Function = () => {};
+
 	const headerComponent = (depth: number) => {
 		return 'h' + depth;
 	};
@@ -96,6 +101,10 @@
 				tokens={token.tokens}
 				{done}
 				{onSourceClick}
+				{messageId}
+				{model}
+				{enableContextMenu}
+				{onImageEdit}
 			/>
 		</svelte:element>
 	{:else if token.type === 'code'}
@@ -147,6 +156,10 @@
 												tokens={header.tokens}
 												{done}
 												{onSourceClick}
+												{messageId}
+												{model}
+												{enableContextMenu}
+												{onImageEdit}
 											/>
 										</div>
 									</div>
@@ -172,6 +185,10 @@
 												tokens={cell.tokens}
 												{done}
 												{onSourceClick}
+												{messageId}
+												{model}
+												{enableContextMenu}
+												{onImageEdit}
 											/>
 										</div>
 									</td>
@@ -336,6 +353,10 @@
 				tokens={token.tokens ?? []}
 				{done}
 				{onSourceClick}
+				{messageId}
+				{model}
+				{enableContextMenu}
+				{onImageEdit}
 			/>
 		</p>
 	{:else if token.type === 'text'}
@@ -343,31 +364,30 @@
 			<p>
 				{#if token.tokens}
 					<MarkdownInlineTokens
-						id={`${id}-${tokenIdx}-t`}
-						tokens={token.tokens}
-						{done}
-						{onSourceClick}
-					/>
-				{:else}
-					{unescapeHtml(token.text)}
-				{/if}
-			</p>
-		{:else if token.tokens}
-			<MarkdownInlineTokens
-				id={`${id}-${tokenIdx}-p`}
-				tokens={token.tokens ?? []}
-				{done}
-				{onSourceClick}
-			/>
-		{:else}
-			{unescapeHtml(token.text)}
-		{/if}
-	{:else if token.type === 'inlineKatex'}
-		{#if token.text}
-			<KatexRenderer content={token.text} displayMode={token?.displayMode ?? false} />
-		{/if}
-	{:else if token.type === 'blockKatex'}
-		{#if token.text}
+					id={`${id}-${tokenIdx}-t`}
+					tokens={token.tokens}
+					{done}
+					{onSourceClick}
+					{messageId}
+					{model}
+					{enableContextMenu}
+					{onImageEdit}
+				/>
+			{:else}
+				{unescapeHtml(token.text)}
+			{/if}
+		</p>
+	{:else if token.tokens}
+		<MarkdownInlineTokens
+			id={`${id}-${tokenIdx}-p`}
+			tokens={token.tokens ?? []}
+			{done}
+			{onSourceClick}
+			{messageId}
+			{model}
+			{enableContextMenu}
+			{onImageEdit}
+		/>
 			<KatexRenderer content={token.text} displayMode={token?.displayMode ?? false} />
 		{/if}
 	{:else if token.type === 'space'}

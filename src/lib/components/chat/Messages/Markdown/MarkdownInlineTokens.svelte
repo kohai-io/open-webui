@@ -11,6 +11,7 @@
 	import { copyToClipboard, unescapeHtml } from '$lib/utils';
 
 	import Image from '$lib/components/common/Image.svelte';
+	import ImageWithContextMenu from '../ImageWithContextMenu.svelte';
 	import KatexRenderer from './KatexRenderer.svelte';
 	import Source from './Source.svelte';
 	import HtmlToken from './HTMLToken.svelte';
@@ -22,6 +23,10 @@
 	export let done = true;
 	export let tokens: Token[];
 	export let onSourceClick: Function = () => {};
+	export let messageId: string = '';
+	export let model: any = null;
+	export let enableContextMenu: boolean = false;
+	export let onImageEdit: Function = () => {};
 </script>
 
 {#each tokens as token, tokenIdx (tokenIdx)}
@@ -38,7 +43,20 @@
 			<a href={token.href} target="_blank" rel="nofollow" title={token.title}>{token.text}</a>
 		{/if}
 	{:else if token.type === 'image'}
-		<Image src={token.href} alt={token.text} />
+		{#if enableContextMenu && messageId}
+			<ImageWithContextMenu
+				src={token.href}
+				alt={token.text}
+				{messageId}
+				{model}
+				disabled={!done}
+				on:edit={(e) => {
+					onImageEdit(e.detail);
+				}}
+			/>
+		{:else}
+			<Image src={token.href} alt={token.text} />
+		{/if}
 	{:else if token.type === 'strong'}
 		<strong><svelte:self id={`${id}-strong`} tokens={token.tokens} {onSourceClick} /></strong>
 	{:else if token.type === 'em'}
