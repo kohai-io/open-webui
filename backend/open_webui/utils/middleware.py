@@ -371,8 +371,32 @@ async def chat_completion_tools_handler(
                 log.debug(f"{tool_call=}")
 
                 tool_function_name = tool_call.get("name", None)
-                if tool_function_name not in tools:
+                resolved_tool_function_name = tool_function_name
+                if resolved_tool_function_name not in tools and isinstance(
+                    resolved_tool_function_name, str
+                ):
+                    # Some models return the base tool name (e.g. "search") even when
+                    # the registered tool name is prefixed (e.g. "amplitude-mcp_search").
+                    # If there is an unambiguous match, resolve it.
+                    candidates = [
+                        k
+                        for k in tools.keys()
+                        if k.endswith(f"_{resolved_tool_function_name}")
+                    ]
+                    if len(candidates) == 1:
+                        resolved_tool_function_name = candidates[0]
+
+                if resolved_tool_function_name not in tools:
                     return body, {}
+
+                if resolved_tool_function_name != tool_function_name:
+                    log.info(
+                        "Executing tool call: %s (resolved from %s)",
+                        resolved_tool_function_name,
+                        tool_function_name,
+                    )
+                else:
+                    log.info("Executing tool call: %s", resolved_tool_function_name)
 
                 tool_function_params = tool_call.get("parameters", {})
 
@@ -381,7 +405,7 @@ async def chat_completion_tools_handler(
                 direct_tool = False
 
                 try:
-                    tool = tools[tool_function_name]
+                    tool = tools[resolved_tool_function_name]
                     tool_type = tool.get("type", "")
                     direct_tool = tool.get("direct", False)
 
@@ -401,7 +425,7 @@ async def chat_completion_tools_handler(
                                 "type": "execute:tool",
                                 "data": {
                                     "id": str(uuid4()),
-                                    "name": tool_function_name,
+                                    "name": resolved_tool_function_name,
                                     "params": tool_function_params,
                                     "server": tool.get("server", {}),
                                     "session_id": metadata.get("session_id", None),
@@ -418,7 +442,7 @@ async def chat_completion_tools_handler(
                 tool_result, tool_result_files, tool_result_embeds = (
                     process_tool_result(
                         request,
-                        tool_function_name,
+                        resolved_tool_function_name,
                         tool_result,
                         tool_type,
                         direct_tool,
@@ -449,13 +473,13 @@ async def chat_completion_tools_handler(
                         )
 
                 print(
-                    f"Tool {tool_function_name} result: {tool_result}",
+                    f"Tool {resolved_tool_function_name} result: {tool_result}",
                     tool_result_files,
                     tool_result_embeds,
                 )
 
                 if tool_result:
-                    tool = tools[tool_function_name]
+                    tool = tools[resolved_tool_function_name]
                     tool_id = tool.get("tool_id", "")
 
                     tool_name = (
@@ -488,7 +512,7 @@ async def chat_completion_tools_handler(
                     )
 
                     if (
-                        tools[tool_function_name]
+                        tools[resolved_tool_function_name]
                         .get("metadata", {})
                         .get("file_handler", False)
                     ):
@@ -1326,6 +1350,8 @@ async def process_chat_payload(request, form_data, user, metadata, model):
             if tool_id.startswith("server:mcp:"):
                 try:
                     server_id = tool_id[len("server:mcp:") :]
+                    server_info_id = server_id
+                    tool_prefix = server_id
 
                     mcp_server_connection = None
                     for (
@@ -1333,7 +1359,7 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                     ) in request.app.state.config.TOOL_SERVER_CONNECTIONS:
                         if (
                             server_connection.get("type", "") == "mcp"
-                            and server_connection.get("info", {}).get("id") == server_id
+                            and server_connection.get("info", {}).get("id") == server_info_id
                         ):
                             mcp_server_connection = server_connection
                             break
@@ -1364,11 +1390,11 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                             )
                     elif auth_type == "oauth_2.1":
                         try:
-                            splits = server_id.split(":")
-                            server_id = splits[-1] if len(splits) > 1 else server_id
+                            splits = server_info_id.split(":")
+                            tool_prefix = splits[-1] if len(splits) > 1 else server_info_id
 
                             oauth_token = await request.app.state.oauth_client_manager.get_oauth_token(
-                                user.id, f"mcp:{server_id}"
+                                user.id, f"mcp:{tool_prefix}"
                             )
 
                             if oauth_token:
@@ -1379,13 +1405,19 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                             log.error(f"Error getting OAuth token: {e}")
                             oauth_token = None
 
-                    mcp_clients[server_id] = MCPClient()
-                    await mcp_clients[server_id].connect(
+                    mcp_clients[tool_prefix] = MCPClient()
+                    await mcp_clients[tool_prefix].connect(
                         url=mcp_server_connection.get("url", ""),
                         headers=headers if headers else None,
                     )
 
-                    tool_specs = await mcp_clients[server_id].list_tool_specs()
+                    tool_specs = await mcp_clients[tool_prefix].list_tool_specs()
+                    log.info(
+                        "Loaded %s MCP tools from server '%s' (prefix '%s')",
+                        len(tool_specs) if tool_specs else 0,
+                        server_info_id,
+                        tool_prefix,
+                    )
                     for tool_spec in tool_specs:
 
                         def make_tool_function(client, function_name):
@@ -1398,21 +1430,21 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                             return tool_function
 
                         tool_function = make_tool_function(
-                            mcp_clients[server_id], tool_spec["name"]
+                            mcp_clients[tool_prefix], tool_spec["name"]
                         )
 
-                        mcp_tools_dict[f"{server_id}_{tool_spec['name']}"] = {
+                        mcp_tools_dict[f"{tool_prefix}_{tool_spec['name']}"] = {
                             "spec": {
                                 **tool_spec,
-                                "name": f"{server_id}_{tool_spec['name']}",
+                                "name": f"{tool_prefix}_{tool_spec['name']}",
                             },
                             "callable": tool_function,
                             "type": "mcp",
-                            "client": mcp_clients[server_id],
+                            "client": mcp_clients[tool_prefix],
                             "direct": False,
                         }
                 except Exception as e:
-                    log.debug(e)
+                    log.exception("Failed to connect to MCP server '%s'", server_id)
                     if event_emitter:
                         await event_emitter(
                             {
