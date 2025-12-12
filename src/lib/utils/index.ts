@@ -109,6 +109,11 @@ export const sanitizeResponseContent = (content: string) => {
 };
 
 export const processResponseContent = (content: string) => {
+	// Some models/tools emit inline "citation" pseudo-tags like:
+	//   <source;data="1" title="..." />
+	// These are not valid HTML and can break Markdown emphasis rendering.
+	// OWUI handles citations separately, so strip them from rendered content.
+	content = content.replace(/<source;[^>]*\/>/gi, '');
 	content = processChineseContent(content);
 	return content.trim();
 };
