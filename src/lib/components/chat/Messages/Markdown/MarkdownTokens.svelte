@@ -388,7 +388,16 @@
 			{enableContextMenu}
 			{onImageEdit}
 		/>
-			<KatexRenderer content={token.text} displayMode={token?.displayMode ?? false} />
+	{:else}
+		{unescapeHtml(token.text)}
+	{/if}
+	{:else if token.type === 'inlineKatex'}
+		{#if token.text}
+			<KatexRenderer content={token.text} displayMode={false} />
+		{/if}
+	{:else if token.type === 'blockKatex'}
+		{#if token.text}
+			<KatexRenderer content={token.text} displayMode={true} />
 		{/if}
 	{:else if token.type === 'space'}
 		<div class="my-2" />
