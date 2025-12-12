@@ -154,6 +154,12 @@ def decrypt_data(data: str):
         raise
 
 
+def _coerce_single_item_list_to_str(value):
+    if isinstance(value, list) and len(value) == 1 and isinstance(value[0], str):
+        return value[0]
+    return value
+
+
 def _build_oauth_callback_error_message(e: Exception) -> str:
     """
     Produce a user-facing callback error string with actionable context.
@@ -330,6 +336,21 @@ async def get_oauth_client_info_with_dynamic_client_registration(
                     registration_response_json = (
                         await oauth_client_registration_response.json()
                     )
+
+                    # Some providers return client identifiers as a single-item array.
+                    # Coerce these to strings so validation and downstream OAuth flows work.
+                    if isinstance(registration_response_json, dict):
+                        registration_response_json["client_id"] = (
+                            _coerce_single_item_list_to_str(
+                                registration_response_json.get("client_id")
+                            )
+                        )
+                        registration_response_json["client_secret"] = (
+                            _coerce_single_item_list_to_str(
+                                registration_response_json.get("client_secret")
+                            )
+                        )
+
                     oauth_client_info = OAuthClientInformationFull.model_validate(
                         {
                             **registration_response_json,
