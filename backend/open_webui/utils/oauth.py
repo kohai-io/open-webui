@@ -710,17 +710,10 @@ class OAuthClientManager:
 
         error_message = None
         try:
-            client_info = self.get_client_info(client_id)
-            token_params = {}
-            if (
-                client_info
-                and hasattr(client_info, "client_id")
-                and hasattr(client_info, "client_secret")
-            ):
-                token_params["client_id"] = client_info.client_id
-                token_params["client_secret"] = client_info.client_secret
-
-            token = await client.authorize_access_token(request, **token_params)
+            # Authlib already has the registered client_id/client_secret from add_client().
+            # Passing them again here can lead to duplicate form fields in the token request,
+            # which some OAuth servers interpret as arrays (e.g., client_id=[...]).
+            token = await client.authorize_access_token(request)
             if token:
                 try:
                     # Add timestamp for tracking
