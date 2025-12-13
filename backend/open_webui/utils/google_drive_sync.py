@@ -2,6 +2,7 @@
 Google Drive file synchronization utilities
 """
 import logging
+import time
 import aiohttp
 from typing import Dict, Optional
 from open_webui.models.files import Files, FileModel
@@ -104,8 +105,8 @@ async def sync_drive_file(file: FileModel, access_token: str) -> Dict[str, bool]
         Dict with sync result: {"updated": True/False, "error": Optional[str]}
     """
     try:
-        # Get stored Drive metadata
-        stored_metadata = file.meta.get("drive_metadata")
+        # Get stored Drive metadata (stored as 'google_drive' in file.meta)
+        stored_metadata = file.meta.get("google_drive")
         if not stored_metadata:
             log.warning(f"File {file.id} has no Drive metadata, cannot sync")
             return {"updated": False, "error": "No Drive metadata"}
@@ -148,15 +149,16 @@ async def sync_drive_file(file: FileModel, access_token: str) -> Dict[str, bool]
             overwrite=True
         )
         
-        # Update file metadata
+        # Update file metadata (preserve existing structure with 'google_drive' key)
         updated_meta = file.meta.copy()
-        updated_meta["drive_metadata"] = {
+        updated_meta["google_drive"] = {
             "file_id": file_id,
             "modified_time": current_modified_time,
             "version": current_metadata.get("version"),
             "web_view_link": current_metadata.get("webViewLink"),
             "mime_type": mime_type,
-            "size": current_metadata.get("size")
+            "size": current_metadata.get("size"),
+            "last_synced_at": int(time.time())
         }
         
         # Update file record in database
