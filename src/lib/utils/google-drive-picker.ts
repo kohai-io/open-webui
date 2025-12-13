@@ -180,6 +180,9 @@ export const createPicker = () => {
 					if (data[google.picker.Response.ACTION] === google.picker.Action.PICKED) {
 						try {
 							const doc = data[google.picker.Response.DOCUMENTS][0];
+							console.log('[DRIVE] Full picker document object:', doc);
+							console.log('[DRIVE] Available document keys:', Object.keys(doc));
+							
 							const fileId = doc[google.picker.Document.ID];
 							const fileName = doc[google.picker.Document.NAME];
 							const fileUrl = doc[google.picker.Document.URL];
@@ -190,6 +193,12 @@ export const createPicker = () => {
 
 							// Construct download URL based on MIME type
 							const mimeType = doc[google.picker.Document.MIME_TYPE];
+							console.log('[DRIVE] File info:', {
+								id: fileId,
+								name: fileName,
+								mimeType,
+								url: fileUrl
+							});
 
 							let downloadUrl;
 							let exportFormat;
