@@ -2198,6 +2198,12 @@ GOOGLE_DRIVE_API_KEY = PersistentConfig(
     os.environ.get("GOOGLE_DRIVE_API_KEY", ""),
 )
 
+GOOGLE_DRIVE_CLIENT_SECRET = PersistentConfig(
+    "GOOGLE_DRIVE_CLIENT_SECRET",
+    "google_drive.client_secret",
+    os.environ.get("GOOGLE_DRIVE_CLIENT_SECRET", ""),
+)
+
 ENABLE_ONEDRIVE_INTEGRATION = PersistentConfig(
     "ENABLE_ONEDRIVE_INTEGRATION",
     "onedrive.enable",

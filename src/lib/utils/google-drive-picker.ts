@@ -114,8 +114,35 @@ export const loadGoogleAuthApi = () => {
 	});
 };
 
-export const getAuthToken = async () => {
-	// Try to load token from localStorage if not in memory
+export const getAuthToken = async (): Promise<string | null> => {
+	// PRIORITY 1: Try to get token from backend (server-side OAuth)
+	try {
+		const response = await fetch('/api/v1/google-drive/oauth/token', {
+			headers: {
+				Authorization: `Bearer ${localStorage.token}`
+			}
+		});
+		
+		if (response.ok) {
+			const data = await response.json();
+			oauthToken = data.access_token;
+			if (data.expires_in) {
+				tokenExpiresAt = Date.now() + (data.expires_in * 1000);
+			}
+			console.log('[DRIVE AUTH] Using server-managed OAuth token');
+			return oauthToken;
+		} else if (response.status === 401) {
+			// Not authorized with backend, need to trigger OAuth flow
+			console.log('[DRIVE AUTH] Not authorized with backend, triggering OAuth flow');
+			await triggerBackendOAuthFlow();
+			// After auth completes, retry getting token
+			return getAuthToken();
+		}
+	} catch (error) {
+		console.warn('[DRIVE AUTH] Backend OAuth unavailable, falling back to client-side:', error);
+	}
+	
+	// PRIORITY 2: Fallback to localStorage (backward compatibility)
 	if (!oauthToken || !tokenExpiresAt) {
 		loadTokenFromStorage();
 	}
@@ -125,17 +152,19 @@ export const getAuthToken = async () => {
 		const now = Date.now();
 		const timeRemaining = Math.floor((tokenExpiresAt - now) / 1000);
 		if (timeRemaining > 60) {
-			console.log(`[DRIVE AUTH] Using cached token, expires in ${timeRemaining}s`);
+			console.log(`[DRIVE AUTH] Using localStorage token (fallback), expires in ${timeRemaining}s`);
 			return oauthToken;
 		} else {
-			console.log(`[DRIVE AUTH] Cached token expired or expiring soon (${timeRemaining}s remaining), requesting new token`);
+			console.log(`[DRIVE AUTH] Cached token expired, clearing`);
 			oauthToken = null;
 			tokenExpiresAt = null;
 			clearTokenFromStorage();
 		}
 	}
 	
+	// PRIORITY 3: Direct browser OAuth (legacy fallback)
 	if (!oauthToken) {
+		console.log('[DRIVE AUTH] Using direct browser OAuth (legacy fallback)');
 		return new Promise((resolve, reject) => {
 			const tokenClient = google.accounts.oauth2.initTokenClient({
 				client_id: CLIENT_ID,
@@ -145,18 +174,12 @@ export const getAuthToken = async () => {
 						const token = response.access_token;
 						oauthToken = token;
 						
-						// Capture expiration time from response
-						const expiresIn = response.expires_in || 3600; // Default to 3600s if not provided
+						const expiresIn = response.expires_in || 3600;
 						tokenExpiresAt = Date.now() + (expiresIn * 1000);
 						
-						// Save to localStorage
 						saveTokenToStorage(token, tokenExpiresAt);
 						
-						const expiresAtTime = new Date(tokenExpiresAt).toLocaleTimeString();
-						console.log(`[DRIVE AUTH] New token obtained, expires_in: ${expiresIn}s (${Math.floor(expiresIn / 60)} minutes)`);
-						console.log(`[DRIVE AUTH] Token will expire at: ${expiresAtTime}`);
-						console.log(`[DRIVE AUTH] Full OAuth response:`, response);
-						
+						console.log(`[DRIVE AUTH] Browser OAuth token obtained, expires_in: ${expiresIn}s`);
 						resolve(token);
 					} else {
 						reject(new Error('Failed to get access token'));
@@ -170,6 +193,41 @@ export const getAuthToken = async () => {
 		});
 	}
 	return oauthToken;
+};
+
+// Trigger backend OAuth flow in a popup window
+const triggerBackendOAuthFlow = () => {
+	return new Promise((resolve, reject) => {
+		const authWindow = window.open(
+			'/api/v1/google-drive/oauth/authorize',
+			'Google Drive Authorization',
+			'width=600,height=700'
+		);
+		
+		// Listen for authorization success/failure
+		const messageHandler = (event: MessageEvent) => {
+			if (event.data.type === 'google_drive_auth_success') {
+				window.removeEventListener('message', messageHandler);
+				console.log('[DRIVE AUTH] Backend OAuth flow completed successfully');
+				resolve(true);
+			} else if (event.data.type === 'google_drive_auth_error') {
+				window.removeEventListener('message', messageHandler);
+				console.error('[DRIVE AUTH] Backend OAuth flow failed:', event.data.error);
+				reject(new Error(event.data.error));
+			}
+		};
+		
+		window.addEventListener('message', messageHandler);
+		
+		// Timeout after 2 minutes
+		setTimeout(() => {
+			window.removeEventListener('message', messageHandler);
+			if (authWindow && !authWindow.closed) {
+				authWindow.close();
+			}
+			reject(new Error('Authorization timeout'));
+		}, 120000);
+	});
 };
 
 // Request a fresh auth token, bypassing cache

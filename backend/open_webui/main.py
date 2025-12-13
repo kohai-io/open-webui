@@ -94,6 +94,7 @@ from open_webui.routers import (
     users,
     utils,
     scim,
+    google_drive_oauth,
 )
 
 from open_webui.routers.retrieval import (
@@ -329,6 +330,7 @@ from open_webui.config import (
     GOOGLE_PSE_ENGINE_ID,
     GOOGLE_DRIVE_CLIENT_ID,
     GOOGLE_DRIVE_API_KEY,
+    GOOGLE_DRIVE_CLIENT_SECRET,
     ENABLE_ONEDRIVE_INTEGRATION,
     ONEDRIVE_CLIENT_ID_PERSONAL,
     ONEDRIVE_CLIENT_ID_BUSINESS,
@@ -1371,6 +1373,13 @@ app.include_router(
 )
 app.include_router(utils.router, prefix="/api/v1/utils", tags=["utils"])
 
+# Google Drive OAuth integration
+app.include_router(
+    google_drive_oauth.router, 
+    prefix="/api/v1/google-drive/oauth", 
+    tags=["google_drive"]
+)
+
 # SCIM 2.0 API for identity management
 if SCIM_ENABLED:
     app.include_router(scim.router, prefix="/api/v1/scim/v2", tags=["scim"])
@@ -2012,6 +2021,30 @@ if len(app.state.config.TOOL_SERVER_CONNECTIONS) > 0:
                         f"Error adding OAuth client for MCP tool server {server_id}: {e}"
                     )
                     pass
+
+# Initialize Google Drive OAuth client if configured
+if GOOGLE_DRIVE_CLIENT_ID.value and GOOGLE_DRIVE_CLIENT_SECRET.value:
+    try:
+        from open_webui.utils.oauth import OAuthClientInformationFull
+        from mcp.shared.auth import OAuthMetadata
+        
+        redirect_base_url = str(app.state.config.WEBUI_URL or "http://localhost:8080").rstrip("/")
+        
+        google_drive_oauth_info = OAuthClientInformationFull(
+            client_id=GOOGLE_DRIVE_CLIENT_ID.value,
+            client_secret=GOOGLE_DRIVE_CLIENT_SECRET.value,
+            scope="https://www.googleapis.com/auth/drive.readonly",
+            issuer="https://accounts.google.com/.well-known/openid-configuration",
+            redirect_uris=[f"{redirect_base_url}/api/v1/google-drive/oauth/callback"],
+            grant_types=["authorization_code", "refresh_token"],
+            response_types=["code"],
+            token_endpoint_auth_method="client_secret_post",
+        )
+        
+        app.state.oauth_client_manager.add_client("google_drive", google_drive_oauth_info)
+        log.info("Google Drive OAuth client registered successfully")
+    except Exception as e:
+        log.error(f"Failed to register Google Drive OAuth client: {e}")
 
 try:
     if ENABLE_STAR_SESSIONS_MIDDLEWARE:
