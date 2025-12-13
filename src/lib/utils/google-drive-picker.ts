@@ -104,6 +104,31 @@ const initialize = async () => {
 	}
 };
 
+// Fetch detailed metadata from Drive API
+const fetchDriveFileMetadata = async (fileId: string, token: string) => {
+	try {
+		const response = await fetch(
+			`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,modifiedTime,version,size,mimeType,webViewLink`,
+			{
+				headers: {
+					Authorization: `Bearer ${token}`,
+					Accept: 'application/json'
+				}
+			}
+		);
+
+		if (!response.ok) {
+			console.warn(`Failed to fetch Drive metadata for ${fileId}: ${response.status}`);
+			return null;
+		}
+
+		return await response.json();
+	} catch (error) {
+		console.error('Error fetching Drive file metadata:', error);
+		return null;
+	}
+};
+
 export const createPicker = () => {
 	return new Promise(async (resolve, reject) => {
 		try {
@@ -184,6 +209,10 @@ export const createPicker = () => {
 							}
 
 							const blob = await response.blob();
+							
+							// Fetch Drive metadata for sync tracking
+							const driveMetadata = await fetchDriveFileMetadata(fileId, token);
+							
 							const result = {
 								id: fileId,
 								name: fileName,
@@ -192,7 +221,16 @@ export const createPicker = () => {
 								headers: {
 									Authorization: `Bearer ${token}`,
 									Accept: '*/*'
-								}
+								},
+								// Include Drive metadata for storage
+								driveMetadata: driveMetadata ? {
+									file_id: fileId,
+									modified_time: driveMetadata.modifiedTime,
+									version: driveMetadata.version,
+									web_view_link: driveMetadata.webViewLink,
+									mime_type: driveMetadata.mimeType,
+									size: driveMetadata.size
+								} : null
 							};
 							resolve(result);
 						} catch (error) {

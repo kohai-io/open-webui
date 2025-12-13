@@ -2,6 +2,8 @@ from typing import List, Optional
 from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Query
 import logging
+import time
+import aiohttp
 
 from open_webui.models.knowledge import (
     Knowledges,
@@ -785,4 +787,213 @@ def add_files_to_knowledge_batch(
     return KnowledgeFilesResponse(
         **knowledge.model_dump(),
         files=Files.get_file_metadatas_by_ids(existing_file_ids),
+    )
+
+
+############################
+# SyncGoogleDriveFiles
+############################
+
+
+class GoogleDriveSyncForm(BaseModel):
+    drive_token: str
+
+
+class GoogleDriveSyncResult(BaseModel):
+    status: str
+    updated_count: int
+    updated_files: list[dict]
+    skipped_count: int
+    errors: list[dict]
+
+
+async def fetch_drive_metadata(file_id: str, token: str) -> Optional[dict]:
+    """Fetch file metadata from Google Drive API"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(
+                f"https://www.googleapis.com/drive/v3/files/{file_id}",
+                params={"fields": "id,name,modifiedTime,version,size,mimeType,webViewLink"},
+                headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            ) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    log.error(f"Failed to fetch Drive metadata for {file_id}: {response.status}")
+                    return None
+    except Exception as e:
+        log.error(f"Error fetching Drive metadata for {file_id}: {e}")
+        return None
+
+
+async def download_drive_file(file_id: str, mime_type: str, token: str) -> Optional[bytes]:
+    """Download file from Google Drive"""
+    try:
+        async with aiohttp.ClientSession() as session:
+            # Determine download URL based on MIME type
+            if "google-apps" in mime_type:
+                # Handle Google Workspace files
+                if "document" in mime_type:
+                    export_format = "text/plain"
+                elif "spreadsheet" in mime_type:
+                    export_format = "text/csv"
+                elif "presentation" in mime_type:
+                    export_format = "text/plain"
+                else:
+                    export_format = "application/pdf"
+
+                url = f"https://www.googleapis.com/drive/v3/files/{file_id}/export"
+                params = {"mimeType": export_format}
+            else:
+                # Regular files
+                url = f"https://www.googleapis.com/drive/v3/files/{file_id}"
+                params = {"alt": "media"}
+
+            async with session.get(
+                url, params=params, headers={"Authorization": f"Bearer {token}"}
+            ) as response:
+                if response.status == 200:
+                    return await response.read()
+                else:
+                    error_text = await response.text()
+                    log.error(
+                        f"Failed to download Drive file {file_id}: {response.status} - {error_text}"
+                    )
+                    return None
+    except Exception as e:
+        log.error(f"Error downloading Drive file {file_id}: {e}")
+        return None
+
+
+@router.post("/{id}/sync/google-drive", response_model=GoogleDriveSyncResult)
+async def sync_google_drive_files(
+    id: str,
+    form_data: GoogleDriveSyncForm,
+    request: Request,
+    user=Depends(get_verified_user),
+):
+    """
+    Sync Google Drive files in a knowledge base.
+    Checks for updates and re-processes changed files.
+    """
+    knowledge = Knowledges.get_knowledge_by_id(id=id)
+    if not knowledge:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=ERROR_MESSAGES.NOT_FOUND
+        )
+
+    if (
+        knowledge.user_id != user.id
+        and not has_access(user.id, "write", knowledge.access_control)
+        and user.role != "admin"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail=ERROR_MESSAGES.UNAUTHORIZED
+        )
+
+    file_ids = knowledge.data.get("file_ids", []) if knowledge.data else []
+    files = Files.get_files_by_ids(file_ids)
+
+    updates = []
+    errors = []
+    skipped = 0
+
+    for file in files:
+        # Only process Drive files
+        if file.meta.get("source") != "google_drive":
+            skipped += 1
+            continue
+
+        drive_meta = file.meta.get("google_drive", {})
+        drive_file_id = drive_meta.get("file_id")
+        last_modified = drive_meta.get("modified_time")
+
+        if not drive_file_id:
+            log.warning(f"File {file.id} marked as Drive file but missing file_id")
+            skipped += 1
+            continue
+
+        try:
+            log.info(f"Checking Drive file {file.filename} ({drive_file_id})")
+
+            # Fetch current Drive metadata
+            current_metadata = await fetch_drive_metadata(drive_file_id, form_data.drive_token)
+
+            if not current_metadata:
+                errors.append(
+                    {"file_id": file.id, "filename": file.filename, "error": "Failed to fetch metadata"}
+                )
+                continue
+
+            # Check if file was modified
+            current_modified = current_metadata.get("modifiedTime")
+            if not current_modified or current_modified == last_modified:
+                log.info(f"File {file.filename} is up to date")
+                skipped += 1
+                continue
+
+            log.info(f"File {file.filename} has updates, syncing...")
+
+            # Download updated file
+            file_content = await download_drive_file(
+                drive_file_id, current_metadata.get("mimeType", ""), form_data.drive_token
+            )
+
+            if not file_content:
+                errors.append(
+                    {"file_id": file.id, "filename": file.filename, "error": "Failed to download file"}
+                )
+                continue
+
+            # Save updated file to storage
+            file_path = Storage.upload_file(file_content, file.filename)
+
+            # Update file record
+            Files.update_file_metadata_by_id(
+                file.id,
+                {
+                    "path": file_path,
+                    "google_drive": {
+                        **drive_meta,
+                        "modified_time": current_modified,
+                        "version": current_metadata.get("version"),
+                        "last_synced_at": int(time.time()),
+                    },
+                },
+            )
+
+            # Delete old embeddings
+            try:
+                VECTOR_DB_CLIENT.delete(collection_name=knowledge.id, filter={"file_id": file.id})
+            except Exception as e:
+                log.warning(f"Failed to delete old embeddings for {file.id}: {e}")
+
+            # Re-process file for embeddings
+            try:
+                process_file(
+                    request,
+                    ProcessFileForm(file_id=file.id, collection_name=knowledge.id),
+                    user=user,
+                )
+                log.info(f"Successfully synced {file.filename}")
+                updates.append({"file_id": file.id, "filename": file.filename})
+            except Exception as e:
+                errors.append(
+                    {
+                        "file_id": file.id,
+                        "filename": file.filename,
+                        "error": f"Re-processing failed: {str(e)}",
+                    }
+                )
+
+        except Exception as e:
+            log.error(f"Error syncing Drive file {file.id}: {e}")
+            errors.append({"file_id": file.id, "filename": file.filename, "error": str(e)})
+
+    return GoogleDriveSyncResult(
+        status="completed",
+        updated_count=len(updates),
+        updated_files=updates,
+        skipped_count=skipped,
+        errors=errors,
     )

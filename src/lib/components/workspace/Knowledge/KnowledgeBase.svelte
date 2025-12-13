@@ -31,10 +31,11 @@
 		removeFileFromKnowledgeById,
 		resetKnowledgeById,
 		updateFileFromKnowledgeById,
-		updateKnowledgeById
+		updateKnowledgeById,
+		syncGoogleDriveFiles
 	} from '$lib/apis/knowledge';
 	import { blobToFile } from '$lib/utils';
-	import { createPicker } from '$lib/utils/google-drive-picker';
+	import { createPicker, getAuthToken } from '$lib/utils/google-drive-picker';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Files from './KnowledgeBase/Files.svelte';
@@ -217,10 +218,63 @@
 			
 			if (fileData) {
 				console.log('File selected from Google Drive:', fileData.name);
+				
+				// Add temp item to UI
+				const tempItemId = `${Date.now()}`;
+				knowledge.files = [
+					...knowledge.files,
+					{
+						itemId: tempItemId,
+						collection_name: knowledge.id,
+						name: fileData.name,
+						title: fileData.name
+					}
+				];
+				
 				const file = new File([fileData.blob], fileData.name, {
 					type: fileData.blob.type
 				});
-				await uploadFileHandler(file);
+				
+				// Prepare metadata with Drive info for sync tracking
+				let metadata = {
+					source: 'google_drive'
+				};
+				
+				if (fileData.driveMetadata) {
+					metadata.google_drive = {
+						...fileData.driveMetadata,
+						last_synced_at: Math.floor(Date.now() / 1000)
+					};
+					console.log('Storing Drive metadata for sync:', metadata.google_drive);
+				}
+				
+				// Upload file with Drive metadata
+				const uploadedFile = await uploadFile(localStorage.token, file, metadata).catch((e) => {
+					toast.error(`${e}`);
+					return null;
+				});
+				
+				if (uploadedFile) {
+					console.log('Drive file uploaded:', uploadedFile);
+					knowledge.files = knowledge.files.map((item) => {
+						if (item.itemId === tempItemId) {
+							item.id = uploadedFile.id;
+						}
+						delete item.itemId;
+						return item;
+					});
+					
+					if (uploadedFile.error) {
+						console.warn('File upload warning:', uploadedFile.error);
+						toast.warning(uploadedFile.error);
+						knowledge.files = knowledge.files.filter((file) => file.id !== uploadedFile.id);
+					} else {
+						await addFileHandler(uploadedFile.id);
+					}
+				} else {
+					toast.error($i18n.t('Failed to upload file.'));
+					knowledge.files = knowledge.files.filter((item) => item.itemId !== tempItemId);
+				}
 			} else {
 				console.log('No file was selected from Google Drive');
 			}
@@ -458,6 +512,57 @@
 		} catch (e) {
 			console.error('Error in deleteFileHandler:', e);
 			toast.error(`${e}`);
+		}
+	};
+
+	const syncDriveFileHandler = async (fileId) => {
+		try {
+			console.log('Syncing Google Drive file:', fileId);
+			
+			// Get Drive auth token
+			const driveToken = await getAuthToken().catch(e => {
+				console.error('Failed to get Drive token:', e);
+				toast.error($i18n.t('Failed to authenticate with Google Drive'));
+				return null;
+			});
+			
+			if (!driveToken) {
+				return;
+			}
+			
+			toast.info($i18n.t('Checking for updates...'));
+			
+			// Call sync endpoint
+			const result = await syncGoogleDriveFiles(localStorage.token, id, driveToken);
+			
+			if (result) {
+				console.log('Sync result:', result);
+				
+				if (result.updated_count > 0) {
+					toast.success(
+						$i18n.t('Updated {{count}} file(s) from Google Drive', {
+							count: result.updated_count
+						})
+					);
+					
+					// Refresh knowledge base to show updated files
+					knowledge = await getKnowledgeById(localStorage.token, id);
+				} else if (result.skipped_count > 0) {
+					toast.info($i18n.t('All files are up to date'));
+				}
+				
+				if (result.errors && result.errors.length > 0) {
+					console.error('Sync errors:', result.errors);
+					toast.warning(
+						$i18n.t('Some files failed to sync: {{count}}', {
+							count: result.errors.length
+						})
+					);
+				}
+			}
+		} catch (e) {
+			console.error('Error syncing Drive file:', e);
+			toast.error($i18n.t('Failed to sync from Google Drive: {{error}}', { error: e }));
 		}
 	};
 
@@ -948,6 +1053,9 @@
 
 										selectedFileId = null;
 										deleteFileHandler(e.detail);
+									}}
+									on:sync={(e) => {
+										syncDriveFileHandler(e.detail);
 									}}
 								/>
 							</div>
