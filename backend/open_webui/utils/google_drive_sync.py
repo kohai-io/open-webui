@@ -105,8 +105,10 @@ async def sync_drive_file(file: FileModel, access_token: str) -> Dict[str, bool]
         Dict with sync result: {"updated": True/False, "error": Optional[str]}
     """
     try:
-        # Get stored Drive metadata (stored as 'google_drive' in file.meta)
-        stored_metadata = file.meta.get("google_drive")
+        # Get stored Drive metadata (nested in meta.data.google_drive)
+        file_data = file.meta.get("data", {}) if file.meta else {}
+        stored_metadata = file_data.get("google_drive")
+        
         if not stored_metadata:
             log.warning(f"File {file.id} has no Drive metadata, cannot sync")
             return {"updated": False, "error": "No Drive metadata"}
@@ -149,16 +151,25 @@ async def sync_drive_file(file: FileModel, access_token: str) -> Dict[str, bool]
             overwrite=True
         )
         
-        # Update file metadata (preserve existing structure with 'google_drive' key)
-        updated_meta = file.meta.copy()
-        updated_meta["google_drive"] = {
-            "file_id": file_id,
-            "modified_time": current_modified_time,
-            "version": current_metadata.get("version"),
-            "web_view_link": current_metadata.get("webViewLink"),
-            "mime_type": mime_type,
-            "size": current_metadata.get("size"),
-            "last_synced_at": int(time.time())
+        # Update file metadata (preserve nested structure: meta.data.google_drive)
+        existing_data = file.meta.get("data", {}) if file.meta else {}
+        existing_drive = existing_data.get("google_drive", {})
+        
+        updated_meta = {
+            "data": {
+                **existing_data,
+                "source": "google_drive",  # Preserve source for UI detection
+                "google_drive": {
+                    **existing_drive,
+                    "file_id": file_id,
+                    "modified_time": current_modified_time,
+                    "version": current_metadata.get("version"),
+                    "web_view_link": current_metadata.get("webViewLink"),
+                    "mime_type": mime_type,
+                    "size": current_metadata.get("size"),
+                    "last_synced_at": int(time.time())
+                }
+            }
         }
         
         # Update file record in database

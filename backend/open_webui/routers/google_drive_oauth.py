@@ -204,11 +204,16 @@ async def sync_all_google_drive_files(
         access_token = token_data["access_token"]
         
         # Find all files owned by user with Drive metadata
+        # Note: Files are stored with nested structure: meta.data.source and meta.data.google_drive
         all_files = Files.get_files()
         user_drive_files = [
             f for f in all_files 
-            if f.user_id == user.id and f.meta.get("source") == "google_drive"
+            if f.user_id == user.id and 
+               f.meta and 
+               f.meta.get("data", {}).get("source") == "google_drive"
         ]
+        
+        log.info(f"[SYNC] Found {len(user_drive_files)} Google Drive files for user {user.id}")
         
         if not user_drive_files:
             return {
