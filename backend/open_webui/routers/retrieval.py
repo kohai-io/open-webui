@@ -1570,8 +1570,10 @@ def process_file(
                 # Process the file and save the content
                 # Usage: /files/
                 file_path = file.path
+                log.info(f"[PROCESS_FILE] file.path from DB: {file_path}")
                 if file_path:
                     file_path = Storage.get_file(file_path)
+                    log.info(f"[PROCESS_FILE] Resolved storage path: {file_path}")
                     loader = Loader(
                         engine=request.app.state.config.CONTENT_EXTRACTION_ENGINE,
                         user=user,
