@@ -7,7 +7,7 @@ import aiohttp
 from typing import Dict, Optional
 from open_webui.models.files import Files, FileModel
 from open_webui.models.knowledge import Knowledges
-from open_webui.config import VECTOR_DB_CLIENT
+from open_webui.retrieval.vector.factory import VECTOR_DB_CLIENT
 
 log = logging.getLogger(__name__)
 
