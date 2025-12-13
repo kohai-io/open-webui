@@ -959,7 +959,9 @@ async def sync_google_drive_files(
                 continue
 
             # Save updated file to storage
-            file_path = Storage.upload_file(file_content, file.filename)
+            from io import BytesIO
+            file_obj = BytesIO(file_content)
+            _, file_path = Storage.upload_file(file_obj, file.filename, tags={})
 
             # Update file record
             Files.update_file_metadata_by_id(
