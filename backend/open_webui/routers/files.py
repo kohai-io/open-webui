@@ -191,16 +191,22 @@ def upload_file_handler(
     background_tasks: Optional[BackgroundTasks] = None,
 ):
     log.info(f"file.content_type: {file.content_type}")
+    log.info(f"[UPLOAD] Received metadata type: {type(metadata)}, value: {metadata}")
 
     if isinstance(metadata, str):
         try:
             metadata = json.loads(metadata)
+            log.info(f"[UPLOAD] Parsed metadata from JSON: {metadata}")
         except json.JSONDecodeError:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ERROR_MESSAGES.DEFAULT("Invalid metadata format"),
             )
     file_metadata = metadata if metadata else {}
+    
+    log.info(f"[UPLOAD] Final file_metadata: {file_metadata}")
+    if file_metadata.get('source') == 'google_drive':
+        log.info(f"[UPLOAD] Google Drive file detected with metadata: {file_metadata.get('google_drive')}")
 
     try:
         unsanitized_filename = file.filename

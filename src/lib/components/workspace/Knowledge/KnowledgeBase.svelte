@@ -213,11 +213,16 @@
 
 	const uploadGoogleDriveHandler = async () => {
 		try {
-			console.log('Opening Google Drive picker...');
-			const fileData = await createPicker();
+			console.log('[UPLOAD] Opening Google Drive picker...');
+			const fileData: any = await createPicker();
 			
 			if (fileData) {
-				console.log('File selected from Google Drive:', fileData.name);
+				console.log('[UPLOAD] File selected from Google Drive:', {
+					name: fileData.name,
+					id: fileData.id,
+					hasDriveMetadata: !!fileData.driveMetadata,
+					driveMetadata: fileData.driveMetadata
+				});
 				
 				// Add temp item to UI
 				const tempItemId = `${Date.now()}`;
@@ -244,10 +249,17 @@
 						...fileData.driveMetadata,
 						last_synced_at: Math.floor(Date.now() / 1000)
 					};
-					console.log('Storing Drive metadata for sync:', metadata.google_drive);
+					console.log('[UPLOAD] Storing Drive metadata for sync:', metadata);
 				} else {
-					console.warn('Drive metadata not available - file will be uploaded without sync capabilities');
+					console.warn('[UPLOAD] Drive metadata not available - file will be uploaded without sync capabilities');
 				}
+				
+				console.log('[UPLOAD] Uploading file with metadata:', {
+					filename: file.name,
+					hasSource: !!metadata.source,
+					source: metadata.source,
+					hasGoogleDrive: !!metadata.google_drive
+				});
 				
 				// Upload file with Drive metadata
 				const uploadedFile = await uploadFile(localStorage.token, file, metadata).catch((e) => {

@@ -107,6 +107,12 @@ const initialize = async () => {
 // Fetch detailed metadata from Drive API
 const fetchDriveFileMetadata = async (fileId: string, token: string) => {
 	try {
+		console.log('[DRIVE] Calling Drive API for metadata:', {
+			fileId,
+			hasToken: !!token,
+			tokenPrefix: token ? token.substring(0, 10) + '...' : 'none'
+		});
+		
 		const response = await fetch(
 			`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,modifiedTime,version,size,mimeType,webViewLink`,
 			{
@@ -117,14 +123,28 @@ const fetchDriveFileMetadata = async (fileId: string, token: string) => {
 			}
 		);
 
+		console.log('[DRIVE] Drive API response:', {
+			status: response.status,
+			statusText: response.statusText,
+			ok: response.ok
+		});
+
 		if (!response.ok) {
-			console.warn(`Failed to fetch Drive metadata for ${fileId}: ${response.status}`);
+			const errorText = await response.text();
+			console.error('[DRIVE] Drive API error:', {
+				fileId,
+				status: response.status,
+				statusText: response.statusText,
+				error: errorText
+			});
 			return null;
 		}
 
-		return await response.json();
+		const metadata = await response.json();
+		console.log('[DRIVE] Drive API metadata received:', metadata);
+		return metadata;
 	} catch (error) {
-		console.error('Error fetching Drive file metadata:', error);
+		console.error('[DRIVE] Exception fetching Drive file metadata:', error);
 		return null;
 	}
 };
@@ -211,7 +231,19 @@ export const createPicker = () => {
 							const blob = await response.blob();
 							
 							// Fetch Drive metadata for sync tracking
+							console.log('[DRIVE] Fetching metadata for file:', fileId);
 							const driveMetadata = await fetchDriveFileMetadata(fileId, token);
+							
+							if (driveMetadata) {
+								console.log('[DRIVE] Metadata fetched successfully:', {
+									file_id: fileId,
+									modified_time: driveMetadata.modifiedTime,
+									version: driveMetadata.version,
+									size: driveMetadata.size
+								});
+							} else {
+								console.warn('[DRIVE] Failed to fetch metadata - file will not be syncable');
+							}
 							
 							const result = {
 								id: fileId,
@@ -232,6 +264,10 @@ export const createPicker = () => {
 									size: driveMetadata.size
 								} : null
 							};
+							console.log('[DRIVE] Picker result:', {
+								name: result.name,
+								hasMetadata: !!result.driveMetadata
+							});
 							resolve(result);
 						} catch (error) {
 							reject(error);
