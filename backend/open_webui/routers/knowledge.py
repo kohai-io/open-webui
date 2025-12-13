@@ -940,6 +940,10 @@ async def sync_google_drive_files(
 
             # Check if file was modified
             current_modified = current_metadata.get("modifiedTime")
+            log.info(f"Timestamp comparison for {file.filename}:")
+            log.info(f"  Stored modified_time: {last_modified}")
+            log.info(f"  Current modifiedTime: {current_modified}")
+            
             if not current_modified or current_modified == last_modified:
                 log.info(f"File {file.filename} is up to date")
                 skipped += 1
@@ -966,20 +970,19 @@ async def sync_google_drive_files(
             # Update file path so process_file reads the new file
             Files.update_file_path_by_id(file.id, file_path)
             
-            # Update file metadata with Drive sync info
-            Files.update_file_metadata_by_id(
-                file.id,
-                {
-                    "data": {
-                        "google_drive": {
-                            **drive_meta,
-                            "modified_time": current_modified,
-                            "version": current_metadata.get("version"),
-                            "last_synced_at": int(time.time()),
-                        },
+            # Update file metadata with Drive sync info (stored in meta.data.google_drive)
+            updated_meta = {
+                "data": {
+                    **(file.meta.get("data", {}) if file.meta else {}),
+                    "google_drive": {
+                        **drive_meta,
+                        "modified_time": current_modified,
+                        "version": current_metadata.get("version"),
+                        "last_synced_at": int(time.time()),
                     },
-                },
-            )
+                }
+            }
+            Files.update_file_metadata_by_id(file.id, updated_meta)
 
             # Delete old embeddings
             try:
