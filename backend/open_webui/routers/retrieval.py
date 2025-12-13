@@ -1646,13 +1646,19 @@ def process_file(
                     ]
                 text_content = " ".join([doc.page_content for doc in docs])
 
+            log.info(f"[PROCESS_FILE] Extracted {len(text_content)} characters from {file.filename}")
+            log.info(f"[PROCESS_FILE] Content preview: {text_content[:200]}...")
             log.debug(f"text_content: {text_content}")
+            
             Files.update_file_data_by_id(
                 file.id,
                 {"content": text_content},
             )
+            log.info(f"[PROCESS_FILE] Updated file.data.content for {file.id}")
+            
             hash = calculate_sha256_string(text_content)
             Files.update_file_hash_by_id(file.id, hash)
+            log.info(f"[PROCESS_FILE] Updated file hash: {hash[:16]}...")
 
             if request.app.state.config.BYPASS_EMBEDDING_AND_RETRIEVAL:
                 Files.update_file_data_by_id(file.id, {"status": "completed"})
