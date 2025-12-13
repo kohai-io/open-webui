@@ -14,6 +14,7 @@
 	import Audio from './Settings/Audio.svelte';
 	import DataControls from './Settings/DataControls.svelte';
 	import Personalization from './Settings/Personalization.svelte';
+	import GoogleDrive from './Settings/GoogleDrive.svelte';
 	import Search from '../icons/Search.svelte';
 	import XMark from '../icons/XMark.svelte';
 	import Connections from './Settings/Connections.svelte';
@@ -230,6 +231,22 @@
 				'manage tool servers',
 				'managetoolservers',
 				'settings'
+			]
+		},
+		{
+			id: 'googledrive',
+			title: 'Google Drive',
+			keywords: [
+				'google',
+				'drive',
+				'googledrive',
+				'google drive',
+				'sync',
+				'authorization',
+				'oauth',
+				'token',
+				'cloud storage',
+				'cloudstorage'
 			]
 		},
 
@@ -760,6 +777,32 @@
 								</div>
 								<div class=" self-center">{$i18n.t('Audio')}</div>
 							</button>
+						{:else if tabId === 'googledrive'}
+							{#if $config?.features?.enable_google_drive_integration}
+								<button
+									role="tab"
+									aria-controls="tab-googledrive"
+									aria-selected={selectedTab === 'googledrive'}
+									class={`px-0.5 md:px-2.5 py-1 min-w-fit rounded-xl flex-1 md:flex-none flex text-left transition
+								${
+									selectedTab === 'googledrive'
+										? ($settings?.highContrastMode ?? false)
+											? 'dark:bg-gray-800 bg-gray-200'
+											: ''
+										: ($settings?.highContrastMode ?? false)
+											? 'hover:bg-gray-200 dark:hover:bg-gray-800'
+											: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'
+								}`}
+									on:click={() => {
+										selectedTab = 'googledrive';
+									}}
+								>
+									<div class=" self-center mr-2">
+										<DatabaseSettings strokeWidth="2" />
+									</div>
+									<div class=" self-center">{$i18n.t('Google Drive')}</div>
+								</button>
+							{/if}
 						{:else if tabId === 'data_controls'}
 							<button
 								role="tab"
@@ -902,6 +945,8 @@
 							toast.success($i18n.t('Settings saved successfully!'));
 						}}
 					/>
+				{:else if selectedTab === 'googledrive'}
+					<GoogleDrive />
 				{:else if selectedTab === 'data_controls'}
 					<DataControls {saveSettings} />
 				{:else if selectedTab === 'account'}

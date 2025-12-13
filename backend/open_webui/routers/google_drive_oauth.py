@@ -172,3 +172,74 @@ async def google_drive_auth_status(
     except Exception as e:
         log.error(f"Failed to check Google Drive auth status: {e}")
         return {"authorized": False, "expires_at": None}
+
+
+@router.post("/sync-all")
+async def sync_all_google_drive_files(
+    request: Request,
+    user=Depends(get_verified_user)
+):
+    """
+    Sync all Google Drive files for the current user.
+    Checks all files with driveMetadata and updates them if modified.
+    """
+    try:
+        from open_webui.models.files import Files
+        from open_webui.utils.google_drive_sync import sync_drive_file
+        
+        # Get access token
+        client_id = "google_drive"
+        token_data = await request.app.state.oauth_client_manager.get_oauth_token(
+            user.id, 
+            client_id,
+            force_refresh=False
+        )
+        
+        if not token_data:
+            raise HTTPException(
+                401, 
+                detail="Not authorized with Google Drive. Please authorize first."
+            )
+        
+        access_token = token_data["access_token"]
+        
+        # Find all files owned by user with Drive metadata
+        all_files = Files.get_files()
+        user_drive_files = [
+            f for f in all_files 
+            if f.user_id == user.id and f.meta.get("source") == "google_drive"
+        ]
+        
+        if not user_drive_files:
+            return {
+                "message": "No Google Drive files found",
+                "synced": 0,
+                "updated": 0,
+                "failed": 0
+            }
+        
+        synced = 0
+        updated = 0
+        failed = 0
+        
+        for file in user_drive_files:
+            try:
+                result = await sync_drive_file(file, access_token)
+                synced += 1
+                if result.get("updated"):
+                    updated += 1
+            except Exception as e:
+                log.error(f"Failed to sync file {file.id}: {e}")
+                failed += 1
+        
+        return {
+            "message": f"Sync complete: {updated} updated, {synced - updated} unchanged, {failed} failed",
+            "synced": synced,
+            "updated": updated,
+            "failed": failed
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error(f"Failed to sync Google Drive files: {e}")
+        raise HTTPException(500, f"Failed to sync files: {str(e)}")
