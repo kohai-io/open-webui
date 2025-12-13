@@ -978,7 +978,7 @@ async def sync_google_drive_files(
             file_obj = BytesIO(file_content)
             _, file_path = Storage.upload_file(file_obj, file.filename, tags={})
 
-            # Update file path so process_file reads the new file
+            # Update file path for future reference
             Files.update_file_path_by_id(file.id, file_path)
             
             # Update file metadata with Drive sync info (preserve source field for UI badge)
@@ -998,25 +998,22 @@ async def sync_google_drive_files(
             log.info(f"Updating metadata for {file.filename} with source=google_drive")
             Files.update_file_metadata_by_id(file.id, updated_meta)
 
-            # Delete old embeddings from both collections
+            # Extract text content from downloaded file
+            text_content = file_content.decode('utf-8', errors='ignore')
+            log.info(f"Extracted {len(text_content)} characters from downloaded content")
+
+            # Delete old embeddings from knowledge base
             try:
-                # Delete from knowledge base collection
                 VECTOR_DB_CLIENT.delete(collection_name=knowledge.id, filter={"file_id": file.id})
-                # Delete from individual file collection (process_file queries this!)
-                VECTOR_DB_CLIENT.delete_collection(collection_name=f"file-{file.id}")
-                log.info(f"Deleted embeddings from both knowledge base and file-{file.id} collection")
+                log.info(f"Deleted old embeddings from knowledge base")
             except Exception as e:
                 log.warning(f"Failed to delete old embeddings for {file.id}: {e}")
 
-            # Clear cached content to force re-extraction from new file
-            Files.update_file_data_by_id(file.id, {"content": ""})
-            log.info(f"Cleared cached content for {file.id} to force re-extraction")
-
-            # Re-process file for embeddings
+            # Re-process file with new content (pass content directly to avoid file path issues)
             try:
                 process_file(
                     request,
-                    ProcessFileForm(file_id=file.id, collection_name=knowledge.id),
+                    ProcessFileForm(file_id=file.id, content=text_content, collection_name=knowledge.id),
                     user=user,
                 )
                 log.info(f"Successfully synced {file.filename}")
