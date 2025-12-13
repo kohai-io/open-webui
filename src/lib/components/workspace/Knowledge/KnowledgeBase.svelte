@@ -35,7 +35,7 @@
 		syncGoogleDriveFiles
 	} from '$lib/apis/knowledge';
 	import { blobToFile } from '$lib/utils';
-	import { createPicker, getAuthToken } from '$lib/utils/google-drive-picker';
+	import { createPicker, getAuthToken, requestFreshAuthToken } from '$lib/utils/google-drive-picker';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Files from './KnowledgeBase/Files.svelte';
@@ -532,8 +532,8 @@
 		try {
 			console.log('Syncing Google Drive file:', fileId);
 			
-			// Get Drive auth token
-			const driveToken = await getAuthToken().catch(e => {
+			// Request fresh Drive auth token (bypasses cache, handles expired tokens)
+			const driveToken = await requestFreshAuthToken().catch(e => {
 				console.error('Failed to get Drive token:', e);
 				toast.error($i18n.t('Failed to authenticate with Google Drive'));
 				return null;

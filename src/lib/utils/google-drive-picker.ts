@@ -33,6 +33,7 @@ const validateCredentials = () => {
 
 let pickerApiLoaded = false;
 let oauthToken: string | null = null;
+let tokenExpiresAt: number | null = null; // Timestamp when token expires
 let initialized = false;
 
 export const loadGoogleDriveApi = () => {
@@ -72,6 +73,20 @@ export const loadGoogleAuthApi = () => {
 };
 
 export const getAuthToken = async () => {
+	// Check if we have a valid cached token
+	if (oauthToken && tokenExpiresAt) {
+		const now = Date.now();
+		const timeRemaining = Math.floor((tokenExpiresAt - now) / 1000);
+		if (timeRemaining > 60) {
+			console.log(`[DRIVE AUTH] Using cached token, expires in ${timeRemaining}s`);
+			return oauthToken;
+		} else {
+			console.log(`[DRIVE AUTH] Cached token expired or expiring soon (${timeRemaining}s remaining), requesting new token`);
+			oauthToken = null;
+			tokenExpiresAt = null;
+		}
+	}
+	
 	if (!oauthToken) {
 		return new Promise((resolve, reject) => {
 			const tokenClient = google.accounts.oauth2.initTokenClient({
@@ -80,6 +95,16 @@ export const getAuthToken = async () => {
 				callback: (response: any) => {
 					if (response.access_token) {
 						oauthToken = response.access_token;
+						
+						// Capture expiration time from response
+						const expiresIn = response.expires_in || 3600; // Default to 3600s if not provided
+						tokenExpiresAt = Date.now() + (expiresIn * 1000);
+						
+						const expiresAtTime = new Date(tokenExpiresAt).toLocaleTimeString();
+						console.log(`[DRIVE AUTH] New token obtained, expires_in: ${expiresIn}s (${Math.floor(expiresIn / 60)} minutes)`);
+						console.log(`[DRIVE AUTH] Token will expire at: ${expiresAtTime}`);
+						console.log(`[DRIVE AUTH] Full OAuth response:`, response);
+						
 						resolve(oauthToken);
 					} else {
 						reject(new Error('Failed to get access token'));
@@ -93,6 +118,41 @@ export const getAuthToken = async () => {
 		});
 	}
 	return oauthToken;
+};
+
+// Request a fresh auth token, bypassing cache
+// Use this for sync operations where tokens may have expired
+export const requestFreshAuthToken = async () => {
+	await initialize();
+	console.log('[DRIVE AUTH] Requesting fresh token for sync operation');
+	return new Promise((resolve, reject) => {
+		const tokenClient = google.accounts.oauth2.initTokenClient({
+			client_id: CLIENT_ID,
+			scope: SCOPE.join(' '),
+			callback: (response: any) => {
+				if (response.access_token) {
+					oauthToken = response.access_token;
+					
+					// Capture expiration time from response
+					const expiresIn = response.expires_in || 3600; // Default to 3600s if not provided
+					tokenExpiresAt = Date.now() + (expiresIn * 1000);
+					
+					const expiresAtTime = new Date(tokenExpiresAt).toLocaleTimeString();
+					console.log(`[DRIVE AUTH] Fresh token obtained, expires_in: ${expiresIn}s (${Math.floor(expiresIn / 60)} minutes)`);
+					console.log(`[DRIVE AUTH] Token will expire at: ${expiresAtTime}`);
+					console.log(`[DRIVE AUTH] Full OAuth response:`, response);
+					
+					resolve(oauthToken);
+				} else {
+					reject(new Error('Failed to get access token'));
+				}
+			},
+			error_callback: (error: any) => {
+				reject(new Error(error.message || 'OAuth error occurred'));
+			}
+		});
+		tokenClient.requestAccessToken();
+	});
 };
 
 const initialize = async () => {
