@@ -1009,7 +1009,7 @@ async def sync_google_drive_files(
                 log.warning(f"Failed to delete old embeddings for {file.id}: {e}")
 
             # Clear cached content to force re-extraction from new file
-            Files.update_file_data_by_id(file.id, {})
+            Files.update_file_data_by_id(file.id, {"content": ""})
             log.info(f"Cleared cached content for {file.id} to force re-extraction")
 
             # Re-process file for embeddings
