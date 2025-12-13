@@ -860,9 +860,16 @@ async def download_drive_file(file_id: str, mime_type: str, token: str) -> Optio
                 url = f"https://www.googleapis.com/drive/v3/files/{file_id}"
                 params = {"alt": "media"}
 
-            async with session.get(
-                url, params=params, headers={"Authorization": f"Bearer {token}"}
-            ) as response:
+            # Add cache-busting headers to force fresh content from Google Drive
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+            }
+            
+            log.info(f"Downloading Drive file {file_id} with cache-busting headers")
+            
+            async with session.get(url, params=params, headers=headers) as response:
                 if response.status == 200:
                     return await response.read()
                 else:
