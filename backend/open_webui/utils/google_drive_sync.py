@@ -144,13 +144,14 @@ async def sync_drive_file(file: FileModel, access_token: str) -> Dict[str, bool]
         
         # Update file in storage
         from open_webui.storage.provider import Storage
+        from io import BytesIO
         
         # Save updated content to storage
-        Storage.upload_file(
-            file_path=file.path,
-            file=content,
-            overwrite=True
-        )
+        file_obj = BytesIO(content)
+        _, file_path = Storage.upload_file(file_obj, file.filename, tags={})
+        
+        # Update file path for future reference
+        Files.update_file_path_by_id(file.id, file_path)
         
         # Update file metadata (preserve nested structure: meta.data.google_drive)
         existing_data = file.meta.get("data", {}) if file.meta else {}
