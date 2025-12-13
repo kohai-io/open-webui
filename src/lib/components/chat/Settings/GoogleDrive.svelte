@@ -102,7 +102,7 @@
 					</div>
 					{#if authStatus?.authorized && authStatus?.expires_at}
 						<div class="text-xs text-gray-500 dark:text-gray-500">
-							{$i18n.t('Token expires')}: {new Date(authStatus.expires_at).toLocaleString()}
+							{$i18n.t('Token expires')}: {new Date(authStatus.expires_at * 1000).toLocaleString()}
 						</div>
 					{/if}
 				</div>
