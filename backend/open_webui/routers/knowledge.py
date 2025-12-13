@@ -871,7 +871,11 @@ async def download_drive_file(file_id: str, mime_type: str, token: str) -> Optio
             
             async with session.get(url, params=params, headers=headers) as response:
                 if response.status == 200:
-                    return await response.read()
+                    content = await response.read()
+                    content_preview = content[:500].decode('utf-8', errors='ignore') if content else ""
+                    log.info(f"Downloaded {len(content)} bytes from Drive")
+                    log.info(f"Content preview: {content_preview[:200]}...")
+                    return content
                 else:
                     error_text = await response.text()
                     log.error(
