@@ -963,16 +963,20 @@ async def sync_google_drive_files(
             file_obj = BytesIO(file_content)
             _, file_path = Storage.upload_file(file_obj, file.filename, tags={})
 
-            # Update file record
+            # Update file path so process_file reads the new file
+            Files.update_file_path_by_id(file.id, file_path)
+            
+            # Update file metadata with Drive sync info
             Files.update_file_metadata_by_id(
                 file.id,
                 {
-                    "path": file_path,
-                    "google_drive": {
-                        **drive_meta,
-                        "modified_time": current_modified,
-                        "version": current_metadata.get("version"),
-                        "last_synced_at": int(time.time()),
+                    "data": {
+                        "google_drive": {
+                            **drive_meta,
+                            "modified_time": current_modified,
+                            "version": current_metadata.get("version"),
+                            "last_synced_at": int(time.time()),
+                        },
                     },
                 },
             )
