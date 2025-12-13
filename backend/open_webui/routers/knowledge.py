@@ -970,10 +970,12 @@ async def sync_google_drive_files(
             # Update file path so process_file reads the new file
             Files.update_file_path_by_id(file.id, file_path)
             
-            # Update file metadata with Drive sync info (stored in meta.data.google_drive)
+            # Update file metadata with Drive sync info (preserve source field for UI badge)
+            existing_data = file.meta.get("data", {}) if file.meta else {}
             updated_meta = {
                 "data": {
-                    **(file.meta.get("data", {}) if file.meta else {}),
+                    **existing_data,
+                    "source": "google_drive",  # Preserve source for UI detection
                     "google_drive": {
                         **drive_meta,
                         "modified_time": current_modified,
@@ -982,6 +984,7 @@ async def sync_google_drive_files(
                     },
                 }
             }
+            log.info(f"Updating metadata for {file.filename} with source=google_drive")
             Files.update_file_metadata_by_id(file.id, updated_meta)
 
             # Delete old embeddings
