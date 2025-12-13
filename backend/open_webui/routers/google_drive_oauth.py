@@ -32,8 +32,7 @@ async def authorize_google_drive(
         # Use the OAuth client manager to initiate authorization
         return await request.app.state.oauth_client_manager.handle_authorize(
             request, 
-            client_id=client_id,
-            user_id=user.id
+            client_id=client_id
         )
     except Exception as e:
         log.error(f"Failed to initiate Google Drive OAuth: {e}")
