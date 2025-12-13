@@ -11,11 +11,11 @@
 	export let small = false;
 
 	const isDriveFile = (file: any): boolean => {
-		return file?.meta?.source === 'google_drive';
+		return file?.meta?.data?.source === 'google_drive';
 	};
 
 	const getLastSyncedText = (file: any): string => {
-		const lastSynced = file?.meta?.google_drive?.last_synced_at;
+		const lastSynced = file?.meta?.data?.google_drive?.last_synced_at;
 		if (!lastSynced) return 'Never synced';
 		
 		const date = new Date(lastSynced * 1000);

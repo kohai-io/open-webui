@@ -900,11 +900,12 @@ async def sync_google_drive_files(
 
     for file in files:
         # Only process Drive files
-        if file.meta.get("source") != "google_drive":
+        file_data = file.meta.get("data", {}) if file.meta else {}
+        if file_data.get("source") != "google_drive":
             skipped += 1
             continue
 
-        drive_meta = file.meta.get("google_drive", {})
+        drive_meta = file_data.get("google_drive", {})
         drive_file_id = drive_meta.get("file_id")
         last_modified = drive_meta.get("modified_time")
 
