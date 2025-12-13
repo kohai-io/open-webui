@@ -105,16 +105,26 @@ const initialize = async () => {
 };
 
 // Fetch detailed metadata from Drive API
-const fetchDriveFileMetadata = async (fileId: string, token: string) => {
+const fetchDriveFileMetadata = async (fileId: string, token: string, mimeType: string) => {
 	try {
 		console.log('[DRIVE] Calling Drive API for metadata:', {
 			fileId,
+			mimeType,
 			hasToken: !!token,
 			tokenPrefix: token ? token.substring(0, 10) + '...' : 'none'
 		});
 		
+		// Google Workspace files (Docs/Sheets/Slides) don't have size or version in the same way
+		// Use minimal fields that work for all file types
+		const isWorkspaceFile = mimeType.includes('google-apps');
+		const fields = isWorkspaceFile 
+			? 'id,name,modifiedTime,mimeType,webViewLink'
+			: 'id,name,modifiedTime,version,size,mimeType,webViewLink';
+		
+		console.log('[DRIVE] Fetching fields:', fields);
+		
 		const response = await fetch(
-			`https://www.googleapis.com/drive/v3/files/${fileId}?fields=id,name,modifiedTime,version,size,mimeType,webViewLink`,
+			`https://www.googleapis.com/drive/v3/files/${fileId}?fields=${fields}&supportsAllDrives=true`,
 			{
 				headers: {
 					Authorization: `Bearer ${token}`,
@@ -192,7 +202,7 @@ export const createPicker = () => {
 							}
 
 							// Construct download URL based on MIME type
-							const mimeType = doc[google.picker.Document.MIME_TYPE];
+							const mimeType: string = doc[google.picker.Document.MIME_TYPE] || '';
 							console.log('[DRIVE] File info:', {
 								id: fileId,
 								name: fileName,
@@ -241,7 +251,7 @@ export const createPicker = () => {
 							
 							// Fetch Drive metadata for sync tracking
 							console.log('[DRIVE] Fetching metadata for file:', fileId);
-							const driveMetadata = await fetchDriveFileMetadata(fileId, token);
+							const driveMetadata = await fetchDriveFileMetadata(fileId, token, mimeType as string);
 							
 							if (driveMetadata) {
 								console.log('[DRIVE] Metadata fetched successfully:', {
