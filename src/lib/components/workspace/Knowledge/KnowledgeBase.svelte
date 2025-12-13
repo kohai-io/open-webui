@@ -50,6 +50,7 @@
 	import Drawer from '$lib/components/common/Drawer.svelte';
 	import ChevronLeft from '$lib/components/icons/ChevronLeft.svelte';
 	import LockClosed from '$lib/components/icons/LockClosed.svelte';
+	import Refresh from '$lib/components/icons/Refresh.svelte';
 	import AccessControlModal from '../common/AccessControlModal.svelte';
 	import Search from '$lib/components/icons/Search.svelte';
 	import Textarea from '$lib/components/common/Textarea.svelte';
@@ -528,6 +529,69 @@
 		}
 	};
 
+	const syncAllDriveFilesHandler = async () => {
+		try {
+			console.log('Syncing all Google Drive files in knowledge base');
+			
+			// Check if there are any Drive files
+			const driveFiles = knowledge?.files?.filter(f => 
+				f.meta?.data?.source === 'google_drive' || f.meta?.source === 'google_drive'
+			) || [];
+			
+			if (driveFiles.length === 0) {
+				toast.info($i18n.t('No Google Drive files to sync'));
+				return;
+			}
+			
+			console.log(`Found ${driveFiles.length} Google Drive file(s) to sync`);
+			
+			// Request fresh Drive auth token (bypasses cache, handles expired tokens)
+			const driveToken = await requestFreshAuthToken().catch(e => {
+				console.error('Failed to get Drive token:', e);
+				toast.error($i18n.t('Failed to authenticate with Google Drive'));
+				return null;
+			});
+			
+			if (!driveToken) {
+				return;
+			}
+			
+			toast.info($i18n.t('Syncing {{count}} Drive file(s)...', { count: driveFiles.length }));
+			
+			// Call sync endpoint for all Drive files
+			const result = await syncGoogleDriveFiles(localStorage.token, id, driveToken);
+			
+			if (result) {
+				console.log('Sync all result:', result);
+				
+				if (result.updated_count > 0) {
+					toast.success(
+						$i18n.t('Updated {{count}} file(s) from Google Drive', {
+							count: result.updated_count
+						})
+					);
+					
+					// Refresh knowledge base to show updated files
+					knowledge = await getKnowledgeById(localStorage.token, id);
+				} else if (result.skipped_count > 0) {
+					toast.info($i18n.t('All files are up to date'));
+				}
+				
+				if (result.errors && result.errors.length > 0) {
+					console.error('Sync errors:', result.errors);
+					toast.warning(
+						$i18n.t('Some files failed to sync: {{count}}', {
+							count: result.errors.length
+						})
+					);
+				}
+			}
+		} catch (e) {
+			console.error('Error syncing all Drive files:', e);
+			toast.error($i18n.t('Failed to sync from Google Drive: {{error}}', { error: e }));
+		}
+	};
+
 	const syncDriveFileHandler = async (fileId) => {
 		try {
 			console.log('Syncing Google Drive file:', fileId);
@@ -847,7 +911,22 @@
 							/>
 						</div>
 
-						<div class="self-center shrink-0">
+						<div class="self-center shrink-0 flex gap-1">
+							{#if knowledge?.files?.some(f => f.meta?.data?.source === 'google_drive' || f.meta?.source === 'google_drive')}
+								<button
+									class="bg-gray-50 hover:bg-gray-100 text-black dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-white transition px-2 py-1 rounded-full flex gap-1 items-center"
+									type="button"
+									title={$i18n.t('Sync all Drive files')}
+									on:click={syncAllDriveFilesHandler}
+								>
+									<Refresh strokeWidth="2.5" className="size-3.5" />
+
+									<div class="text-sm font-medium shrink-0">
+										{$i18n.t('Sync All')}
+									</div>
+								</button>
+							{/if}
+							
 							<button
 								class="bg-gray-50 hover:bg-gray-100 text-black dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-white transition px-2 py-1 rounded-full flex gap-1 items-center"
 								type="button"
