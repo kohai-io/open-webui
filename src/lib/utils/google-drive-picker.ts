@@ -249,105 +249,109 @@ export const createPicker = () => {
 				.setCallback(async (data: any) => {
 					if (data[google.picker.Response.ACTION] === google.picker.Action.PICKED) {
 						try {
-							const doc = data[google.picker.Response.DOCUMENTS][0];
-							console.log('[DRIVE] Full picker document object:', doc);
-							console.log('[DRIVE] Available document keys:', Object.keys(doc));
+							const docs = data[google.picker.Response.DOCUMENTS];
+							console.log(`[DRIVE] Processing ${docs.length} selected file(s)`);
 							
-							const fileId = doc[google.picker.Document.ID];
-							const fileName = doc[google.picker.Document.NAME];
-							const fileUrl = doc[google.picker.Document.URL];
+							const results = [];
+							
+							// Process each selected file
+							for (const doc of docs) {
+								console.log('[DRIVE] Processing document:', doc);
+								
+								const fileId = doc[google.picker.Document.ID];
+								const fileName = doc[google.picker.Document.NAME];
+								const fileUrl = doc[google.picker.Document.URL];
 
-							if (!fileId || !fileName) {
-								throw new Error('Required file details missing');
-							}
+								if (!fileId || !fileName) {
+									console.warn('[DRIVE] Skipping file with missing details:', doc);
+									continue;
+								}
 
-							// Construct download URL based on MIME type
-							const mimeType: string = doc[google.picker.Document.MIME_TYPE] || '';
-							console.log('[DRIVE] File info:', {
-								id: fileId,
-								name: fileName,
-								mimeType,
-								url: fileUrl
-							});
+								// Construct download URL based on MIME type
+								const mimeType: string = doc[google.picker.Document.MIME_TYPE] || '';
+								console.log('[DRIVE] File info:', {
+									id: fileId,
+									name: fileName,
+									mimeType,
+									url: fileUrl
+								});
 
-							let downloadUrl;
-							let exportFormat;
+								let downloadUrl;
+								let exportFormat;
 
-							if (mimeType.includes('google-apps')) {
-								// Handle Google Workspace files
-								if (mimeType.includes('document')) {
-									exportFormat = 'text/plain';
-								} else if (mimeType.includes('spreadsheet')) {
-									exportFormat = 'text/csv';
-								} else if (mimeType.includes('presentation')) {
-									exportFormat = 'text/plain';
+								if (mimeType.includes('google-apps')) {
+									// Handle Google Workspace files
+									if (mimeType.includes('document')) {
+										exportFormat = 'text/plain';
+									} else if (mimeType.includes('spreadsheet')) {
+										exportFormat = 'text/csv';
+									} else if (mimeType.includes('presentation')) {
+										exportFormat = 'text/plain';
+									} else {
+										exportFormat = 'application/pdf';
+									}
+									downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportFormat)}`;
 								} else {
-									exportFormat = 'application/pdf';
+									// Regular files use direct download URL
+									downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
 								}
-								downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=${encodeURIComponent(exportFormat)}`;
-							} else {
-								// Regular files use direct download URL
-								downloadUrl = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-							}
-							// Create a Blob from the file download
-							const response = await fetch(downloadUrl, {
-								headers: {
-									Authorization: `Bearer ${token}`,
-									Accept: '*/*'
+								
+								// Download file
+								const response = await fetch(downloadUrl, {
+									headers: {
+										Authorization: `Bearer ${token}`,
+										Accept: '*/*'
+									}
+								});
+
+								if (!response.ok) {
+									const errorText = await response.text();
+									console.error('[DRIVE] Download failed:', {
+										file: fileName,
+										status: response.status,
+										error: errorText
+									});
+									continue; // Skip this file but continue with others
 								}
-							});
 
-							if (!response.ok) {
-								const errorText = await response.text();
-								console.error('Download failed:', {
-									status: response.status,
-									statusText: response.statusText,
-									error: errorText
+								const blob = await response.blob();
+								
+								// Fetch Drive metadata for sync tracking
+								console.log('[DRIVE] Fetching metadata for file:', fileId);
+								const driveMetadata = await fetchDriveFileMetadata(fileId, token, mimeType as string);
+								
+								if (driveMetadata) {
+									console.log('[DRIVE] Metadata fetched successfully:', {
+										file_id: fileId,
+										modified_time: driveMetadata.modifiedTime
+									});
+								} else {
+									console.warn('[DRIVE] Failed to fetch metadata - file will not be syncable');
+								}
+								
+								results.push({
+									id: fileId,
+									name: fileName,
+									url: downloadUrl,
+									blob: blob,
+									headers: {
+										Authorization: `Bearer ${token}`,
+										Accept: '*/*'
+									},
+									// Include Drive metadata for storage
+									driveMetadata: driveMetadata ? {
+										file_id: fileId,
+										modified_time: driveMetadata.modifiedTime,
+										version: driveMetadata.version,
+										web_view_link: driveMetadata.webViewLink,
+										mime_type: driveMetadata.mimeType,
+										size: driveMetadata.size
+									} : null
 								});
-								throw new Error(`Failed to download file (${response.status}): ${errorText}`);
-							}
-
-							const blob = await response.blob();
-							
-							// Fetch Drive metadata for sync tracking
-							console.log('[DRIVE] Fetching metadata for file:', fileId);
-							const driveMetadata = await fetchDriveFileMetadata(fileId, token, mimeType as string);
-							
-							if (driveMetadata) {
-								console.log('[DRIVE] Metadata fetched successfully:', {
-									file_id: fileId,
-									modified_time: driveMetadata.modifiedTime,
-									version: driveMetadata.version,
-									size: driveMetadata.size
-								});
-							} else {
-								console.warn('[DRIVE] Failed to fetch metadata - file will not be syncable');
 							}
 							
-							const result = {
-								id: fileId,
-								name: fileName,
-								url: downloadUrl,
-								blob: blob,
-								headers: {
-									Authorization: `Bearer ${token}`,
-									Accept: '*/*'
-								},
-								// Include Drive metadata for storage
-								driveMetadata: driveMetadata ? {
-									file_id: fileId,
-									modified_time: driveMetadata.modifiedTime,
-									version: driveMetadata.version,
-									web_view_link: driveMetadata.webViewLink,
-									mime_type: driveMetadata.mimeType,
-									size: driveMetadata.size
-								} : null
-							};
-							console.log('[DRIVE] Picker result:', {
-								name: result.name,
-								hasMetadata: !!result.driveMetadata
-							});
-							resolve(result);
+							console.log(`[DRIVE] Successfully processed ${results.length} file(s)`);
+							resolve(results); // Return array of files
 						} catch (error) {
 							reject(error);
 						}

@@ -215,82 +215,100 @@
 	const uploadGoogleDriveHandler = async () => {
 		try {
 			console.log('[UPLOAD] Opening Google Drive picker...');
-			const fileData: any = await createPicker();
+			const fileDataArray: any = await createPicker();
 			
-			if (fileData) {
-				console.log('[UPLOAD] File selected from Google Drive:', {
-					name: fileData.name,
-					id: fileData.id,
-					hasDriveMetadata: !!fileData.driveMetadata,
-					driveMetadata: fileData.driveMetadata
-				});
+			if (fileDataArray && fileDataArray.length > 0) {
+				console.log(`[UPLOAD] ${fileDataArray.length} file(s) selected from Google Drive`);
 				
-				// Add temp item to UI
-				const tempItemId = `${Date.now()}`;
-				knowledge.files = [
-					...knowledge.files,
-					{
-						itemId: tempItemId,
-						collection_name: knowledge.id,
+				const tempItems = [];
+				let uploadedCount = 0;
+				let failedCount = 0;
+				
+				// Process each selected file
+				for (const fileData of fileDataArray) {
+					console.log('[UPLOAD] Processing file:', {
 						name: fileData.name,
-						title: fileData.name
-					}
-				];
-				
-				const file = new File([fileData.blob], fileData.name, {
-					type: fileData.blob.type
-				});
-				
-				// Prepare metadata with Drive info for sync tracking
-				let metadata: any = {};
-				
-				if (fileData.driveMetadata) {
-					metadata.source = 'google_drive';
-					metadata.google_drive = {
-						...fileData.driveMetadata,
-						last_synced_at: Math.floor(Date.now() / 1000)
-					};
-					console.log('[UPLOAD] Storing Drive metadata for sync:', metadata);
-				} else {
-					console.warn('[UPLOAD] Drive metadata not available - file will be uploaded without sync capabilities');
-				}
-				
-				console.log('[UPLOAD] Uploading file with metadata:', {
-					filename: file.name,
-					hasSource: !!metadata.source,
-					source: metadata.source,
-					hasGoogleDrive: !!metadata.google_drive
-				});
-				
-				// Upload file with Drive metadata
-				const uploadedFile = await uploadFile(localStorage.token, file, metadata).catch((e) => {
-					toast.error(`${e}`);
-					return null;
-				});
-				
-				if (uploadedFile) {
-					console.log('Drive file uploaded:', uploadedFile);
-					knowledge.files = knowledge.files.map((item) => {
-						if (item.itemId === tempItemId) {
-							item.id = uploadedFile.id;
-						}
-						delete item.itemId;
-						return item;
+						id: fileData.id,
+						hasDriveMetadata: !!fileData.driveMetadata
 					});
 					
-					if (uploadedFile.error) {
-						console.warn('File upload warning:', uploadedFile.error);
-						toast.warning(uploadedFile.error);
-						knowledge.files = knowledge.files.filter((file) => file.id !== uploadedFile.id);
+					// Add temp item to UI
+					const tempItemId = `${Date.now()}-${Math.random()}`;
+					tempItems.push(tempItemId);
+					knowledge.files = [
+						...knowledge.files,
+						{
+							itemId: tempItemId,
+							collection_name: knowledge.id,
+							name: fileData.name,
+							title: fileData.name
+						}
+					];
+					
+					const file = new File([fileData.blob], fileData.name, {
+						type: fileData.blob.type
+					});
+					
+					// Prepare metadata with Drive info for sync tracking
+					let metadata: any = {};
+					
+					if (fileData.driveMetadata) {
+						metadata.source = 'google_drive';
+						metadata.google_drive = {
+							...fileData.driveMetadata,
+							last_synced_at: Math.floor(Date.now() / 1000)
+						};
+						console.log('[UPLOAD] Storing Drive metadata for sync:', metadata);
 					} else {
-						await addFileHandler(uploadedFile.id);
+						console.warn('[UPLOAD] Drive metadata not available - file will be uploaded without sync capabilities');
 					}
-				} else {
-					toast.error($i18n.t('Failed to upload file.'));
-					knowledge.files = knowledge.files.filter((item) => item.itemId !== tempItemId);
+					
+					console.log('[UPLOAD] Uploading file with metadata:', {
+						filename: file.name,
+						hasSource: !!metadata.source,
+						source: metadata.source,
+						hasGoogleDrive: !!metadata.google_drive
+					});
+					
+					// Upload file with Drive metadata
+					const uploadedFile = await uploadFile(localStorage.token, file, metadata).catch((e) => {
+						console.error(`Failed to upload ${file.name}:`, e);
+						return null;
+					});
+					
+					if (uploadedFile) {
+						console.log('Drive file uploaded:', uploadedFile);
+						knowledge.files = knowledge.files.map((item) => {
+							if (item.itemId === tempItemId) {
+								item.id = uploadedFile.id;
+							}
+							delete item.itemId;
+							return item;
+						});
+						
+						if (uploadedFile.error) {
+							console.warn('File upload warning:', uploadedFile.error);
+							knowledge.files = knowledge.files.filter((file) => file.id !== uploadedFile.id);
+							failedCount++;
+						} else {
+							await addFileHandler(uploadedFile.id);
+							uploadedCount++;
+						}
+					} else {
+						knowledge.files = knowledge.files.filter((item) => item.itemId !== tempItemId);
+						failedCount++;
+					}
+				}
+				
+				// Show summary toast
+				if (uploadedCount > 0) {
+					toast.success($i18n.t('Uploaded {{count}} file(s) from Google Drive', { count: uploadedCount }));
+				}
+				if (failedCount > 0) {
+					toast.warning($i18n.t('Failed to upload {{count}} file(s)', { count: failedCount }));
 				}
 			} else {
-				console.log('No file was selected from Google Drive');
+				console.log('No files were selected from Google Drive');
 			}
 		} catch (error) {
 			console.error('Google Drive Error:', error);
