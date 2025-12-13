@@ -1391,9 +1391,11 @@
 										uploadGoogleDriveHandler={async () => {
 											try {
 												const fileData = await createPicker();
-												if (fileData) {
-													const file = new File([fileData.blob], fileData.name, {
-														type: fileData.blob.type
+												if (fileData && Array.isArray(fileData) && fileData.length > 0) {
+													// createPicker returns an array, use first file for chat
+													const firstFile = fileData[0];
+													const file = new File([firstFile.blob], firstFile.name, {
+														type: firstFile.blob.type
 													});
 													await uploadFileHandler(file);
 												} else {
