@@ -229,10 +229,10 @@ async def sync_all_google_drive_files(
         
         for file in user_drive_files:
             try:
-                result = await sync_drive_file(file, access_token)
-                synced += 1
+                result = await sync_drive_file(file, access_token, request=request, user=user)
                 if result.get("updated"):
                     updated += 1
+                synced += 1
             except Exception as e:
                 log.error(f"Failed to sync file {file.id}: {e}")
                 failed += 1

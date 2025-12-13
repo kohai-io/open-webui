@@ -6,6 +6,8 @@ import time
 import aiohttp
 from typing import Dict, Optional
 from open_webui.models.files import Files, FileModel
+from open_webui.models.knowledge import Knowledges
+from open_webui.config import VECTOR_DB_CLIENT
 
 log = logging.getLogger(__name__)
 
@@ -94,13 +96,15 @@ async def download_drive_file(file_id: str, mime_type: str, access_token: str) -
         return None
 
 
-async def sync_drive_file(file: FileModel, access_token: str) -> Dict[str, bool]:
+async def sync_drive_file(file: FileModel, access_token: str, request=None, user=None) -> Dict[str, bool]:
     """
     Sync a Google Drive file - check if modified and update if needed.
     
     Args:
         file: FileModel record with Drive metadata
         access_token: OAuth access token
+        request: FastAPI Request object (optional, needed for re-processing)
+        user: User object (optional, needed for re-processing)
         
     Returns:
         Dict with sync result: {"updated": True/False, "error": Optional[str]}
@@ -177,8 +181,49 @@ async def sync_drive_file(file: FileModel, access_token: str) -> Dict[str, bool]
         # Update file record in database
         Files.update_file_metadata_by_id(file.id, updated_meta)
         
-        log.info(f"Successfully synced file {file.id} ({file.filename})")
-        return {"updated": True}
+        # Extract text content from downloaded file
+        text_content = content.decode('utf-8', errors='ignore')
+        log.info(f"Extracted {len(text_content)} characters from downloaded content")
+        
+        # Find all knowledge bases that contain this file and update embeddings
+        all_knowledge_bases = Knowledges.get_knowledge_bases()
+        updated_kbs = []
+        
+        for kb in all_knowledge_bases:
+            kb_file_ids = kb.data.get("file_ids", []) if kb.data else []
+            if file.id in kb_file_ids:
+                log.info(f"File {file.id} is in knowledge base {kb.id}, updating embeddings...")
+                
+                # Delete old embeddings from this knowledge base
+                try:
+                    VECTOR_DB_CLIENT.delete(collection_name=kb.id, filter={"file_id": file.id})
+                    log.info(f"Deleted old embeddings from KB {kb.id}")
+                except Exception as e:
+                    log.warning(f"Failed to delete old embeddings from KB {kb.id}: {e}")
+                
+                # Re-process file if we have request and user objects
+                if request and user:
+                    try:
+                        from open_webui.routers.files import process_file, ProcessFileForm
+                        
+                        process_file(
+                            request,
+                            ProcessFileForm(file_id=file.id, content=text_content, collection_name=kb.id),
+                            user=user,
+                        )
+                        log.info(f"Re-processed file for KB {kb.id}")
+                        updated_kbs.append(kb.id)
+                    except Exception as e:
+                        log.error(f"Failed to re-process file for KB {kb.id}: {e}")
+                else:
+                    log.warning(f"Cannot re-process file - missing request/user objects")
+        
+        if updated_kbs:
+            log.info(f"Successfully synced file {file.id} ({file.filename}) and updated {len(updated_kbs)} knowledge bases")
+        else:
+            log.info(f"Successfully synced file {file.id} ({file.filename}) - no knowledge bases found or updated")
+        
+        return {"updated": True, "knowledge_bases_updated": len(updated_kbs)}
         
     except Exception as e:
         log.error(f"Error syncing file {file.id}: {e}")
