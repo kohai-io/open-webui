@@ -36,6 +36,48 @@ let oauthToken: string | null = null;
 let tokenExpiresAt: number | null = null; // Timestamp when token expires
 let initialized = false;
 
+// LocalStorage keys for token persistence
+const STORAGE_KEY_TOKEN = 'google_drive_oauth_token';
+const STORAGE_KEY_EXPIRES = 'google_drive_oauth_expires';
+
+// Load token from localStorage on module initialization
+const loadTokenFromStorage = () => {
+	const storedToken = localStorage.getItem(STORAGE_KEY_TOKEN);
+	const storedExpires = localStorage.getItem(STORAGE_KEY_EXPIRES);
+	
+	if (storedToken && storedExpires) {
+		const expiresAt = parseInt(storedExpires, 10);
+		const now = Date.now();
+		const timeRemaining = Math.floor((expiresAt - now) / 1000);
+		
+		if (timeRemaining > 60) {
+			oauthToken = storedToken;
+			tokenExpiresAt = expiresAt;
+			console.log(`[DRIVE AUTH] Loaded token from localStorage, expires in ${timeRemaining}s`);
+			return true;
+		} else {
+			console.log(`[DRIVE AUTH] Stored token expired, clearing localStorage`);
+			localStorage.removeItem(STORAGE_KEY_TOKEN);
+			localStorage.removeItem(STORAGE_KEY_EXPIRES);
+		}
+	}
+	return false;
+};
+
+// Save token to localStorage
+const saveTokenToStorage = (token: string, expiresAt: number) => {
+	localStorage.setItem(STORAGE_KEY_TOKEN, token);
+	localStorage.setItem(STORAGE_KEY_EXPIRES, expiresAt.toString());
+	console.log('[DRIVE AUTH] Token saved to localStorage');
+};
+
+// Clear token from localStorage
+const clearTokenFromStorage = () => {
+	localStorage.removeItem(STORAGE_KEY_TOKEN);
+	localStorage.removeItem(STORAGE_KEY_EXPIRES);
+	console.log('[DRIVE AUTH] Token cleared from localStorage');
+};
+
 export const loadGoogleDriveApi = () => {
 	return new Promise((resolve, reject) => {
 		if (typeof gapi === 'undefined') {
@@ -73,6 +115,11 @@ export const loadGoogleAuthApi = () => {
 };
 
 export const getAuthToken = async () => {
+	// Try to load token from localStorage if not in memory
+	if (!oauthToken || !tokenExpiresAt) {
+		loadTokenFromStorage();
+	}
+	
 	// Check if we have a valid cached token
 	if (oauthToken && tokenExpiresAt) {
 		const now = Date.now();
@@ -84,6 +131,7 @@ export const getAuthToken = async () => {
 			console.log(`[DRIVE AUTH] Cached token expired or expiring soon (${timeRemaining}s remaining), requesting new token`);
 			oauthToken = null;
 			tokenExpiresAt = null;
+			clearTokenFromStorage();
 		}
 	}
 	
@@ -94,18 +142,22 @@ export const getAuthToken = async () => {
 				scope: SCOPE.join(' '),
 				callback: (response: any) => {
 					if (response.access_token) {
-						oauthToken = response.access_token;
+						const token = response.access_token;
+						oauthToken = token;
 						
 						// Capture expiration time from response
 						const expiresIn = response.expires_in || 3600; // Default to 3600s if not provided
 						tokenExpiresAt = Date.now() + (expiresIn * 1000);
+						
+						// Save to localStorage
+						saveTokenToStorage(token, tokenExpiresAt);
 						
 						const expiresAtTime = new Date(tokenExpiresAt).toLocaleTimeString();
 						console.log(`[DRIVE AUTH] New token obtained, expires_in: ${expiresIn}s (${Math.floor(expiresIn / 60)} minutes)`);
 						console.log(`[DRIVE AUTH] Token will expire at: ${expiresAtTime}`);
 						console.log(`[DRIVE AUTH] Full OAuth response:`, response);
 						
-						resolve(oauthToken);
+						resolve(token);
 					} else {
 						reject(new Error('Failed to get access token'));
 					}
@@ -131,18 +183,24 @@ export const requestFreshAuthToken = async () => {
 			scope: SCOPE.join(' '),
 			callback: (response: any) => {
 				if (response.access_token) {
-					oauthToken = response.access_token;
+					const token = response.access_token;
+					oauthToken = token;
 					
 					// Capture expiration time from response
 					const expiresIn = response.expires_in || 3600; // Default to 3600s if not provided
 					tokenExpiresAt = Date.now() + (expiresIn * 1000);
+					
+					// Save to localStorage only if token is not null
+					if (token) {
+						saveTokenToStorage(token, tokenExpiresAt);
+					}
 					
 					const expiresAtTime = new Date(tokenExpiresAt).toLocaleTimeString();
 					console.log(`[DRIVE AUTH] Fresh token obtained, expires_in: ${expiresIn}s (${Math.floor(expiresIn / 60)} minutes)`);
 					console.log(`[DRIVE AUTH] Token will expire at: ${expiresAtTime}`);
 					console.log(`[DRIVE AUTH] Full OAuth response:`, response);
 					
-					resolve(oauthToken);
+					resolve(token);
 				} else {
 					reject(new Error('Failed to get access token'));
 				}
