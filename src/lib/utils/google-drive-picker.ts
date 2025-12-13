@@ -16,10 +16,10 @@ async function getCredentials() {
 		throw new Error('Google Drive API credentials not configured');
 	}
 }
-const SCOPE = [
-	'https://www.googleapis.com/auth/drive.readonly',
-	'https://www.googleapis.com/auth/drive.file'
-];
+// Scope required for reading user-selected Drive files and their metadata
+// drive.readonly: Read-only access to all files (sufficient for picker + sync)
+// Note: drive.file is too restrictive (only files created by this app)
+const SCOPE = ['https://www.googleapis.com/auth/drive.readonly'];
 
 // Validate required credentials
 const validateCredentials = () => {
