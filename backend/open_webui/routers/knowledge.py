@@ -807,13 +807,24 @@ class GoogleDriveSyncResult(BaseModel):
     errors: list[dict]
 
 
-async def fetch_drive_metadata(file_id: str, token: str) -> Optional[dict]:
+async def fetch_drive_metadata(file_id: str, token: str, mime_type: str = "") -> Optional[dict]:
     """Fetch file metadata from Google Drive API"""
     try:
+        # Google Workspace files (Docs/Sheets/Slides) don't have size or version in the same way
+        # Use minimal fields that work for all file types
+        is_workspace_file = "google-apps" in mime_type if mime_type else False
+        fields = (
+            "id,name,modifiedTime,mimeType,webViewLink"
+            if is_workspace_file
+            else "id,name,modifiedTime,version,size,mimeType,webViewLink"
+        )
+        
+        log.info(f"Fetching Drive metadata for {file_id} (workspace={is_workspace_file}, fields={fields})")
+        
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 f"https://www.googleapis.com/drive/v3/files/{file_id}",
-                params={"fields": "id,name,modifiedTime,version,size,mimeType,webViewLink"},
+                params={"fields": fields, "supportsAllDrives": "true"},
                 headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
             ) as response:
                 if response.status == 200:
@@ -918,7 +929,8 @@ async def sync_google_drive_files(
             log.info(f"Checking Drive file {file.filename} ({drive_file_id})")
 
             # Fetch current Drive metadata
-            current_metadata = await fetch_drive_metadata(drive_file_id, form_data.drive_token)
+            stored_mime_type = drive_meta.get("mime_type", "")
+            current_metadata = await fetch_drive_metadata(drive_file_id, form_data.drive_token, stored_mime_type)
 
             if not current_metadata:
                 errors.append(
