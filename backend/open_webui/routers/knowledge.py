@@ -998,9 +998,13 @@ async def sync_google_drive_files(
             log.info(f"Updating metadata for {file.filename} with source=google_drive")
             Files.update_file_metadata_by_id(file.id, updated_meta)
 
-            # Delete old embeddings
+            # Delete old embeddings from both collections
             try:
+                # Delete from knowledge base collection
                 VECTOR_DB_CLIENT.delete(collection_name=knowledge.id, filter={"file_id": file.id})
+                # Delete from individual file collection (process_file queries this!)
+                VECTOR_DB_CLIENT.delete_collection(collection_name=f"file-{file.id}")
+                log.info(f"Deleted embeddings from both knowledge base and file-{file.id} collection")
             except Exception as e:
                 log.warning(f"Failed to delete old embeddings for {file.id}: {e}")
 
