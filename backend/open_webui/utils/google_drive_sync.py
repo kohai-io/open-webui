@@ -24,14 +24,15 @@ async def fetch_drive_file_metadata(file_id: str, access_token: str) -> Optional
     try:
         url = f"https://www.googleapis.com/drive/v3/files/{file_id}"
         params = {
-            "fields": "id,name,mimeType,modifiedTime,version,webViewLink,size"
+            "fields": "id,name,mimeType,modifiedTime,version,webViewLink,size",
+            "supportsAllDrives": "true"  # Required for shared/team drives
         }
         
         async with aiohttp.ClientSession() as session:
             async with session.get(
                 url,
                 params=params,
-                headers={"Authorization": f"Bearer {access_token}"}
+                headers={"Authorization": f"Bearer {access_token}", "Accept": "application/json"}
             ) as response:
                 if response.status == 200:
                     return await response.json()
@@ -70,11 +71,11 @@ async def download_drive_file(file_id: str, mime_type: str, access_token: str) -
                 export_format = 'application/pdf'
             
             url = f"https://www.googleapis.com/drive/v3/files/{file_id}/export"
-            params = {"mimeType": export_format}
+            params = {"mimeType": export_format, "supportsAllDrives": "true"}
         else:
             # Regular files use direct download
             url = f"https://www.googleapis.com/drive/v3/files/{file_id}"
-            params = {"alt": "media"}
+            params = {"alt": "media", "supportsAllDrives": "true"}
         
         async with aiohttp.ClientSession() as session:
             async with session.get(
