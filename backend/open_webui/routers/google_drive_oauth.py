@@ -56,7 +56,8 @@ async def google_drive_oauth_callback(
         result = await request.app.state.oauth_client_manager.handle_callback(
             request,
             client_id=client_id,
-            user_id=user.id
+            user_id=user.id,
+            response=response
         )
         
         # Redirect back to the knowledge base with success message
