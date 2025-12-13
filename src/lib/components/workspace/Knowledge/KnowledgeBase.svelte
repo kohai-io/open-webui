@@ -236,16 +236,17 @@
 				});
 				
 				// Prepare metadata with Drive info for sync tracking
-				let metadata = {
-					source: 'google_drive'
-				};
+				let metadata: any = {};
 				
 				if (fileData.driveMetadata) {
+					metadata.source = 'google_drive';
 					metadata.google_drive = {
 						...fileData.driveMetadata,
 						last_synced_at: Math.floor(Date.now() / 1000)
 					};
 					console.log('Storing Drive metadata for sync:', metadata.google_drive);
+				} else {
+					console.warn('Drive metadata not available - file will be uploaded without sync capabilities');
 				}
 				
 				// Upload file with Drive metadata
