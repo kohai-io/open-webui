@@ -1,0 +1,3 @@
+[submodule "functions_tools"]
+	path = functions_tools
+	url = https://github.com/kohai-io/open-webui-functions-tools.git
