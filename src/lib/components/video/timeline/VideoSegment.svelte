@@ -1,0 +1,172 @@
+<script lang="ts">
+	import { createEventDispatcher } from 'svelte';
+	import type { VideoSegment } from '$lib/types/video';
+
+	export let segment: VideoSegment;
+	export let pixelsPerSecond: number;
+	export let duration: number;
+	export let frameRate = 30;
+	export let activeTool: 'select' | 'blade' = 'select';
+
+	const dispatch = createEventDispatcher();
+
+	$: startPosition = segment.startTime * pixelsPerSecond;
+	$: endPosition = segment.endTime * pixelsPerSecond;
+	$: segmentWidth = (segment.endTime - segment.startTime) * pixelsPerSecond;
+
+	let isDraggingStart = false;
+	let isDraggingEnd = false;
+	let isDraggingSegment = false;
+	let isHoveringStart = false;
+	let isHoveringEnd = false;
+	let dragStartX = 0;
+	let dragStartTime = 0;
+	let dragStartDuration = 0;
+
+	const handleStartDragStart = (e: MouseEvent) => {
+		e.stopPropagation();
+		isDraggingStart = true;
+		dispatch('trimstart', { segmentId: segment.id });
+	};
+
+	const handleEndDragStart = (e: MouseEvent) => {
+		e.stopPropagation();
+		isDraggingEnd = true;
+		dispatch('trimstart', { segmentId: segment.id });
+	};
+
+	const handleSegmentClick = (e: MouseEvent | KeyboardEvent) => {
+		// Don't stop propagation if blade tool is active - let timeline handle the cut
+		if (activeTool === 'blade') {
+			return;
+		}
+		e.stopPropagation();
+		dispatch('select', { segmentId: segment.id });
+	};
+
+	const handleSegmentDragStart = (e: MouseEvent) => {
+		// Only allow drag if select tool is active
+		if (activeTool !== 'select') return;
+		
+		e.stopPropagation();
+		e.preventDefault();
+		isDraggingSegment = true;
+		dragStartX = e.clientX;
+		dragStartTime = segment.startTime;
+		dragStartDuration = segment.endTime - segment.startTime;
+		console.log('Drag start:', { startX: dragStartX, startTime: dragStartTime });
+		dispatch('movestart', { segmentId: segment.id });
+	};
+
+	const handleSegmentDragMove = (e: MouseEvent) => {
+		if (!isDraggingSegment) return;
+		
+		const deltaX = e.clientX - dragStartX;
+		const deltaTime = deltaX / pixelsPerSecond;
+		
+		// Snap to 0.1 second intervals for smoother dragging
+		const snapInterval = 0.1;
+		const rawNewStartTime = dragStartTime + deltaTime;
+		const snappedStartTime = Math.round(rawNewStartTime / snapInterval) * snapInterval;
+		
+		// Use stored duration from drag start, not current reactive segment values
+		const newStartTime = Math.max(0, snappedStartTime);
+		
+		dispatch('move', {
+			segmentId: segment.id,
+			startTime: newStartTime,
+			endTime: newStartTime + dragStartDuration
+		});
+	};
+
+	const handleSegmentDragEnd = () => {
+		if (isDraggingSegment) {
+			isDraggingSegment = false;
+			dispatch('moveend', { segmentId: segment.id });
+		}
+	};
+</script>
+
+<svelte:window
+	on:mouseup={() => {
+		if (isDraggingStart || isDraggingEnd) {
+			dispatch('trimend', { segmentId: segment.id });
+		}
+		isDraggingStart = false;
+		isDraggingEnd = false;
+		handleSegmentDragEnd();
+	}}
+	on:mousemove={handleSegmentDragMove}
+/>
+
+<div
+	class="absolute group pointer-events-auto"
+	class:cursor-grab={activeTool === 'select' && !isDraggingSegment}
+	class:cursor-grabbing={isDraggingSegment}
+	class:cursor-pointer={activeTool === 'blade'}
+	style="
+		left: {startPosition}px; 
+		width: {segmentWidth}px; 
+		top: 0;
+		height: 100%;
+		background: {segment.enabled ? 'rgba(59, 130, 246, 0.5)' : 'rgba(107, 114, 128, 0.6)'};
+		border: 4px solid {segment.enabled ? '#3b82f6' : '#6b7280'};
+		z-index: 100;
+		position: absolute;
+	"
+	on:mousedown={handleSegmentDragStart}
+	on:click={handleSegmentClick}
+	on:keydown={(e) => e.key === 'Enter' && handleSegmentClick(e)}
+	role="button"
+	tabindex="0"
+>
+	<!-- Segment enabled/disabled indicator -->
+	{#if !segment.enabled}
+		<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+			<div class="text-xs text-gray-500 bg-gray-800/90 px-2 py-1 rounded border border-gray-700">
+				Disabled
+			</div>
+		</div>
+	{/if}
+
+	<!-- Start Trim Handle -->
+	<div
+		class="absolute left-0 top-0 bottom-0 cursor-ew-resize hover:bg-blue-500 transition-colors {isDraggingStart ? 'bg-blue-400' : 'bg-blue-600'}"
+		style="width: {isDraggingStart ? '16px' : '12px'}; z-index: 10; border-right: 1px solid #60a5fa;"
+		on:mousedown={handleStartDragStart}
+		on:mouseenter={() => isHoveringStart = true}
+		on:mouseleave={() => isHoveringStart = false}
+		role="slider"
+		tabindex="0"
+		aria-label="Trim segment start"
+		aria-valuemin={0}
+		aria-valuemax={duration}
+		aria-valuenow={segment.startTime}
+	>
+		<div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-10 bg-white/80"></div>
+	</div>
+
+	<!-- Segment Content Area -->
+	<div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+		<div class="text-xs text-white bg-black/80 px-3 py-1.5 rounded border border-blue-500/50">
+			{(segment.endTime - segment.startTime).toFixed(2)}s
+		</div>
+	</div>
+
+	<!-- End Trim Handle -->
+	<div
+		class="absolute right-0 top-0 bottom-0 cursor-ew-resize hover:bg-blue-500 transition-colors {isDraggingEnd ? 'bg-blue-400' : 'bg-blue-600'}"
+		style="width: {isDraggingEnd ? '16px' : '12px'}; z-index: 10; border-left: 1px solid #60a5fa;"
+		on:mousedown={handleEndDragStart}
+		on:mouseenter={() => isHoveringEnd = true}
+		on:mouseleave={() => isHoveringEnd = false}
+		role="slider"
+		tabindex="0"
+		aria-label="Trim segment end"
+		aria-valuemin={0}
+		aria-valuemax={duration}
+		aria-valuenow={segment.endTime}
+	>
+		<div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-0.5 h-10 bg-white/80"></div>
+	</div>
+</div>

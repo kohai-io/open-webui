@@ -1,5 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
+  import { goto } from '$app/navigation';
   import { classify, contentUrl, copyText, extractAssistantPrompt } from '$lib/utils/media';
   import { getAllUserChats, getChatById, getChatListBySearchText } from '$lib/apis/chats';
   import type { MediaFile } from '$lib/types/media';
@@ -292,6 +293,12 @@
       goToNext();
     }
   };
+
+  const openInTimeline = () => {
+    if (previewItem?.id) {
+      goto(`/workspace/videos/${previewItem.id}`);
+    }
+  };
 </script>
 
 <svelte:window on:keydown={handleKeydown} />
@@ -336,7 +343,24 @@
     <div class="relative z-10 max-w-[90vw] max-h-[90vh] w-full md:w-auto bg-white dark:bg-gray-900 rounded-xl overflow-hidden shadow-xl">
       <div class="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-800">
         <div class="text-sm truncate pr-2">{previewItem.filename}</div>
-        <button class="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-850 hover:bg-gray-200 dark:hover:bg-gray-800" on:click={closePreview}>Close</button>
+        <div class="flex items-center gap-2">
+          {#if classify(previewItem) === 'video' || classify(previewItem) === 'audio'}
+            <button 
+              class="text-xs px-3 py-1 rounded-full bg-blue-600 hover:bg-blue-700 text-white transition-colors flex items-center gap-1" 
+              on:click={openInTimeline}
+              title="Open in Timeline Editor"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18" />
+                <line x1="7" y1="2" x2="7" y2="22" />
+                <line x1="17" y1="2" x2="17" y2="22" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+              </svg>
+              <span class="hidden sm:inline">Timeline</span>
+            </button>
+          {/if}
+          <button class="text-xs px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-850 hover:bg-gray-200 dark:hover:bg-gray-800" on:click={closePreview}>Close</button>
+        </div>
       </div>
       <div class="p-3">
         {#if classify(previewItem) === 'image'}

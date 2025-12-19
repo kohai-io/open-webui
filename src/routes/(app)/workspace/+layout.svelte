@@ -54,6 +54,7 @@
 		class=" relative flex flex-col w-full h-screen max-h-[100dvh] transition-width duration-200 ease-in-out {$showSidebar
 			? 'md:max-w-[calc(100%-260px)]'
 			: ''} max-w-full"
+		style="overflow-x: hidden; contain: layout;"
 	>
 		<nav class="   px-2.5 pt-1.5 backdrop-blur-xl drag-region">
 			<div class=" flex items-center gap-1">
@@ -138,6 +139,16 @@
 							{$i18n.t('Flows')}
 						</a>
 
+						<!-- Videos tab -->
+						<a
+							class="min-w-fit p-1.5 {$page.url.pathname.includes('/workspace/videos')
+								? ''
+								: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
+							href="/workspace/videos"
+						>
+							{$i18n.t('Editor')}
+						</a>
+
 						<!-- Media tab -->
 						<a
 							class="min-w-fit p-1.5 {$page.url.pathname.includes('/media')
@@ -157,6 +168,7 @@
 		<div
 			class="  pb-1 px-3 md:px-[18px] flex-1 max-h-full overflow-y-auto"
 			id="workspace-container"
+			style="overflow-x: hidden; max-width: 100%;"
 		>
 			<slot />
 		</div>
