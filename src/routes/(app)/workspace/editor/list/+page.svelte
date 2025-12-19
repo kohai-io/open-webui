@@ -36,11 +36,11 @@
 	};
 
 	const backToTimeline = () => {
-		goto('/workspace/videos');
+		goto('/workspace/editor');
 	};
 
 	const editVideo = (videoId: string) => {
-		goto(`/workspace/videos/${videoId}`);
+		goto(`/workspace/editor/${videoId}`);
 	};
 
 	$: filteredVideos = videoList.filter((video) =>

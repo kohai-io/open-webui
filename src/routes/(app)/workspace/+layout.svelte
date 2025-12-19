@@ -139,12 +139,12 @@
 							{$i18n.t('Flows')}
 						</a>
 
-						<!-- Videos tab -->
+						<!-- Editor tab -->
 						<a
-							class="min-w-fit p-1.5 {$page.url.pathname.includes('/workspace/videos')
+							class="min-w-fit p-1.5 {$page.url.pathname.includes('/workspace/editor')
 								? ''
 								: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
-							href="/workspace/videos"
+							href="/workspace/editor"
 						>
 							{$i18n.t('Editor')}
 						</a>

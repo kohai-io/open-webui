@@ -19,8 +19,8 @@ This standalone workspace section provides a video editor with synchronized time
 
 ### Route Structure
 ```
-/workspace/videos
-├── +page.svelte              # Video library (grid view)
+/workspace/editor
+├── +page.svelte              # Video timeline editor
 ├── [id]/
 │   └── +page.svelte          # Video editor page
 └── create/
@@ -48,7 +48,7 @@ VideoTimelineEditor.svelte    # Main editor container
 ## Usage
 
 ### 1. Upload a Video
-Navigate to `/workspace/videos` and click "Upload Video":
+Navigate to `/workspace/editor` and click "Upload Video":
 - Supported formats: MP4, WebM, OGG, MOV
 - Max file size: 500MB
 - Drag & drop or file browser
@@ -135,9 +135,9 @@ Total: ~3-4 weeks for production-ready interface
 ## Files Created
 
 **Routes:**
-- `src/routes/(app)/workspace/videos/+page.svelte` (149 lines)
-- `src/routes/(app)/workspace/videos/[id]/+page.svelte` (148 lines)
-- `src/routes/(app)/workspace/videos/create/+page.svelte` (157 lines)
+- `src/routes/(app)/workspace/editor/+page.svelte` (149 lines)
+- `src/routes/(app)/workspace/editor/[id]/+page.svelte` (148 lines)
+- `src/routes/(app)/workspace/editor/create/+page.svelte` (157 lines)
 
 **Components:**
 - `src/lib/components/video/VideoTimelineEditor.svelte` (68 lines)

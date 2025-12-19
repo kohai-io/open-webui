@@ -79,7 +79,7 @@
 				if (xhr.status === 200) {
 					const response = JSON.parse(xhr.responseText);
 					toast.success('Video uploaded successfully');
-					goto(`/workspace/videos/${response.id || response.file_id}`);
+					goto(`/workspace/editor/${response.id || response.file_id}`);
 				} else {
 					toast.error('Upload failed');
 					uploading = false;
@@ -103,7 +103,7 @@
 	};
 
 	const handleCancel = () => {
-		goto('/workspace/videos');
+		goto('/workspace/editor');
 	};
 
 	const formatFileSize = (bytes: number) => {

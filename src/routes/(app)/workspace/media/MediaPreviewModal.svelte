@@ -296,7 +296,7 @@
 
   const openInTimeline = () => {
     if (previewItem?.id) {
-      goto(`/workspace/videos/${previewItem.id}`);
+      goto(`/workspace/editor/${previewItem.id}`);
     }
   };
 </script>

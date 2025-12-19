@@ -29,7 +29,7 @@
 			
 			if (!fileData) {
 				toast.error('Video not found');
-				goto('/workspace/videos');
+				goto('/workspace/editor');
 				return;
 			}
 
@@ -47,7 +47,7 @@
 		} catch (error) {
 			console.error('Error loading video:', error);
 			toast.error('Failed to load video');
-			goto('/workspace/videos');
+			goto('/workspace/editor');
 		} finally {
 			loading = false;
 		}
@@ -81,7 +81,7 @@
 	};
 
 	const handleBack = () => {
-		goto('/workspace/videos');
+		goto('/workspace/editor');
 	};
 
 	const updateVideoName = (newName: string) => {

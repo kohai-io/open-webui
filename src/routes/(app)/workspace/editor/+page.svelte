@@ -96,7 +96,7 @@
 	};
 
 	const viewVideoList = () => {
-		goto('/workspace/videos/list');
+		goto('/workspace/editor/list');
 	};
 </script>
 
