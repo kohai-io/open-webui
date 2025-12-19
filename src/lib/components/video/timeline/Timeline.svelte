@@ -6,6 +6,7 @@
 	import Marker from './Marker.svelte';
 	import VideoSegment from './VideoSegment.svelte';
 	import SegmentCutLine from './SegmentCutLine.svelte';
+	import SegmentContextMenu from './SegmentContextMenu.svelte';
 	import type { Marker as MarkerType, VideoSegment as VideoSegmentType } from '$lib/types/video';
 
 	export let videoUrl: string;
@@ -32,19 +33,40 @@
 	let activeTool: 'select' | 'blade' = 'select';
 	let activeSegmentId: string | null = null;
 	let trimmingSegmentId: string | null = null;
+	
+	// Context menu state
+	let showContextMenu = false;
+	let contextMenuX = 0;
+	let contextMenuY = 0;
+	let contextMenuSegment: VideoSegmentType | null = null;
 
 	$: pixelsPerSecond = zoom * 100;
 	$: sortedSegments = [...segments].sort((a, b) => a.startTime - b.startTime);
 	
-	// Calculate timeline width based on segments, with a minimum and maximum
-	$: {
+	// Calculate effective duration from segments or use prop duration
+	$: effectiveDuration = (() => {
+		if (duration > 0) return duration;
+		
 		const maxSegmentTime = segments.length > 0 
 			? Math.max(...segments.map(s => s.endTime))
 			: 0;
 		const minWidth = 60; // At least 60 seconds visible
+		return Math.max(minWidth, maxSegmentTime + 10); // +10s padding
+	})();
+	
+	// Calculate timeline width based on effective duration
+	$: {
 		const maxWidth = 10800; // Max 3 hours
-		const calculatedDuration = Math.max(minWidth, Math.min(maxWidth, maxSegmentTime + 10)); // +10s padding
-		timelineWidth = calculatedDuration * pixelsPerSecond;
+		const clampedDuration = Math.min(maxWidth, effectiveDuration);
+		timelineWidth = clampedDuration * pixelsPerSecond;
+		
+		console.log('Timeline calculation:', {
+			propDuration: duration,
+			effectiveDuration,
+			segments: segments.length,
+			pixelsPerSecond,
+			timelineWidth
+		});
 	}
 	
 	$: playheadPosition = currentTime * pixelsPerSecond;
@@ -54,6 +76,11 @@
 	const pixelToTime = (px: number) => px / pixelsPerSecond;
 
 	const handleClick = (e: MouseEvent) => {
+		// Don't seek if playhead is being dragged or if we're dragging the timeline
+		if (isPlayheadDragging) {
+			return;
+		}
+		
 		// Determine which container was clicked (ruler or main timeline)
 		const container = rulerContainer && e.currentTarget === rulerContainer 
 			? rulerContainer 
@@ -62,7 +89,7 @@
 		if (!container) return;
 		
 		// Allow blade tool to work even while dragging
-		if (isDragging && !isPlayheadDragging && activeTool !== 'blade') {
+		if (isDragging && activeTool !== 'blade') {
 			return;
 		}
 
@@ -71,23 +98,28 @@
 		const x = e.clientX - rect.left + scrollOffset;
 		let time = pixelToTime(x);
 		
-		// Always snap to frame boundaries for frame-accurate editing
-		const frameTime = 1 / frameRate;
-		time = Math.round(time / frameTime) * frameTime;
+		// Snap to nearest frame for frame-accurate positioning
+		const frame = Math.round(time * frameRate);
+		time = frame / frameRate;
 
 		if (activeTool === 'blade') {
 			handleBladeCut(time);
 			activeTool = 'select';
-		} else if (time >= 0 && time <= duration) {
+		} else {
+			// Clamp time to valid range
+			time = Math.max(0, Math.min(effectiveDuration, time));
 			dispatch('seek', { time });
 		}
 	};
 
 	const handleMouseDown = (e: MouseEvent) => {
-		if (!isPlayheadDragging) {
-			handleClick(e);
-			isDragging = true;
+		// Don't start timeline dragging if playhead is being dragged
+		if (isPlayheadDragging) {
+			return;
 		}
+		
+		handleClick(e);
+		isDragging = true;
 	};
 
 	const handleMouseMove = (e: MouseEvent) => {
@@ -136,7 +168,24 @@
 			});
 			
 			dispatch('segmentschange', { segments: newSegments });
-		} else if (isDragging || isPlayheadDragging) {
+		} else if (isPlayheadDragging) {
+			// Handle playhead dragging with frame-accurate snapping
+			if (scrollContainer) {
+				const rect = scrollContainer.getBoundingClientRect();
+				const x = e.clientX - rect.left + scrollContainer.scrollLeft;
+				let time = pixelToTime(x);
+				
+				// Snap to nearest frame for frame-accurate positioning
+				const frame = Math.round(time * frameRate);
+				time = frame / frameRate;
+				
+				tooltipTime = time;
+				tooltipX = e.clientX - rect.left;
+				showTimecodeTooltip = true;
+				
+				dispatch('seek', { time });
+			}
+		} else if (isDragging) {
 			if (scrollContainer) {
 				const rect = scrollContainer.getBoundingClientRect();
 				const x = e.clientX - rect.left + scrollContainer.scrollLeft;
@@ -392,8 +441,19 @@
 		dispatch('seek', { time: e.detail.time });
 	};
 
-	// Format time as HH:MM:SS:FF
-	const formatTime = (seconds: number) => {
+	const handleSegmentContextMenu = (e: CustomEvent<{ segmentId: string; x: number; y: number }>) => {
+		const segment = segments.find(s => s.id === e.detail.segmentId);
+		if (segment) {
+			contextMenuSegment = segment;
+			contextMenuX = e.detail.x;
+			contextMenuY = e.detail.y;
+			showContextMenu = true;
+			console.log('Timeline: Context menu opened for segment', segment.id);
+		}
+	};
+
+	// Format time with adaptive precision based on zoom
+	const formatTime = (seconds: number, compact: boolean = false) => {
 		const totalFrames = Math.floor(seconds * frameRate);
 		const frames = totalFrames % frameRate;
 		const totalSeconds = Math.floor(seconds);
@@ -401,60 +461,90 @@
 		const totalMinutes = Math.floor(totalSeconds / 60);
 		const m = totalMinutes % 60;
 		const h = Math.floor(totalMinutes / 60);
+		
+		// Compact format for low zoom (hide frames, hide hours if 0)
+		if (compact && zoom < 2.0) {
+			if (h > 0) {
+				return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+			}
+			return `${m}:${s.toString().padStart(2, '0')}`;
+		}
+		
+		// Full format with frames
 		return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}:${frames.toString().padStart(2, '0')}`;
 	};
 
-	// Generate per-frame tick marks with zoom-adaptive density
+	// Generate tick marks with improved zoom-adaptive density
 	$: timeMarkers = (() => {
-		if (!duration || duration === 0) {
-			return { frames: [] };
+		if (!effectiveDuration || effectiveDuration === 0) {
+			console.log('Timeline: No duration, skipping markers', { effectiveDuration });
+			return { frames: [], gridlines: [] };
 		}
 		
-		const totalFrames = Math.ceil(duration * frameRate);
+		const totalFrames = Math.ceil(effectiveDuration * frameRate);
 		const frames = [];
+		const gridlines = [];
 		
-		// Determine which tick marks to show based on zoom level
-		// At low zoom, skip intermediate frames to avoid clutter
+		// Calculate optimal tick spacing based on zoom
 		const pixelsPerFrame = pixelsPerSecond / frameRate;
 		
 		for (let frame = 0; frame <= totalFrames; frame++) {
+			// Frame-accurate time calculation
 			const time = frame / frameRate;
-			if (time > duration) break;
+			if (time > effectiveDuration) break;
 			
-			// Determine tick height and whether to render based on frame position and zoom
 			let height = 'short';
 			let showLabel = false;
 			let shouldRender = false;
+			let isGridline = false;
 			
+			// Major tick: every second (with gridline) - always on exact frame boundary
 			if (frame % frameRate === 0) {
-				// Every second - always show with label
 				height = 'tall';
 				showLabel = true;
 				shouldRender = true;
-			} else if (frame % (frameRate / 2) === 0) {
-				// Every half second - show at zoom >= 1.0x
+				isGridline = true;
+			}
+			// Medium tick: every half second (exactly 15 frames at 30fps) - show at 0.5x+
+			else if (frame % Math.floor(frameRate / 2) === 0 && zoom >= 0.5) {
 				height = 'medium';
-				shouldRender = zoom >= 1.0;
-			} else if (frame % 10 === 0) {
-				// Every 10 frames - show at zoom >= 1.5x
+				shouldRender = true;
+			}
+			// Small tick: every 10 frames - show at 1.0x+
+			else if (frame % 10 === 0 && zoom >= 1.0) {
 				height = 'small';
-				shouldRender = zoom >= 1.5;
-			} else if (frame % 5 === 0) {
-				// Every 5 frames - show at zoom >= 2.0x
-				height = 'small';
-				shouldRender = zoom >= 2.0;
-			} else {
-				// Individual frames - show at zoom >= 3.0x
+				shouldRender = true;
+			}
+			// Tiny tick: every 5 frames - show at 1.5x+
+			else if (frame % 5 === 0 && zoom >= 1.5) {
 				height = 'short';
-				shouldRender = zoom >= 3.0;
+				shouldRender = true;
+			}
+			// Every 2-3 frames - show at 2.5x+
+			else if (frame % 3 === 0 && zoom >= 2.5) {
+				height = 'short';
+				shouldRender = true;
+			}
+			else if (frame % 2 === 0 && zoom >= 3.0) {
+				height = 'short';
+				shouldRender = true;
+			}
+			// Individual frame ticks - show at 3.5x+
+			else if (zoom >= 3.5) {
+				height = 'short';
+				shouldRender = true;
 			}
 			
 			if (shouldRender) {
+				// Store frame number for frame-accurate positioning
 				frames.push({ time, frame, height, showLabel });
+				if (isGridline) {
+					gridlines.push(time);
+				}
 			}
 		}
 		
-		return { frames };
+		return { frames, gridlines };
 	})();
 
 	$: {
@@ -666,18 +756,31 @@
 	<!-- Time Ruler with Frame Markers -->
 	<div 
 		bind:this={rulerContainer}
-		class="h-10 bg-gray-900 border-b border-gray-700 relative overflow-x-auto overflow-y-hidden flex-shrink-0"
+		class="h-12 bg-gradient-to-b from-gray-800 to-gray-900 border-b-2 border-gray-700 relative overflow-x-auto overflow-y-hidden flex-shrink-0 cursor-pointer hover:bg-gray-800"
 		style="scrollbar-width: thin;"
 		on:mousedown={handleMouseDown}
+		on:click={handleClick}
+		on:keydown={(e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				handleClick(e as any);
+			}
+		}}
 		on:scroll={() => {
 			if (scrollContainer && rulerContainer) {
 				scrollContainer.scrollLeft = rulerContainer.scrollLeft;
 			}
 		}}
+		role="slider"
+		tabindex="0"
+		aria-label="Timeline ruler - click to seek"
+		aria-valuemin="0"
+		aria-valuemax={effectiveDuration}
+		aria-valuenow={currentTime}
 	>
 		<div
 			class="relative h-full"
-			style="width: {timelineWidth}px; background: linear-gradient(to bottom, rgb(31, 41, 55), rgb(17, 24, 39));"
+			style="width: {timelineWidth}px;"
 		>
 			<!-- Per-frame tick marks with alternating heights -->
 			{#each timeMarkers.frames as marker}
@@ -685,20 +788,20 @@
 					class="absolute bottom-0 flex flex-col-reverse items-start pointer-events-none select-none"
 					style="left: {timeToPixel(marker.time)}px;"
 				>
-					<!-- Tick mark with varying height -->
+					<!-- Tick mark with varying height and improved contrast -->
 					{#if marker.height === 'tall'}
-						<div class="w-0.5 h-6 bg-gray-200"></div>
+						<div class="w-[2px] h-7 bg-blue-400 shadow-sm"></div>
 					{:else if marker.height === 'medium'}
-						<div class="w-px h-4 bg-gray-400"></div>
+						<div class="w-[1.5px] h-5 bg-gray-300"></div>
 					{:else if marker.height === 'small'}
-						<div class="w-px h-3 bg-gray-500"></div>
+						<div class="w-px h-3 bg-gray-400"></div>
 					{:else}
-						<div class="w-px h-2 bg-gray-600"></div>
+						<div class="w-px h-2 bg-gray-500"></div>
 					{/if}
 					
 					<!-- Timecode label for tall markers (every second) -->
 					{#if marker.showLabel}
-						<span class="text-[9px] leading-none text-gray-100 font-mono mb-1 ml-0.5 whitespace-nowrap select-none">{formatTime(marker.time)}</span>
+						<span class="text-[10px] leading-none text-gray-200 font-mono mb-1 ml-1 whitespace-nowrap select-none bg-gray-900/60 px-1 py-0.5 rounded">{formatTime(marker.time, true)}</span>
 					{/if}
 				</div>
 			{/each}
@@ -724,6 +827,14 @@
 		style="transform: none; zoom: 1; overflow-y: visible !important;"
 	>
 		<div style="width: {timelineWidth}px; height: 180px; transform: none; position: relative;" class="relative">
+			<!-- Vertical gridlines for major time markers -->
+			{#each timeMarkers.gridlines as gridTime}
+				<div
+					class="absolute top-0 bottom-0 w-px bg-gray-700/30 pointer-events-none"
+					style="left: {timeToPixel(gridTime)}px; z-index: 1;"
+				></div>
+			{/each}
+			
 			<!-- Background layer: Tracks with lower z-index -->
 			<div style="position: relative; z-index: 0; height: 180px;">
 				<!-- Thumbnail Track -->
@@ -742,6 +853,7 @@
 						{pixelsPerSecond}
 						{duration}
 						{frameRate}
+						{zoom}
 						{activeTool}
 						on:trimstart={handleSegmentTrimStart}
 						on:trimend={handleSegmentTrimEnd}
@@ -749,6 +861,7 @@
 						on:move={handleSegmentMove}
 						on:movestart={handleSegmentMoveStart}
 						on:moveend={handleSegmentMoveEnd}
+						on:contextmenu={handleSegmentContextMenu}
 					/>
 				{/each}
 				
@@ -797,6 +910,20 @@
 		</div>
 	</div>
 </div>
+
+<!-- Context Menu rendered at Timeline level (outside pointer-events: none) -->
+{#if contextMenuSegment}
+	<SegmentContextMenu
+		segment={contextMenuSegment}
+		x={contextMenuX}
+		y={contextMenuY}
+		bind:visible={showContextMenu}
+		on:sendtomodel={(e) => { console.log('Timeline: sendtomodel', e.detail); dispatch('sendtomodel', e.detail); }}
+		on:duplicate={(e) => { console.log('Timeline: duplicate', e.detail); dispatch('duplicate', e.detail); }}
+		on:delete={(e) => { console.log('Timeline: delete', e.detail); dispatch('delete', e.detail); }}
+		on:toggleenabled={(e) => { console.log('Timeline: toggleenabled', e.detail); dispatch('toggleenabled', e.detail); }}
+	/>
+{/if}
 
 <style>
 	::-webkit-scrollbar {

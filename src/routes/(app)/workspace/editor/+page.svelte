@@ -3,12 +3,15 @@
 	import CanvasVideoPlayer from '$lib/components/video/CanvasVideoPlayer.svelte';
 	import Timeline from '$lib/components/video/timeline/Timeline.svelte';
 	import MediaPool from '$lib/components/video/MediaPool.svelte';
+	import ModelSegmentModal from '$lib/components/video/ModelSegmentModal.svelte';
 	import { videoState, timelineState, markers, segments } from '$lib/stores/video';
 	import { mediaPool, type MediaFile } from '$lib/stores/mediaPool';
 	import type { Marker, VideoSegment } from '$lib/types/video';
 	import { toast } from 'svelte-sonner';
 
 	let videoPlayerComponent: any = null;
+	let showModelModal = false;
+	let selectedSegmentForModel: VideoSegment | null = null;
 
 	const handleVideoTimeUpdate = (e: CustomEvent<{ time: number }>) => {
 		videoState.update((s) => ({ ...s, currentTime: e.detail.time }));
@@ -98,6 +101,83 @@
 	const viewVideoList = () => {
 		goto('/workspace/editor/list');
 	};
+
+	const handleSendSegmentToModel = (e: CustomEvent<{ segmentId: string }>) => {
+		const segment = $segments.find(s => s.id === e.detail.segmentId);
+		if (segment) {
+			selectedSegmentForModel = segment;
+			showModelModal = true;
+		}
+	};
+
+	const handleModelSubmit = async (e: CustomEvent<{ segmentId: string; modelId: string; prompt: string }>) => {
+		const { segmentId, modelId, prompt } = e.detail;
+		const segment = $segments.find(s => s.id === segmentId);
+		
+		if (!segment) return;
+
+		toast.info('Processing segment with model...');
+		
+		try {
+			// TODO: Implement actual model API call
+			// For now, simulate processing and add a placeholder result
+			await new Promise(resolve => setTimeout(resolve, 2000));
+			
+			// Create a new segment representing the model output
+			const timelineEnd = Math.max(...$segments.map(s => s.endTime));
+			const newSegment: VideoSegment = {
+				id: `segment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+				mediaId: `model-output-${Date.now()}`,
+				startTime: timelineEnd,
+				endTime: timelineEnd + (segment.endTime - segment.startTime),
+				sourceStartTime: 0,
+				sourceEndTime: segment.endTime - segment.startTime,
+				enabled: true
+			};
+			
+			segments.update(s => [...s, newSegment]);
+			toast.success('Model output added to timeline');
+		} catch (error) {
+			console.error('Error processing with model:', error);
+			toast.error('Failed to process segment with model');
+		}
+	};
+
+	const handleDuplicateSegment = (e: CustomEvent<{ segmentId: string }>) => {
+		const segment = $segments.find(s => s.id === e.detail.segmentId);
+		if (!segment) return;
+
+		const timelineEnd = Math.max(...$segments.map(s => s.endTime));
+		const duplicateSegment: VideoSegment = {
+			...segment,
+			id: `segment-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+			startTime: timelineEnd,
+			endTime: timelineEnd + (segment.endTime - segment.startTime)
+		};
+
+		segments.update(s => [...s, duplicateSegment]);
+		toast.success('Segment duplicated');
+	};
+
+	const handleDeleteSegment = (e: CustomEvent<{ segmentId: string }>) => {
+		console.log('+page.svelte: Delete segment handler called', e.detail);
+		const segmentId = e.detail.segmentId;
+		const beforeCount = $segments.length;
+		segments.update(s => {
+			const filtered = s.filter(seg => seg.id !== segmentId);
+			console.log('+page.svelte: Filtered segments', { before: beforeCount, after: filtered.length });
+			return filtered;
+		});
+		toast.success('Segment deleted');
+	};
+
+	const handleToggleSegmentEnabled = (e: CustomEvent<{ segmentId: string }>) => {
+		segments.update(s => s.map(seg => 
+			seg.id === e.detail.segmentId 
+				? { ...seg, enabled: !seg.enabled }
+				: seg
+		));
+	};
 </script>
 
 <div class="flex flex-col h-full w-full">
@@ -164,6 +244,10 @@
 				on:deletemarker={handleDeleteMarker}
 				on:segmentschange={handleSegmentsChange}
 				on:dragstatechange={(e) => timelineState.update((s) => ({ ...s, isDragging: e.detail.isDragging }))}
+				on:sendtomodel={handleSendSegmentToModel}
+				on:duplicate={handleDuplicateSegment}
+				on:delete={handleDeleteSegment}
+				on:toggleenabled={handleToggleSegmentEnabled}
 			/>
 		</div>
 
@@ -171,3 +255,9 @@
 		<MediaPool on:addtotimeline={handleAddMediaToTimeline} />
 	</div>
 </div>
+
+<ModelSegmentModal
+	bind:visible={showModelModal}
+	segment={selectedSegmentForModel}
+	on:submit={handleModelSubmit}
+/>
