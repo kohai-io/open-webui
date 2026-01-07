@@ -1392,19 +1392,24 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                         try:
                             splits = server_info_id.split(":")
                             tool_prefix = splits[-1] if len(splits) > 1 else server_info_id
-
+                            
+                            log.info(f"Retrieving OAuth 2.1 token for user {user.id}, prefix 'mcp:{tool_prefix}'")
                             oauth_token = await request.app.state.oauth_client_manager.get_oauth_token(
                                 user.id, f"mcp:{tool_prefix}"
                             )
 
                             if oauth_token:
-                                headers["Authorization"] = (
-                                    f"Bearer {oauth_token.get('access_token', '')}"
-                                )
+                                access_token = oauth_token.get('access_token', '')
+                                token_preview = f"{access_token[:10]}..." if len(access_token) > 10 else "empty"
+                                log.info(f"OAuth token retrieved successfully (token: {token_preview})")
+                                headers["Authorization"] = f"Bearer {access_token}"
+                            else:
+                                log.warning(f"No OAuth token found for user {user.id}, prefix 'mcp:{tool_prefix}'")
                         except Exception as e:
-                            log.error(f"Error getting OAuth token: {e}")
+                            log.error(f"Error getting OAuth token for 'mcp:{tool_prefix}': {e}")
                             oauth_token = None
 
+                    log.debug(f"Connecting to MCP server '{server_info_id}' with auth_type='{auth_type}', headers={'present' if headers else 'none'}")
                     mcp_clients[tool_prefix] = MCPClient()
                     await mcp_clients[tool_prefix].connect(
                         url=mcp_server_connection.get("url", ""),
