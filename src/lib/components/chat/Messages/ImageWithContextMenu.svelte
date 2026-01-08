@@ -29,7 +29,7 @@
 	const IMAGE_ACTIONS = [
 		{
 			id: 'add',
-			label: $i18n.t('Add Item'),
+			label: $i18n.t('Add New Element'),
 			icon: 'plus',
 			needsInput: true,
 			inputPlaceholder: 'Add what...',
@@ -42,7 +42,7 @@
 			icon: 'trash',
 			needsInput: false,
 			prompt: (coords: any, input: string) =>
-				`Remove the object at position (${coords.normalizedX}, ${coords.normalizedY}). Fill in that area naturally to blend with the surroundings. Keep everything else unchanged.`
+				`Edit this image: Remove the object at position (${coords.normalizedX}, ${coords.normalizedY}). Fill in that area naturally to blend with the surroundings. Keep everything else unchanged.`
 		},
 		{
 			id: 'replace',
@@ -51,7 +51,7 @@
 			needsInput: true,
 			inputPlaceholder: 'Replace with...',
 			prompt: (coords: any, input: string) =>
-				`At position (${coords.normalizedX}, ${coords.normalizedY}), replace the object there with ${input}. Match the lighting and perspective. Keep everything else the same.`
+				`Edit this image: At position (${coords.normalizedX}, ${coords.normalizedY}), replace the object there with ${input}. Match the lighting and perspective. Keep everything else the same.`
 		},
 		{
 			id: 'change_color',
@@ -60,7 +60,7 @@
 			needsInput: true,
 			inputPlaceholder: 'Change color to...',
 			prompt: (coords: any, input: string) =>
-				`Change the color of the object at position (${coords.normalizedX}, ${coords.normalizedY}) to ${input}. Only change the color, keep all other details, texture, and lighting the same.`
+				`Edit this image: Change the color of the object at position (${coords.normalizedX}, ${coords.normalizedY}) to ${input}. Only change the color, keep all other details, texture, and lighting the same.`
 		},
 		{
 			id: 'describe',
@@ -72,11 +72,11 @@
 		},
 		{
 			id: 'enhance',
-			label: $i18n.t('Improve Quality'),
+			label: $i18n.t('Enhance Quality'),
 			icon: 'zoom',
 			needsInput: false,
 			prompt: (coords: any, input: string) =>
-				`Improve the quality and detail of the entire image. Enhance sharpness and clarity while preserving the composition and content.`
+				`Edit this image: Enhance the quality and detail of the entire image. Improve sharpness and clarity while preserving the composition and content.`
 		},
 		{
 			id: 'fullscreen',
@@ -221,7 +221,7 @@
 			palette: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01',
 			eye: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z',
 			zoom: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7',
-			fullscreen: 'M4 6a2 2 0 012-2h3m11 0h-3a2 2 0 00-2 2m0 0v3m0-3h3m0 0v3M4 18v-3m0 0h3m-3 0a2 2 0 002 2m11 0h3m0 0v-3m0 3a2 2 0 01-2-2m0 0v-3'
+			fullscreen: 'M4 8V4m0 0h4M4 4l5 5m11-5v4m0-4h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4'
 		};
 		return icons[iconName] || icons.eye;
 	};
