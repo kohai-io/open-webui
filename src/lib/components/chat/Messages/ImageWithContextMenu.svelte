@@ -77,6 +77,13 @@
 			needsInput: false,
 			prompt: (coords: any, input: string) =>
 				`Improve the quality and detail of the entire image. Enhance sharpness and clarity while preserving the composition and content.`
+		},
+		{
+			id: 'fullscreen',
+			label: $i18n.t('View Full Screen'),
+			icon: 'fullscreen',
+			needsInput: false,
+			isViewAction: true
 		}
 	];
 
@@ -113,12 +120,54 @@
 		currentAction = action;
 		showContextMenu = false;
 
-		if (action.needsInput) {
+		if (action.id === 'fullscreen') {
+			openFullscreen();
+		} else if (action.needsInput) {
 			showInput = true;
 			setTimeout(() => inputElement?.focus(), 100);
 		} else {
 			executeAction(action);
 		}
+	};
+
+	const openFullscreen = () => {
+		const overlay = document.createElement('div');
+		overlay.className = 'fixed inset-0 z-[9999] bg-black/90 flex items-center justify-center p-4';
+		overlay.style.backdropFilter = 'blur(4px)';
+		
+		const img = document.createElement('img');
+		img.src = src;
+		img.alt = alt;
+		img.className = 'max-w-full max-h-full object-contain';
+		
+		const closeButton = document.createElement('button');
+		closeButton.innerHTML = `
+			<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+			</svg>
+		`;
+		closeButton.className = 'absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition';
+		
+		const closeOverlay = () => {
+			overlay.remove();
+			document.body.style.overflow = '';
+		};
+		
+		closeButton.addEventListener('click', closeOverlay);
+		overlay.addEventListener('click', (e) => {
+			if (e.target === overlay) closeOverlay();
+		});
+		document.addEventListener('keydown', function escHandler(e) {
+			if (e.key === 'Escape') {
+				closeOverlay();
+				document.removeEventListener('keydown', escHandler);
+			}
+		});
+		
+		overlay.appendChild(img);
+		overlay.appendChild(closeButton);
+		document.body.appendChild(overlay);
+		document.body.style.overflow = 'hidden';
 	};
 
 	const executeAction = async (action: any) => {
@@ -171,7 +220,8 @@
 			replace: 'M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4',
 			palette: 'M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01',
 			eye: 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z',
-			zoom: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7'
+			zoom: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7',
+			fullscreen: 'M4 6a2 2 0 012-2h3m11 0h-3a2 2 0 00-2 2m0 0v3m0-3h3m0 0v3M4 18v-3m0 0h3m-3 0a2 2 0 002 2m11 0h3m0 0v-3m0 3a2 2 0 01-2-2m0 0v-3'
 		};
 		return icons[iconName] || icons.eye;
 	};
@@ -229,7 +279,7 @@
 					</svg>
 					<span>{action.label}</span>
 				</button>
-				{#if idx === 3}
+				{#if idx === 3 || idx === 5}
 					<div class="h-px bg-gray-200 dark:bg-gray-700 my-1" />
 				{/if}
 			{/each}
