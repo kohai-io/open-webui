@@ -38,7 +38,8 @@
 		temporaryChatEnabled,
 		toolServers,
 		showSearch,
-		showSidebar
+		showSidebar,
+		showPiGateway
 	} from '$lib/stores';
 
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
@@ -47,6 +48,7 @@
 	import AccountPending from '$lib/components/layout/Overlay/AccountPending.svelte';
 	import UpdateInfoToast from '$lib/components/layout/UpdateInfoToast.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
+	import PiGateway from '$lib/components/pigateway/PiGateway.svelte';
 	import { Shortcut, shortcuts } from '$lib/shortcuts';
 
 	const i18n = getContext('i18n');
@@ -396,9 +398,36 @@
 			{/if}
 		</div>
 	</div>
+	
+	{#if $showPiGateway}
+		<PiGateway />
+	{/if}
+	
+	<!-- Pi Gateway Trigger - Bottom Right -->
+	<button
+		class="pi-trigger fixed bottom-1 right-4 opacity-10 hover:opacity-100 transition-opacity duration-300 z-50"
+		on:click={() => showPiGateway.set(true)}
+		title="π Gateway"
+		aria-label="Activate Pi Gateway"
+	>
+		π
+	</button>
 {/if}
 
 <style>
+	.pi-trigger {
+		font-family: 'Times New Roman', serif;
+		font-size: 1.5rem;
+		color: currentColor;
+		background: none;
+		border: none;
+		cursor: pointer;
+		padding: 0.5rem;
+	}
+	
+	.pi-trigger:hover {
+		text-shadow: 0 0 10px currentColor;
+	}
 	.loading {
 		display: inline-block;
 		clip-path: inset(0 1ch 0 0);

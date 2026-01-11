@@ -1251,3 +1251,14 @@
 		</div>
 	</div>
 {/if}
+
+<style>
+	.pi-trigger {
+		font-family: 'Times New Roman', serif;
+		font-size: 1.2rem;
+		color: currentColor;
+		background: none;
+		border: none;
+		cursor: pointer;
+	}
+</style>
