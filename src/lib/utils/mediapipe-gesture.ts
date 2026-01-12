@@ -236,6 +236,15 @@ export class MediaPipeGestureController {
     this.callbacks.get(gesture)!.push(callback);
   }
   
+  // Register callback for a gesture performed by a specific hand
+  onWithHand(gesture: GestureType, hand: 'Left' | 'Right', callback: () => void): void {
+    this.on(gesture, (g, handedness) => {
+      if (handedness === hand) {
+        callback();
+      }
+    });
+  }
+  
   off(gesture: AllGestureTypes, callback?: GestureCallback): void {
     if (!callback) {
       this.callbacks.delete(gesture);

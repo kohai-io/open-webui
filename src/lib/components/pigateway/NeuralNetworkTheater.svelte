@@ -1839,9 +1839,9 @@
 			gestureController.onFaceLandmarks(updateFaceMesh);
 		}
 		
-		// ☝️ POINTING = TURBO forward into the past (older chats)
-		gestureController.on('Pointing_Up', () => {
-			currentGesture = '☝️ TURBO → Past!';
+		// ✊ FIST = TURBO forward into the past (older chats)
+		gestureController.on('Closed_Fist', () => {
+			currentGesture = '✊ TURBO → Past!';
 			cameraTarget.z += 50; // Forward along timeline (toward older)
 		});
 		
@@ -1868,9 +1868,9 @@
 			}
 		});
 		
-		// ✊ FIST = Fly backward toward NOW (newer chats)
-		gestureController.on('Closed_Fist', () => {
-			currentGesture = '✊ BACK ← Now!';
+		// ☝️ POINTING = Fly backward toward NOW (newer chats)
+		gestureController.on('Pointing_Up', () => {
+			currentGesture = '☝️ BACK ← Now!';
 			cameraTarget.z -= 25; // Backward along timeline (toward newer)
 		});
 		
@@ -1880,16 +1880,16 @@
 			cameraTarget.y = Math.min(120, cameraTarget.y + 15);
 		});
 		
-		// 👍 THUMBS UP = Strafe to evening chats (right)
-		gestureController.on('Thumb_Up', () => {
-			currentGesture = '👍 → Evening chats';
-			cameraTarget.x += 15;
-		});
-		
 		// 👎 THUMBS DOWN = Strafe to morning chats (left)
 		gestureController.on('Thumb_Down', () => {
 			currentGesture = '👎 ← Morning chats';
 			cameraTarget.x -= 15;
+		});
+		
+		// 👍 THUMBS UP = Strafe to evening chats (right)
+		gestureController.on('Thumb_Up', () => {
+			currentGesture = '👍 → Evening chats';
+			cameraTarget.x += 15;
 		});
 		
 		// 🤟 I LOVE YOU = Warp to next chat along timeline
@@ -2833,8 +2833,8 @@
 			
 			<div class="help-text">
 				{#if gestureMode}
-					<div>☝️ Point → Past | ✊ Fist ← Now | ✋ Palm = Select</div>
-					<div>✌️ Overview | 👍 Evening 👎 Morning | 🤟 Warp Next</div>
+					<div>✊ Fist → Past | ☝️ Point ← Now | ✋ Palm = Select</div>
+					<div>✌️ Overview | 👎 Morning 👍 Evening | 🤟 Warp Next</div>
 				{:else}
 					<div>⌨️ WASD/Arrows = Move | Q/E = Up/Down | Space = Warp | Enter = Open | Esc = Deselect</div>
 				{/if}
