@@ -140,6 +140,14 @@
 	let selectedDeviceId: string | null = null;
 	let showDeviceMenu = false;
 	
+	// Model tooltip state
+	let modelTooltip = {
+		visible: false,
+		text: '',
+		x: 0,
+		y: 0
+	};
+	
 	// Warp effect state
 	let isWarping = false;
 	let warpSpeed = 0;
@@ -2176,6 +2184,15 @@
 				// Show model info - use modelId for stats, modelName for display
 				const stats = modelStats.get(orb.userData.modelId);
 				const displayName = orb.userData.modelName || orb.userData.modelId;
+				
+				// Show floating tooltip near cursor
+				modelTooltip = {
+					visible: true,
+					text: displayName,
+					x: e.clientX,
+					y: e.clientY - 40
+				};
+				
 				if (stats && stats.chatCount > 0) {
 					const lastUsedStr = stats.lastUsed ? stats.lastUsed.toLocaleDateString() : 'Never';
 					currentGesture = `🤖 ${displayName} | ${stats.chatCount} chats | Last: ${lastUsedStr} | Click to chat`;
@@ -2186,6 +2203,7 @@
 			}
 		} else if (hoveredModel) {
 			hoveredModel = null;
+			modelTooltip.visible = false;
 			if (!currentGesture.startsWith('🎯')) currentGesture = '';
 		}
 		
@@ -2694,6 +2712,16 @@
 		on:click={(e) => { if (!isDraggingChat && !isResizingChat) handleClick(e); }}
 	></canvas>
 	
+	<!-- Model name tooltip -->
+	{#if modelTooltip.visible}
+		<div 
+			class="model-tooltip"
+			style="left: {modelTooltip.x}px; top: {modelTooltip.y}px;"
+		>
+			{modelTooltip.text}
+		</div>
+	{/if}
+	
 	<div class="controls-overlay">
 		<div class="top-bar">
 			<div class="title">
@@ -3024,6 +3052,42 @@
 	.close-btn:hover {
 		background: rgba(255, 0, 255, 0.2);
 		box-shadow: 0 0 20px rgba(0, 255, 255, 0.5), 0 0 30px rgba(255, 0, 255, 0.3);
+	}
+	
+	/* Model name tooltip */
+	.model-tooltip {
+		position: fixed;
+		transform: translateX(-50%);
+		background: rgba(0, 0, 20, 0.9);
+		border: 1px solid #00ffff;
+		border-radius: 0.5rem;
+		padding: 0.5rem 1rem;
+		color: #00ffff;
+		font-family: 'Courier New', monospace;
+		font-size: 0.9rem;
+		font-weight: bold;
+		text-shadow: 0 0 10px #00ffff;
+		box-shadow: 0 0 20px rgba(0, 255, 255, 0.5), 0 0 40px rgba(255, 0, 255, 0.3);
+		pointer-events: none;
+		z-index: 2000;
+		white-space: nowrap;
+		animation: tooltip-fade-in 0.15s ease-out;
+	}
+	
+	.model-tooltip::after {
+		content: '';
+		position: absolute;
+		bottom: -6px;
+		left: 50%;
+		transform: translateX(-50%);
+		border-left: 6px solid transparent;
+		border-right: 6px solid transparent;
+		border-top: 6px solid #00ffff;
+	}
+	
+	@keyframes tooltip-fade-in {
+		from { opacity: 0; transform: translateX(-50%) translateY(-5px); }
+		to { opacity: 1; transform: translateX(-50%) translateY(0); }
 	}
 	
 	.info-panel {
