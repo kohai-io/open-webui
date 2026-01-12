@@ -398,8 +398,8 @@
 	};
 	
 	// Linear timeline settings
-	const TIMELINE_SPACING = 15; // Distance between chats on Z-axis
-	const LANE_WIDTH = 12; // Width of each model lane on X-axis
+	const TIMELINE_SPACING = 30; // Distance between chats on Z-axis
+	const LANE_WIDTH = 20; // Width of each model lane on X-axis
 	let timelineStart = 0; // Z position of oldest chat
 	let timelineEnd = 0; // Z position of newest chat
 	
@@ -452,15 +452,18 @@
 			
 			createTimelineMarkers(THREE, sortedChats.slice(0, chatCount));
 			
-			// Create buildings along timeline - X position based on time of day
+			// Create buildings along timeline - X position with alternating offset
 			for (let i = 0; i < chatCount; i++) {
 				const chat = sortedChats[i];
 				const timestamp = chat.created_at || chat.updated_at || 0;
 				
-				// X position based on time of day: morning (left) to evening (right)
-				// -12 to +12 hours from midday, scaled to -40 to +40 units
+				// X position based on time of day + alternating offset
 				const timeOffset = getTimeOfDayOffset(timestamp);
-				const x = timeOffset * 3.5; // Scale factor for spread
+				const baseX = timeOffset * 5; // Scale factor for spread (wider)
+				
+				// Alternate left/right from center based on index
+				const alternateOffset = (i % 2 === 0) ? -15 : 15;
+				const x = baseX + alternateOffset;
 				
 				const z = i * TIMELINE_SPACING;
 				
@@ -485,66 +488,6 @@
 	
 	const createTimelineMarkers = (THREE: any, sortedChats: any[]) => {
 		const railLength = sortedChats.length * TIMELINE_SPACING + 50;
-		
-		// === TIME OF DAY GRID (X-axis) ===
-		// Hours from 0 (midnight) to 24 (midnight), with 12pm at center (X=0)
-		// X position = (hour - 12) * 3.5
-		const timeGridColor = 0x006688;
-		const noonColor = 0x00ffff;
-		
-		for (let hour = 0; hour <= 24; hour += 3) { // Every 3 hours for cleaner grid
-			const xPos = (hour - 12) * 3.5;
-			const isNoon = hour === 12;
-			const isMidnight = hour === 0 || hour === 24;
-			const is6am = hour === 6;
-			const is6pm = hour === 18;
-			
-			// Vertical line along Z-axis for this hour
-			const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-				new THREE.Vector3(xPos, 0.05, -30),
-				new THREE.Vector3(xPos, 0.05, railLength)
-			]);
-			const lineColor = isNoon ? noonColor : (isMidnight ? 0xff00ff : (is6am || is6pm ? 0xffaa00 : timeGridColor));
-			const lineOpacity = isNoon ? 0.7 : (isMidnight || is6am || is6pm ? 0.5 : 0.3);
-			const lineMaterial = new THREE.LineBasicMaterial({ color: lineColor, transparent: true, opacity: lineOpacity });
-			scene.add(new THREE.Line(lineGeometry, lineMaterial));
-			
-			// Vertical post at start of timeline for this hour
-			const postGeometry = new THREE.BufferGeometry().setFromPoints([
-				new THREE.Vector3(xPos, 0, -30),
-				new THREE.Vector3(xPos, 15, -30)
-			]);
-			const postMaterial = new THREE.LineBasicMaterial({ color: lineColor, transparent: true, opacity: 0.8 });
-			scene.add(new THREE.Line(postGeometry, postMaterial));
-			
-			// Hour label - larger and higher
-			const hourLabel = hour === 0 ? '12AM' : hour === 12 ? '12PM' : hour === 24 ? '12AM' : 
-				hour < 12 ? `${hour}AM` : `${hour - 12}PM`;
-			const labelColor = isNoon ? noonColor : (isMidnight ? 0xff00ff : (is6am || is6pm ? 0xffaa00 : 0x00cccc));
-			const hourSprite = createTextSprite(THREE, hourLabel, labelColor);
-			hourSprite.position.set(xPos, 18, -30);
-			hourSprite.scale.set(8, 2, 1);
-			scene.add(hourSprite);
-		}
-		
-		// Add "MORNING" and "EVENING" labels - positioned along the sides
-		const morningSprite = createTextSprite(THREE, '🌅 MORNING', 0xffaa00);
-		morningSprite.position.set(-35, 50, railLength / 2);
-		morningSprite.scale.set(12, 3, 1);
-		scene.add(morningSprite);
-		
-		const eveningSprite = createTextSprite(THREE, 'EVENING 🌙', 0x8800ff);
-		eveningSprite.position.set(35, 50, railLength / 2);
-		eveningSprite.scale.set(12, 3, 1);
-		scene.add(eveningSprite);
-		
-		// === CENTRAL TIMELINE RAIL (noon line, more prominent) ===
-		const railGeometry = new THREE.BufferGeometry().setFromPoints([
-			new THREE.Vector3(0, 0.1, -20),
-			new THREE.Vector3(0, 0.1, railLength)
-		]);
-		const railMaterial = new THREE.LineBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.5 });
-		scene.add(new THREE.Line(railGeometry, railMaterial));
 		
 		// Create date markers along timeline
 		let lastMonth = -1;
