@@ -8,6 +8,59 @@
 	
 	export let onClose: () => void;
 	
+	// Mobile detection and touch controls
+	let isMobile = false;
+	let showMobileControls = false;
+	let touchStartPos = { x: 0, y: 0 };
+	let joystickActive = false;
+	let joystickDelta = { x: 0, y: 0 };
+	let joystickCenter = { x: 0, y: 0 };
+	let mobileMenuOpen = false;
+	
+	// Check for mobile on mount
+	const checkMobile = () => {
+		isMobile = window.innerWidth <= 768 || 'ontouchstart' in window;
+		showMobileControls = isMobile;
+	};
+	
+	// Virtual joystick handlers
+	const handleJoystickStart = (e: TouchEvent) => {
+		e.preventDefault();
+		const touch = e.touches[0];
+		const rect = (e.target as HTMLElement).getBoundingClientRect();
+		joystickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+		joystickActive = true;
+		joystickDelta = { x: 0, y: 0 };
+	};
+	
+	const handleJoystickMove = (e: TouchEvent) => {
+		if (!joystickActive) return;
+		e.preventDefault();
+		const touch = e.touches[0];
+		const maxDist = 40;
+		let dx = touch.clientX - joystickCenter.x;
+		let dy = touch.clientY - joystickCenter.y;
+		const dist = Math.sqrt(dx * dx + dy * dy);
+		if (dist > maxDist) {
+			dx = (dx / dist) * maxDist;
+			dy = (dy / dist) * maxDist;
+		}
+		joystickDelta = { x: dx / maxDist, y: dy / maxDist };
+	};
+	
+	const handleJoystickEnd = () => {
+		joystickActive = false;
+		joystickDelta = { x: 0, y: 0 };
+	};
+	
+	// Apply joystick movement in animation loop
+	const applyJoystickMovement = () => {
+		if (!joystickActive) return;
+		const moveSpeed = 1.5;
+		cameraTarget.x += joystickDelta.x * moveSpeed;
+		cameraTarget.z += joystickDelta.y * moveSpeed;
+	};
+	
 	// Chat data for visualization
 	let userChats: any[] = [];
 	let chatBuildings: Map<string, any> = new Map(); // chatId -> building mesh
@@ -1465,6 +1518,9 @@
 		// Update equalizer visualization
 		updateEqualizer();
 		
+		// Apply joystick movement for mobile
+		applyJoystickMovement();
+		
 		// Update camera world position for chunk loading
 		cameraWorldPos.x += (cameraTarget.x - cameraWorldPos.x) * 0.03;
 		cameraWorldPos.z += (cameraTarget.z - cameraWorldPos.z) * 0.03;
@@ -2764,6 +2820,55 @@
 		});
 	};
 	
+	// Handle touch tap to select buildings on mobile
+	const handleTouchSelect = (e: TouchEvent) => {
+		if (!threeRef || !camera || !sceneCanvas) return;
+		
+		// Get touch position from changedTouches (available on touchend)
+		const touch = e.changedTouches[0];
+		if (!touch) return;
+		
+		const THREE = threeRef;
+		const rect = sceneCanvas.getBoundingClientRect();
+		const mouse = new THREE.Vector2(
+			((touch.clientX - rect.left) / rect.width) * 2 - 1,
+			-((touch.clientY - rect.top) / rect.height) * 2 + 1
+		);
+		
+		const raycaster = new THREE.Raycaster();
+		raycaster.setFromCamera(mouse, camera);
+		
+		// Check for intersections with chat buildings
+		const chatBuildingArray = Array.from(chatBuildings.values());
+		const allMeshes: any[] = [];
+		
+		for (const building of chatBuildingArray) {
+			building.traverse((child: any) => {
+				if (child.isMesh) {
+					child.userData.parentBuilding = building;
+					allMeshes.push(child);
+				}
+			});
+		}
+		
+		const intersects = raycaster.intersectObjects(allMeshes, false);
+		
+		if (intersects.length > 0) {
+			const hit = intersects[0].object;
+			const building = hit.userData.parentBuilding;
+			
+			if (building?.userData?.isChat) {
+				selectedChatBuilding = building;
+				// On mobile, just select - don't auto-open chat (user can tap action button)
+				currentGesture = `📍 ${building.userData.chatTitle}`;
+			}
+		} else {
+			// Tapped empty space - deselect
+			selectedChatBuilding = null;
+			currentGesture = '';
+		}
+	};
+	
 	const handleClick = (e: MouseEvent) => {
 		if (!threeRef || !camera || !sceneCanvas) return;
 		
@@ -2919,9 +3024,11 @@
 	};
 	
 	onMount(async () => {
+		checkMobile();
 		await initThreeJS();
 		
 		window.addEventListener('resize', () => {
+			checkMobile();
 			if (camera && renderer) {
 				camera.aspect = window.innerWidth / window.innerHeight;
 				camera.updateProjectionMatrix();
@@ -2966,6 +3073,7 @@
 		on:wheel={(e) => { if (!isDraggingChat && !isResizingChat) handleWheel(e); }}
 		on:mousemove={(e) => { if (!isDraggingChat && !isResizingChat) handleMouseMove(e); }}
 		on:click={(e) => { if (!isDraggingChat && !isResizingChat) handleClick(e); }}
+		on:touchend={(e) => { if (!joystickActive) handleTouchSelect(e); }}
 	></canvas>
 	
 	<!-- Model name tooltip -->
@@ -3104,15 +3212,117 @@
 				➕ NEW CHAT
 			</button>
 			
-			<div class="help-text">
-				{#if gestureMode}
-					<div>✊ Fist → Past | ☝️ Point ← Now | ✋ Palm = Select</div>
-					<div>✌️ Overview | 👎 Morning 👍 Evening | 🤟 Warp Next</div>
-				{:else}
-					<div>⌨️ WASD/Arrows = Move | Q/E = Up/Down | Space = Warp | Enter = Open | Esc = Deselect</div>
+			{#if !isMobile}
+				<div class="help-text">
+					{#if gestureMode}
+						<div>✊ Fist → Past | ☝️ Point ← Now | ✋ Palm = Select</div>
+						<div>✌️ Overview | 👎 Morning 👍 Evening | 🤟 Warp Next</div>
+					{:else}
+						<div>⌨️ WASD/Arrows = Move | Q/E = Up/Down | Space = Warp | Enter = Open | Esc = Deselect</div>
+					{/if}
+				</div>
+			{/if}
+		</div>
+		
+		<!-- Mobile Virtual Joystick -->
+		{#if showMobileControls}
+			<div class="mobile-joystick-container">
+				<div 
+					class="mobile-joystick"
+					on:touchstart={handleJoystickStart}
+					on:touchmove={handleJoystickMove}
+					on:touchend={handleJoystickEnd}
+					role="application"
+					aria-label="Movement joystick - drag to move"
+				>
+					<div 
+						class="joystick-knob"
+						style="transform: translate({joystickDelta.x * 40}px, {joystickDelta.y * 40}px);"
+					></div>
+					<div class="joystick-directions">
+						<span class="dir-label dir-up">▲</span>
+						<span class="dir-label dir-down">▼</span>
+						<span class="dir-label dir-left">◀</span>
+						<span class="dir-label dir-right">▶</span>
+					</div>
+				</div>
+			</div>
+			
+			<!-- Mobile Action Buttons -->
+			<div class="mobile-action-buttons">
+				<button 
+					class="mobile-action-btn"
+					on:click={() => { cameraTarget.y = Math.min(100, cameraTarget.y + 10); }}
+					aria-label="Move up"
+				>
+					⬆️
+				</button>
+				<button 
+					class="mobile-action-btn"
+					on:click={() => { cameraTarget.y = Math.max(10, cameraTarget.y - 10); }}
+					aria-label="Move down"
+				>
+					⬇️
+				</button>
+				<button 
+					class="mobile-action-btn warp-btn"
+					on:click={warpToNextChat}
+					aria-label="Warp to next chat"
+				>
+					⚡
+				</button>
+				{#if selectedChatBuilding}
+					<button 
+						class="mobile-action-btn open-btn"
+						on:click={openSelectedChat}
+						aria-label="Open selected chat"
+					>
+						🚀
+					</button>
 				{/if}
 			</div>
-		</div>
+			
+			<!-- Mobile Menu Toggle -->
+			<button 
+				class="mobile-menu-toggle"
+				on:click={() => mobileMenuOpen = !mobileMenuOpen}
+				aria-label="Toggle menu"
+			>
+				{mobileMenuOpen ? '✕' : '☰'}
+			</button>
+			
+			<!-- Mobile Slide-out Menu -->
+			{#if mobileMenuOpen}
+				<div class="mobile-menu">
+					<button 
+						class="mobile-menu-item"
+						on:click={() => { showModelSelector = !showModelSelector; mobileMenuOpen = false; }}
+					>
+						➕ New Chat
+					</button>
+					<button 
+						class="mobile-menu-item"
+						class:active={gestureMode}
+						on:click={() => { toggleGestureMode(); mobileMenuOpen = false; }}
+					>
+						{gestureMode ? '🤚 Gesture Off' : '👋 Gesture On'}
+					</button>
+					<button 
+						class="mobile-menu-item"
+						class:active={audioEnabled}
+						on:click={() => { cycleAudioMode(); }}
+					>
+						{audioMode === 'off' ? '🔇 Audio' : audioMode === 'mic' ? '🎤 Mic' : '🔊 System'}
+					</button>
+					<button 
+						class="mobile-menu-item close-item"
+						on:click={onClose}
+					>
+						✕ Close
+					</button>
+				</div>
+			{/if}
+		{/if}
 		
 		<!-- Model Selector Panel -->
 		{#if showModelSelector}
@@ -4196,5 +4406,313 @@
 	.cyber-open-owui-btn:hover {
 		background: rgba(0, 255, 255, 0.3);
 		box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+	}
+	
+	/* ========== MOBILE STYLES ========== */
+	
+	/* Mobile Virtual Joystick */
+	.mobile-joystick-container {
+		position: absolute;
+		bottom: 2rem;
+		left: 1.5rem;
+		z-index: 100;
+	}
+	
+	.mobile-joystick {
+		width: 120px;
+		height: 120px;
+		background: rgba(0, 0, 20, 0.8);
+		border: 2px solid #00ffff;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		position: relative;
+		box-shadow: 0 0 20px rgba(0, 255, 255, 0.4), inset 0 0 30px rgba(0, 255, 255, 0.1);
+		touch-action: none;
+	}
+	
+	.joystick-knob {
+		width: 50px;
+		height: 50px;
+		background: linear-gradient(135deg, #00ffff, #ff00ff);
+		border-radius: 50%;
+		box-shadow: 0 0 15px #00ffff, 0 0 25px #ff00ff;
+		transition: transform 0.05s ease-out;
+	}
+	
+	.joystick-directions {
+		position: absolute;
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+	}
+	
+	.dir-label {
+		position: absolute;
+		color: rgba(0, 255, 255, 0.5);
+		font-size: 0.8rem;
+	}
+	
+	.dir-up { top: 8px; left: 50%; transform: translateX(-50%); }
+	.dir-down { bottom: 8px; left: 50%; transform: translateX(-50%); }
+	.dir-left { left: 8px; top: 50%; transform: translateY(-50%); }
+	.dir-right { right: 8px; top: 50%; transform: translateY(-50%); }
+	
+	/* Mobile Action Buttons */
+	.mobile-action-buttons {
+		position: absolute;
+		bottom: 2rem;
+		right: 1.5rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		z-index: 100;
+	}
+	
+	.mobile-action-btn {
+		width: 56px;
+		height: 56px;
+		border-radius: 50%;
+		background: rgba(0, 0, 20, 0.8);
+		border: 2px solid #00ffff;
+		color: #00ffff;
+		font-size: 1.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+		transition: all 0.2s;
+		-webkit-tap-highlight-color: transparent;
+	}
+	
+	.mobile-action-btn:active {
+		transform: scale(0.95);
+		background: rgba(0, 255, 255, 0.2);
+	}
+	
+	.mobile-action-btn.warp-btn {
+		border-color: #ff00ff;
+		box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
+	}
+	
+	.mobile-action-btn.open-btn {
+		border-color: #00ff88;
+		box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+	}
+	
+	/* Mobile Menu Toggle */
+	.mobile-menu-toggle {
+		position: absolute;
+		top: 1rem;
+		right: 1rem;
+		width: 48px;
+		height: 48px;
+		border-radius: 0.5rem;
+		background: rgba(0, 0, 20, 0.8);
+		border: 2px solid #00ffff;
+		color: #00ffff;
+		font-size: 1.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		cursor: pointer;
+		z-index: 200;
+		box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+		-webkit-tap-highlight-color: transparent;
+	}
+	
+	/* Mobile Slide-out Menu */
+	.mobile-menu {
+		position: absolute;
+		top: 4.5rem;
+		right: 1rem;
+		background: rgba(0, 0, 20, 0.95);
+		border: 2px solid #00ffff;
+		border-radius: 0.75rem;
+		padding: 0.5rem;
+		z-index: 150;
+		min-width: 180px;
+		box-shadow: 0 0 30px rgba(0, 255, 255, 0.4);
+		animation: menu-slide-in 0.2s ease-out;
+	}
+	
+	@keyframes menu-slide-in {
+		from { opacity: 0; transform: translateY(-10px); }
+		to { opacity: 1; transform: translateY(0); }
+	}
+	
+	.mobile-menu-item {
+		display: block;
+		width: 100%;
+		padding: 0.875rem 1rem;
+		background: transparent;
+		border: none;
+		border-radius: 0.5rem;
+		color: #00ffff;
+		font-family: 'Courier New', monospace;
+		font-size: 1rem;
+		text-align: left;
+		cursor: pointer;
+		transition: all 0.15s;
+		-webkit-tap-highlight-color: transparent;
+	}
+	
+	.mobile-menu-item:active,
+	.mobile-menu-item.active {
+		background: rgba(0, 255, 255, 0.2);
+	}
+	
+	.mobile-menu-item.close-item {
+		color: #ff00ff;
+		border-top: 1px solid rgba(0, 255, 255, 0.2);
+		margin-top: 0.5rem;
+		padding-top: 1rem;
+	}
+	
+	/* Mobile Responsive Adjustments */
+	@media (max-width: 768px) {
+		.top-bar {
+			padding: 0.75rem 1rem;
+		}
+		
+		.title-text {
+			font-size: 0.9rem;
+			letter-spacing: 0.1em;
+		}
+		
+		.pi-icon {
+			font-size: 1.5rem;
+		}
+		
+		.close-btn {
+			display: none; /* Use mobile menu instead */
+		}
+		
+		.info-panel {
+			top: auto;
+			bottom: 10rem;
+			left: 50%;
+			transform: translateX(-50%);
+			max-width: calc(100vw - 3rem);
+			font-size: 0.8rem;
+			padding: 0.75rem;
+		}
+		
+		.minimap {
+			display: none; /* Hide minimap on mobile - too small to be useful */
+		}
+		
+		.bottom-controls {
+			display: none; /* Use mobile controls instead */
+		}
+		
+		.gesture-container {
+			width: 200px;
+			height: 150px;
+			bottom: auto;
+			top: 4.5rem;
+			right: 1rem;
+		}
+		
+		/* Cyberspace Chat - Full screen on mobile */
+		.cyberspace-chat {
+			position: fixed !important;
+			left: 0 !important;
+			right: 0 !important;
+			top: 0 !important;
+			bottom: 0 !important;
+			width: 100% !important;
+			height: 100% !important;
+			max-height: 100vh !important;
+			border-radius: 0;
+			transform: none !important;
+			z-index: 1000;
+		}
+		
+		.resize-handle {
+			display: none; /* No resize on mobile */
+		}
+		
+		.cyber-chat-header {
+			cursor: default;
+			padding: 0.75rem 1rem;
+		}
+		
+		.drag-hint {
+			display: none;
+		}
+		
+		.cyber-chat-messages {
+			padding: 0.75rem;
+		}
+		
+		.cyber-chat-input {
+			padding: 0.75rem;
+		}
+		
+		.cyber-chat-input input {
+			font-size: 16px; /* Prevent iOS zoom */
+		}
+		
+		/* Model Selector - Full width on mobile */
+		.model-selector-panel {
+			left: 1rem;
+			right: 1rem;
+			bottom: 10rem;
+			transform: none;
+			max-width: none;
+			max-height: 40vh;
+		}
+		
+		.model-selector-item {
+			padding: 0.875rem 1rem;
+			min-height: 48px; /* Touch-friendly */
+		}
+		
+		/* Chat info panel adjustments */
+		.chat-info {
+			font-size: 0.85rem;
+		}
+		
+		.chat-title {
+			font-size: 1rem;
+		}
+		
+		.open-chat-btn {
+			padding: 0.875rem 1rem;
+			font-size: 0.9rem;
+			min-height: 48px;
+		}
+		
+		/* Model tooltip - hide on mobile (use tap instead) */
+		.model-tooltip {
+			display: none;
+		}
+	}
+	
+	/* Extra small screens */
+	@media (max-width: 400px) {
+		.mobile-joystick {
+			width: 100px;
+			height: 100px;
+		}
+		
+		.joystick-knob {
+			width: 40px;
+			height: 40px;
+		}
+		
+		.mobile-action-btn {
+			width: 48px;
+			height: 48px;
+			font-size: 1.25rem;
+		}
+		
+		.info-panel {
+			font-size: 0.75rem;
+			padding: 0.5rem;
+		}
 	}
 </style>
