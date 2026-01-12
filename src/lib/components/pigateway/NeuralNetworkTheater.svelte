@@ -1709,6 +1709,7 @@
 	
 	let faceMeshGroup: any = null;
 	let faceLandmarkPoints: any[] = [];
+	let faceMeshLines: any = null;
 	
 	const createFaceMesh = (THREE: any) => {
 		if (faceMeshGroup) {
@@ -1718,70 +1719,158 @@
 		faceMeshGroup = new THREE.Group();
 		faceMeshGroup.userData.isFaceMesh = true;
 		
-		// Create points for face landmarks (468 points in MediaPipe face mesh)
-		// Small points for granular appearance
-		const pointGeometry = new THREE.SphereGeometry(0.08, 6, 6);
+		// Create high-fidelity points for face landmarks (468 points in MediaPipe face mesh)
+		// Smaller, smoother spheres for cleaner look
+		const pointGeometry = new THREE.SphereGeometry(0.08, 8, 8);
 		const pointMaterial = new THREE.MeshBasicMaterial({ 
 			color: 0x00ffff, 
 			transparent: true, 
-			opacity: 0.95 
+			opacity: 1.0 
 		});
 		
-		// Create 468 landmark points
+		// Create 468 landmark points with glow effect
 		for (let i = 0; i < 468; i++) {
 			const point = new THREE.Mesh(pointGeometry, pointMaterial.clone());
+			
+			// Add outer glow sphere
+			const glowGeometry = new THREE.SphereGeometry(0.12, 6, 6);
+			const glowMaterial = new THREE.MeshBasicMaterial({
+				color: 0x00ffff,
+				transparent: true,
+				opacity: 0.25
+			});
+			const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+			point.add(glow);
+			point.userData.glow = glow;
+			
 			faceLandmarkPoints.push(point);
 			faceMeshGroup.add(point);
 		}
 		
+		// Create line geometry for face mesh connections
+		// Will be populated in updateFaceMesh
+		const lineMaterial = new THREE.LineBasicMaterial({
+			color: 0x00ffff,
+			transparent: true,
+			opacity: 0.6,
+			linewidth: 2
+		});
+		
+		// Create empty geometry - will be filled with actual positions in update
+		const lineGeometry = new THREE.BufferGeometry();
+		faceMeshLines = new THREE.LineSegments(lineGeometry, lineMaterial);
+		faceMeshLines.frustumCulled = false; // Always render
+		faceMeshGroup.add(faceMeshLines);
+		
 		scene.add(faceMeshGroup);
 	};
+	
+	// Face mesh tessellation connections (simplified key edges)
+	const FACE_MESH_CONNECTIONS = [
+		// Face oval
+		[10, 338], [338, 297], [297, 332], [332, 284], [284, 251], [251, 389], [389, 356], [356, 454],
+		[454, 323], [323, 361], [361, 288], [288, 397], [397, 365], [365, 379], [379, 378], [378, 400],
+		[400, 377], [377, 152], [152, 148], [148, 176], [176, 149], [149, 150], [150, 136], [136, 172],
+		[172, 58], [58, 132], [132, 93], [93, 234], [234, 127], [127, 162], [162, 21], [21, 54],
+		[54, 103], [103, 67], [67, 109], [109, 10],
+		// Left eye
+		[33, 7], [7, 163], [163, 144], [144, 145], [145, 153], [153, 154], [154, 155], [155, 133],
+		[133, 173], [173, 157], [157, 158], [158, 159], [159, 160], [160, 161], [161, 246], [246, 33],
+		// Right eye
+		[362, 382], [382, 381], [381, 380], [380, 374], [374, 373], [373, 390], [390, 249], [249, 263],
+		[263, 466], [466, 388], [388, 387], [387, 386], [386, 385], [385, 384], [384, 398], [398, 362],
+		// Lips outer
+		[61, 146], [146, 91], [91, 181], [181, 84], [84, 17], [17, 314], [314, 405], [405, 321],
+		[321, 375], [375, 291], [291, 409], [409, 270], [270, 269], [269, 267], [267, 0], [0, 37],
+		[37, 39], [39, 40], [40, 185], [185, 61],
+		// Lips inner
+		[78, 95], [95, 88], [88, 178], [178, 87], [87, 14], [14, 317], [317, 402], [402, 318],
+		[318, 324], [324, 308], [308, 415], [415, 310], [310, 311], [311, 312], [312, 13], [13, 82],
+		[82, 81], [81, 80], [80, 191], [191, 78],
+		// Nose
+		[168, 6], [6, 197], [197, 195], [195, 5], [5, 4], [4, 1], [1, 19], [19, 94], [94, 2],
+		// Left eyebrow
+		[46, 53], [53, 52], [52, 65], [65, 55], [55, 107], [107, 66], [66, 105], [105, 63], [63, 70],
+		// Right eyebrow
+		[276, 283], [283, 282], [282, 295], [295, 285], [285, 336], [336, 296], [296, 334], [334, 293], [293, 300]
+	];
 	
 	const updateFaceMesh = (landmarks: any[], blendShapes: any[]) => {
 		if (!faceMeshGroup || !threeRef || !camera || landmarks.length === 0) return;
 		
 		const faceLandmarks = landmarks[0]; // First face
 		
-		// Position face mesh in top-right corner of screen (fixed screen position)
-		// Use camera's right and up vectors to position relative to view
-		const THREE = threeRef;
-		const cameraDirection = new THREE.Vector3();
-		camera.getWorldDirection(cameraDirection);
+		// Make face mesh follow camera (like model nodes)
+		// Position in top-right corner of view, fixed relative to camera
+		faceMeshGroup.position.copy(camera.position);
+		faceMeshGroup.rotation.copy(camera.rotation);
 		
-		// Position 40 units in front of camera, offset to top-right
-		const faceX = camera.position.x + cameraDirection.x * 40 + 25; // Right offset
-		const faceY = camera.position.y + 15; // Above camera
-		const faceZ = camera.position.z + cameraDirection.z * 40;
-		
-		faceMeshGroup.position.set(faceX, faceY, faceZ);
-		
-		// Update each landmark point position - BIGGER scale
+		// Update each landmark point position - positioned in top-right corner
 		for (let i = 0; i < Math.min(faceLandmarks.length, faceLandmarkPoints.length); i++) {
 			const lm = faceLandmarks[i];
 			const point = faceLandmarkPoints[i];
 			
 			// Scale and offset landmarks (they come as 0-1 normalized)
-			// Mirror X so it matches user's perspective, BIGGER scale
+			// Position relative to camera view: right (+X local), up (+Y local), forward (-Z local)
+			const faceScale = 25; // Bigger face
+			const offsetX = 22;   // Right side of view
+			const offsetY = 12;   // Top of view
+			const offsetZ = -35;  // In front of camera
+			
 			point.position.set(
-				(lm.x - 0.5) * 40,  // Not mirrored - face faces user
-				-(lm.y - 0.5) * 40,
-				lm.z * 15
+				(lm.x - 0.5) * faceScale + offsetX,
+				-(lm.y - 0.5) * faceScale + offsetY,
+				lm.z * 5 + offsetZ
 			);
 			
-			// Color key points differently
+			// Color key points differently with matching glow
 			const isEye = (i >= 33 && i <= 133) || (i >= 362 && i <= 398);
 			const isLips = (i >= 61 && i <= 95) || (i >= 146 && i <= 178) || (i >= 291 && i <= 325) || (i >= 375 && i <= 409);
 			const isNose = i >= 1 && i <= 19;
+			const isBrow = (i >= 46 && i <= 55) || (i >= 276 && i <= 285);
+			const isContour = (i >= 234 && i <= 261) || (i >= 454 && i <= 473);
 			
+			let color = 0x00ffff; // Default cyan
 			if (isEye) {
-				point.material.color.setHex(0xff00ff);
+				color = 0xff00ff; // Magenta for eyes
 			} else if (isLips) {
-				point.material.color.setHex(0xff0066);
+				color = 0xff0066; // Pink for lips
 			} else if (isNose) {
-				point.material.color.setHex(0xffff00);
-			} else {
-				point.material.color.setHex(0x00ffff);
+				color = 0xffff00; // Yellow for nose
+			} else if (isBrow) {
+				color = 0xff8800; // Orange for brows
+			} else if (isContour) {
+				color = 0x00ff88; // Green for face contour
 			}
+			
+			point.material.color.setHex(color);
+			// Update glow color to match
+			if (point.userData.glow) {
+				point.userData.glow.material.color.setHex(color);
+			}
+		}
+		
+		// Update line positions to connect points
+		if (faceMeshLines) {
+			const THREE = threeRef;
+			const linePoints: any[] = [];
+			
+			for (let i = 0; i < FACE_MESH_CONNECTIONS.length; i++) {
+				const [idx1, idx2] = FACE_MESH_CONNECTIONS[i];
+				const p1 = faceLandmarkPoints[idx1];
+				const p2 = faceLandmarkPoints[idx2];
+				
+				if (p1 && p2) {
+					linePoints.push(new THREE.Vector3(p1.position.x, p1.position.y, p1.position.z));
+					linePoints.push(new THREE.Vector3(p2.position.x, p2.position.y, p2.position.z));
+				}
+			}
+			
+			// Dispose old geometry and create new
+			if (faceMeshLines.geometry) {
+				faceMeshLines.geometry.dispose();
+			}
+			faceMeshLines.geometry = new THREE.BufferGeometry().setFromPoints(linePoints);
 		}
 		
 		// Apply blend shapes for expression (e.g., mouth open, eyebrow raise)
@@ -1789,12 +1878,11 @@
 			const mouthOpen = blendShapes.find((b: any) => b.categoryName === 'jawOpen')?.score || 0;
 			const eyeBrowUp = blendShapes.find((b: any) => b.categoryName === 'browOuterUpLeft')?.score || 0;
 			
-			// Scale face based on expressions
-			faceMeshGroup.scale.setScalar(1 + mouthOpen * 0.15 + eyeBrowUp * 0.1);
+			// Subtle scale pulse based on expressions
+			const baseScale = 1;
+			const expressionScale = baseScale + mouthOpen * 0.1 + eyeBrowUp * 0.05;
+			// Don't reset scale - it's handled by camera following
 		}
-		
-		// Face should look at the camera (toward user)
-		faceMeshGroup.lookAt(camera.position.x, camera.position.y, camera.position.z);
 	};
 	
 	const initGestureControl = async () => {
