@@ -1,9 +1,10 @@
 <script lang="ts">
 	import { onMount, onDestroy, tick } from 'svelte';
-	import { chats, chatId } from '$lib/stores';
-	import { getChatList } from '$lib/apis/chats';
+	import { chats, chatId, models } from '$lib/stores';
+	import { getChatList, createNewChat, updateChatById, getPinnedChatList, getChatById } from '$lib/apis/chats';
 	import { goto } from '$app/navigation';
 	import { MediaPipeGestureController, type GestureType, type DualGestureType, type AllGestureTypes } from '$lib/utils/mediapipe-gesture';
+	import { WEBUI_API_BASE_URL } from '$lib/constants';
 	
 	export let onClose: () => void;
 	
@@ -12,6 +13,108 @@
 	let chatBuildings: Map<string, any> = new Map(); // chatId -> building mesh
 	let hoveredChat: any = null;
 	let selectedChatBuilding: any = null;
+	
+	// Cyberspace Chat Interface
+	let cyberspaceChat = {
+		active: false,
+		modelId: '',      // Model ID for API calls
+		displayName: '',  // Friendly name for display
+		chatId: '',       // Persistent chat ID in database
+		messages: [] as { role: 'user' | 'assistant'; content: string; id?: string }[],
+		inputText: '',
+		isLoading: false
+	};
+	let chatInputRef: HTMLInputElement;
+	
+	// Chat window position (draggable) and size (resizable)
+	let chatWindowPos = { x: 0, y: 0 }; // 0,0 means use default CSS position
+	let chatWindowSize = { width: 400, height: 500 }; // Default size
+	let isDraggingChat = false;
+	let isResizingChat = false;
+	let resizeDirection = ''; // 'se', 'sw', 'ne', 'nw', 'e', 'w', 'n', 's'
+	let dragOffset = { x: 0, y: 0 };
+	let resizeStart = { x: 0, y: 0, width: 0, height: 0, posX: 0, posY: 0 };
+	
+	const startChatDrag = (e: MouseEvent) => {
+		if (isResizingChat) return;
+		isDraggingChat = true;
+		const chatEl = (e.target as HTMLElement).closest('.cyberspace-chat') as HTMLElement;
+		if (chatEl) {
+			const rect = chatEl.getBoundingClientRect();
+			dragOffset.x = e.clientX - rect.left;
+			dragOffset.y = e.clientY - rect.top;
+			// Initialize position if not set
+			if (chatWindowPos.x === 0 && chatWindowPos.y === 0) {
+				chatWindowPos.x = rect.left;
+				chatWindowPos.y = rect.top;
+			}
+		}
+		e.preventDefault();
+	};
+	
+	const startChatResize = (e: MouseEvent, direction: string) => {
+		isResizingChat = true;
+		resizeDirection = direction;
+		const chatEl = (e.target as HTMLElement).closest('.cyberspace-chat') as HTMLElement;
+		if (chatEl) {
+			const rect = chatEl.getBoundingClientRect();
+			resizeStart = {
+				x: e.clientX,
+				y: e.clientY,
+				width: rect.width,
+				height: rect.height,
+				posX: chatWindowPos.x || rect.left,
+				posY: chatWindowPos.y || rect.top
+			};
+			// Initialize position if not set
+			if (chatWindowPos.x === 0 && chatWindowPos.y === 0) {
+				chatWindowPos.x = rect.left;
+				chatWindowPos.y = rect.top;
+			}
+		}
+		e.preventDefault();
+		e.stopPropagation();
+	};
+	
+	const onChatDrag = (e: MouseEvent) => {
+		if (isDraggingChat) {
+			chatWindowPos.x = Math.max(0, Math.min(window.innerWidth - chatWindowSize.width, e.clientX - dragOffset.x));
+			chatWindowPos.y = Math.max(0, Math.min(window.innerHeight - 100, e.clientY - dragOffset.y));
+		} else if (isResizingChat) {
+			const dx = e.clientX - resizeStart.x;
+			const dy = e.clientY - resizeStart.y;
+			const minWidth = 300;
+			const minHeight = 300;
+			const maxWidth = window.innerWidth - 50;
+			const maxHeight = window.innerHeight - 50;
+			
+			// Handle different resize directions
+			if (resizeDirection.includes('e')) {
+				chatWindowSize.width = Math.max(minWidth, Math.min(maxWidth, resizeStart.width + dx));
+			}
+			if (resizeDirection.includes('w')) {
+				const newWidth = Math.max(minWidth, Math.min(maxWidth, resizeStart.width - dx));
+				const widthDiff = resizeStart.width - newWidth;
+				chatWindowPos.x = resizeStart.posX + widthDiff;
+				chatWindowSize.width = newWidth;
+			}
+			if (resizeDirection.includes('s')) {
+				chatWindowSize.height = Math.max(minHeight, Math.min(maxHeight, resizeStart.height + dy));
+			}
+			if (resizeDirection.includes('n')) {
+				const newHeight = Math.max(minHeight, Math.min(maxHeight, resizeStart.height - dy));
+				const heightDiff = resizeStart.height - newHeight;
+				chatWindowPos.y = resizeStart.posY + heightDiff;
+				chatWindowSize.height = newHeight;
+			}
+		}
+	};
+	
+	const stopChatDrag = () => {
+		isDraggingChat = false;
+		isResizingChat = false;
+		resizeDirection = '';
+	};
 	
 	let container: HTMLDivElement;
 	let sceneCanvas: HTMLCanvasElement;
@@ -37,13 +140,18 @@
 	let selectedDeviceId: string | null = null;
 	let showDeviceMenu = false;
 	
+	// Warp effect state
+	let isWarping = false;
+	let warpSpeed = 0;
+	let warpLines: any[] = [];
+	
 	const initThreeJS = async () => {
 		// @ts-ignore - CDN import
 		const THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
 		
 		scene = new THREE.Scene();
-		scene.background = new THREE.Color(0x000000);
-		scene.fog = new THREE.Fog(0x000000, 50, 200);
+		scene.background = new THREE.Color(0x000008);
+		scene.fog = new THREE.Fog(0x000008, 80, 300);
 		
 		camera = new THREE.PerspectiveCamera(
 			75,
@@ -59,11 +167,21 @@
 			alpha: true
 		});
 		renderer.setSize(window.innerWidth, window.innerHeight);
-		renderer.setPixelRatio(window.devicePixelRatio);
+		renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 		
+		// Create the scene content first (ensures something renders)
 		createChatGraph(THREE);
 		
+		// Create warp speed lines (hidden initially)
+		createWarpLines(THREE);
+		
+		// Start animation loop
 		animate(THREE);
+		
+		// Apply CSS glow effect to canvas for neon look
+		if (sceneCanvas) {
+			sceneCanvas.style.filter = 'contrast(1.1) saturate(1.2)';
+		}
 	};
 	
 	let dataStreams: any[] = [];
@@ -73,6 +191,19 @@
 	let cameraTarget = { x: 0, y: 25, z: 0 };
 	let cameraWorldPos = { x: 0, z: 0 };
 	let electricArcs: any[] = [];
+	let hoveredBuilding: any = null;
+	
+	// Audio reactivity
+	let audioContext: AudioContext | null = null;
+	let audioAnalyzer: AnalyserNode | null = null;
+	let audioDataArray: Uint8Array | null = null;
+	let audioEnabled = false;
+	let particleSystem: any = null;
+	
+	// Model Hub - floating AI model representations
+	let modelHub: Map<string, any> = new Map(); // modelId -> 3D object
+	let hoveredModel: any = null;
+	let modelStats: Map<string, { chatCount: number; lastUsed: Date | null }> = new Map();
 	
 	// Procedural generation settings
 	const CHUNK_SIZE = 100;
@@ -133,8 +264,137 @@
 		// Load user chats and create chat buildings in center
 		await loadUserChats(THREE);
 		
+		// Create Model Hub - floating AI model representations
+		createModelHub(THREE);
+		
 		// Initial chunk loading (procedural buildings in outer areas)
 		updateChunks();
+	};
+	
+	// Model Hub - creates floating orbs for each AI model
+	const createModelHub = (THREE: any) => {
+		// Get available models from the store (same as chat dropdown)
+		const availableModels = $models || [];
+		
+		// Also collect usage stats from chats for sizing
+		const modelUsage: Map<string, { count: number; lastUsed: number }> = new Map();
+		userChats.forEach(chat => {
+			let chatModels: string[] = [];
+			if (chat.chat?.models && Array.isArray(chat.chat.models)) chatModels = chat.chat.models;
+			else if (chat.models && Array.isArray(chat.models)) chatModels = chat.models;
+			else if (chat.model) chatModels = [chat.model];
+			
+			chatModels.forEach((model: string) => {
+				if (!model) return;
+				const existing = modelUsage.get(model) || { count: 0, lastUsed: 0 };
+				existing.count++;
+				const chatTime = chat.updated_at || chat.created_at || 0;
+				if (chatTime > existing.lastUsed) existing.lastUsed = chatTime;
+				modelUsage.set(model, existing);
+			});
+		});
+		
+		// If no models available, don't create the hub
+		if (availableModels.length === 0) {
+			console.log('No models available for Model Hub');
+			return;
+		}
+		
+		console.log(`Model Hub: Found ${availableModels.length} available models`);
+		
+		// Create Model Hub group - positioned to the left of the timeline
+		const hubGroup = new THREE.Group();
+		hubGroup.position.set(-60, 30, 0); // Left side, elevated
+		
+		// Create a floating platform for the hub
+		const platformGeometry = new THREE.CylinderGeometry(25, 25, 2, 32);
+		const platformMaterial = new THREE.MeshBasicMaterial({
+			color: 0x001122,
+			transparent: true,
+			opacity: 0.5
+		});
+		const platform = new THREE.Mesh(platformGeometry, platformMaterial);
+		platform.position.y = -5;
+		hubGroup.add(platform);
+		
+		// Platform ring
+		const ringGeometry = new THREE.TorusGeometry(25, 0.3, 8, 64);
+		const ringMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+		const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+		ring.rotation.x = Math.PI / 2;
+		ring.position.y = -4;
+		hubGroup.add(ring);
+		
+		// Create orbs for each available model
+		const angleStep = (Math.PI * 2) / Math.max(availableModels.length, 1);
+		
+		// Adjust platform size based on model count
+		const platformRadius = Math.max(25, availableModels.length * 3);
+		platform.geometry.dispose();
+		platform.geometry = new THREE.CylinderGeometry(platformRadius, platformRadius, 2, 32);
+		ring.geometry.dispose();
+		ring.geometry = new THREE.TorusGeometry(platformRadius, 0.3, 8, 64);
+		
+		availableModels.forEach((model: any, index: number) => {
+			const modelId = model.id || model.name || 'unknown';
+			const modelName = model.name || model.id || 'Unknown Model';
+			const stats = modelUsage.get(modelId) || { count: 0, lastUsed: 0 };
+			
+			const angle = index * angleStep;
+			const radius = Math.max(15, availableModels.length * 2);
+			const x = Math.cos(angle) * radius;
+			const z = Math.sin(angle) * radius;
+			
+			// Create model orb - size based on usage (bigger = more used)
+			const orbSize = 2 + Math.min(stats.count / 5, 4);
+			const orbGeometry = new THREE.IcosahedronGeometry(orbSize, 1);
+			const color = getModelColor(modelId);
+			const orbMaterial = new THREE.MeshBasicMaterial({
+				color,
+				transparent: true,
+				opacity: 0.8,
+				wireframe: true
+			});
+			const orb = new THREE.Mesh(orbGeometry, orbMaterial);
+			orb.position.set(x, 0, z);
+			
+			// Inner solid core
+			const coreGeometry = new THREE.IcosahedronGeometry(orbSize * 0.6, 1);
+			const coreMaterial = new THREE.MeshBasicMaterial({
+				color,
+				transparent: true,
+				opacity: 0.5
+			});
+			const core = new THREE.Mesh(coreGeometry, coreMaterial);
+			orb.add(core);
+			
+			// Orbiting ring
+			const orbitRing = new THREE.TorusGeometry(orbSize * 1.3, 0.1, 8, 32);
+			const orbitMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 });
+			const orbit = new THREE.Mesh(orbitRing, orbitMaterial);
+			orbit.rotation.x = Math.PI / 3;
+			orb.add(orbit);
+			
+			// Store model data - use model.id for API calls
+			orb.userData = {
+				isModel: true,
+				modelId: modelId,
+				modelName: modelName,
+				chatCount: stats.count,
+				lastUsed: stats.lastUsed,
+				baseY: 0,
+				rotationSpeed: 0.01 + Math.random() * 0.02,
+				orbitRing: orbit
+			};
+			
+			hubGroup.add(orb);
+			modelHub.set(modelId, orb);
+			modelStats.set(modelId, { chatCount: stats.count, lastUsed: stats.lastUsed ? new Date(stats.lastUsed * 1000) : null });
+		});
+		
+		// Hub label
+		scene.userData.modelHub = hubGroup;
+		scene.add(hubGroup);
 	};
 	
 	// Linear timeline settings
@@ -732,11 +992,20 @@
 		const positions = new Float32Array(particleCount * 3);
 		const colors = new Float32Array(particleCount * 3);
 		const velocities: number[] = [];
+		const basePositions = new Float32Array(particleCount * 3); // Store original positions
 		
 		for (let i = 0; i < particleCount; i++) {
-			positions[i * 3] = (Math.random() - 0.5) * 300;
-			positions[i * 3 + 1] = Math.random() * 100;
-			positions[i * 3 + 2] = (Math.random() - 0.5) * 300;
+			const x = (Math.random() - 0.5) * 300;
+			const y = Math.random() * 100;
+			const z = (Math.random() - 0.5) * 300;
+			
+			positions[i * 3] = x;
+			positions[i * 3 + 1] = y;
+			positions[i * 3 + 2] = z;
+			
+			basePositions[i * 3] = x;
+			basePositions[i * 3 + 1] = y;
+			basePositions[i * 3 + 2] = z;
 			
 			velocities.push(
 				(Math.random() - 0.5) * 0.8,
@@ -767,8 +1036,76 @@
 		
 		const particles = new THREE.Points(particlesGeometry, particlesMaterial);
 		particles.userData.velocities = velocities;
+		particles.userData.basePositions = basePositions;
 		scene.add(particles);
 		scene.userData.particles = particles;
+		particleSystem = particles; // Store reference for audio reactivity
+	};
+	
+	const createWarpLines = (THREE: any) => {
+		if (!scene) return;
+		
+		// Create streaking lines for warp speed effect
+		const lineCount = 150;
+		const warpGroup = new THREE.Group();
+		warpGroup.visible = false;
+		warpLines = []; // Reset array
+		
+		for (let i = 0; i < lineCount; i++) {
+			const length = 5 + Math.random() * 15;
+			const geometry = new THREE.BufferGeometry().setFromPoints([
+				new THREE.Vector3(0, 0, 0),
+				new THREE.Vector3(0, 0, -length)
+			]);
+			
+			const color = Math.random() > 0.5 ? 0x00ffff : 0xff00ff;
+			const material = new THREE.LineBasicMaterial({
+				color,
+				transparent: true,
+				opacity: 0.7
+			});
+			
+			const line = new THREE.Line(geometry, material);
+			
+			// Position randomly around the camera view
+			const angle = Math.random() * Math.PI * 2;
+			const radius = 5 + Math.random() * 25;
+			line.position.x = Math.cos(angle) * radius;
+			line.position.y = Math.sin(angle) * radius - 5;
+			line.position.z = -20 - Math.random() * 40;
+			
+			line.userData.baseZ = line.position.z;
+			line.userData.speed = 2 + Math.random() * 3;
+			
+			warpGroup.add(line);
+			warpLines.push(line);
+		}
+		
+		scene.add(warpGroup);
+		scene.userData.warpGroup = warpGroup;
+	};
+	
+	const startWarp = () => {
+		isWarping = true;
+		warpSpeed = 0;
+		if (scene?.userData?.warpGroup) {
+			scene.userData.warpGroup.visible = true;
+		}
+		// Intensify canvas filter during warp
+		if (sceneCanvas) {
+			sceneCanvas.style.filter = 'contrast(1.3) saturate(1.5) brightness(1.2)';
+		}
+	};
+	
+	const stopWarp = () => {
+		isWarping = false;
+		if (scene?.userData?.warpGroup) {
+			scene.userData.warpGroup.visible = false;
+		}
+		// Reset canvas filter
+		if (sceneCanvas) {
+			sceneCanvas.style.filter = 'contrast(1.1) saturate(1.2)';
+		}
 	};
 	
 	const generateChunk = (chunkX: number, chunkZ: number) => {
@@ -1203,6 +1540,37 @@
 			});
 		});
 		
+		// Animate Model Hub orbs
+		modelHub.forEach((orb: any, modelName: string) => {
+			if (orb.userData?.isModel) {
+				// Floating bob motion
+				orb.position.y = orb.userData.baseY + Math.sin(time * 2 + modelName.length) * 1.5;
+				
+				// Rotate orb
+				orb.rotation.y += orb.userData.rotationSpeed;
+				orb.rotation.x = Math.sin(time * 0.5) * 0.1;
+				
+				// Rotate orbit ring
+				if (orb.userData.orbitRing) {
+					orb.userData.orbitRing.rotation.z += 0.02;
+				}
+				
+				// Highlight if hovered
+				if (orb === hoveredModel) {
+					orb.scale.setScalar(1.3);
+					orb.material.opacity = 1;
+				} else {
+					orb.scale.setScalar(1);
+					orb.material.opacity = 0.8;
+				}
+			}
+		});
+		
+		// Rotate Model Hub platform slowly
+		if (scene.userData.modelHub) {
+			scene.userData.modelHub.rotation.y += 0.001;
+		}
+		
 		// Animate data packets along highways
 		dataStreams.forEach((packet: any) => {
 			if (!packet.userData?.curve) return;
@@ -1222,15 +1590,53 @@
 			packet.scale.setScalar(scale);
 		});
 		
-		// Animate flying particles - follow camera
+		// Animate flying particles - follow camera + audio reactivity
 		if (scene.userData.particles) {
 			const positions = scene.userData.particles.geometry.attributes.position.array;
 			const velocities = scene.userData.particles.userData.velocities;
+			const basePositions = scene.userData.particles.userData.basePositions;
+			
+			// Get audio frequency data
+			const { bass, mid, high } = getFrequencyBands();
+			const audioLevel = getAudioLevel();
+			
+			// Audio affects particle size and material
+			if (audioEnabled && audioLevel > 0.01) {
+				scene.userData.particles.material.size = 0.25 + bass * 1.5;
+				scene.userData.particles.material.opacity = 0.7 + audioLevel * 0.3;
+			} else {
+				scene.userData.particles.material.size = 0.25;
+				scene.userData.particles.material.opacity = 0.9;
+			}
 			
 			for (let i = 0; i < positions.length / 3; i++) {
+				// Base movement
 				positions[i * 3] += velocities[i * 3];
 				positions[i * 3 + 1] += velocities[i * 3 + 1];
 				positions[i * 3 + 2] += velocities[i * 3 + 2];
+				
+				// Audio reactivity - particles pulse and move based on frequency
+				if (audioEnabled && audioLevel > 0.01) {
+					const particleGroup = i % 3; // Divide particles into 3 groups
+					let audioInfluence = 0;
+					
+					if (particleGroup === 0) {
+						// Bass group - vertical bounce
+						audioInfluence = bass * 15;
+						positions[i * 3 + 1] += Math.sin(time * 8 + i) * audioInfluence;
+					} else if (particleGroup === 1) {
+						// Mid group - horizontal spread
+						audioInfluence = mid * 10;
+						positions[i * 3] += Math.cos(time * 6 + i) * audioInfluence * 0.5;
+						positions[i * 3 + 2] += Math.sin(time * 6 + i) * audioInfluence * 0.5;
+					} else {
+						// High group - rapid flutter
+						audioInfluence = high * 8;
+						positions[i * 3] += (Math.random() - 0.5) * audioInfluence;
+						positions[i * 3 + 1] += (Math.random() - 0.5) * audioInfluence;
+						positions[i * 3 + 2] += (Math.random() - 0.5) * audioInfluence;
+					}
+				}
 				
 				// Wrap around camera position
 				const relX = positions[i * 3] - cameraWorldPos.x;
@@ -1250,6 +1656,50 @@
 			scene.userData.spotlights[0].position.z = cameraWorldPos.z + Math.cos(time * 0.3) * 80;
 			scene.userData.spotlights[1].position.x = cameraWorldPos.x + Math.sin(time * 0.3 + Math.PI) * 80;
 			scene.userData.spotlights[1].position.z = cameraWorldPos.z + Math.cos(time * 0.3 + Math.PI) * 80;
+		}
+		
+		// Audio-reactive buildings - pulse to the beat
+		if (audioEnabled) {
+			const { bass, mid } = getFrequencyBands();
+			chatBuildings.forEach((building: any) => {
+				if (building.userData?.isChat) {
+					// Scale buildings slightly with bass
+					const baseScale = 1;
+					const audioScale = baseScale + bass * 0.15;
+					building.scale.setScalar(audioScale);
+					
+					// Pulse beacon brightness with mid frequencies
+					building.children.forEach((child: any) => {
+						if (child.material && child.geometry?.type === 'SphereGeometry') {
+							child.material.opacity = 0.5 + mid * 0.5;
+						}
+					});
+				}
+			});
+		}
+		
+		// Warp speed effect animation
+		if (isWarping && scene.userData.warpGroup) {
+			warpSpeed = Math.min(warpSpeed + 0.1, 5);
+			
+			warpLines.forEach((line: any) => {
+				line.position.z += warpSpeed * line.userData.speed;
+				
+				// Reset lines that pass the camera
+				if (line.position.z > 30) {
+					line.position.z = line.userData.baseZ - 50;
+				}
+				
+				// Stretch lines based on speed
+				line.scale.z = 1 + warpSpeed * 0.5;
+			});
+			
+			// Position warp group relative to camera
+			scene.userData.warpGroup.position.set(
+				camera.position.x,
+				camera.position.y,
+				camera.position.z - 30
+			);
 		}
 		
 		renderer.render(scene, camera);
@@ -1284,12 +1734,108 @@
 		await gestureController.startCamera(deviceId);
 	};
 	
+	let faceMeshGroup: any = null;
+	let faceLandmarkPoints: any[] = [];
+	
+	const createFaceMesh = (THREE: any) => {
+		if (faceMeshGroup) {
+			scene.remove(faceMeshGroup);
+		}
+		
+		faceMeshGroup = new THREE.Group();
+		faceMeshGroup.userData.isFaceMesh = true;
+		
+		// Create points for face landmarks (468 points in MediaPipe face mesh)
+		// Small points for granular appearance
+		const pointGeometry = new THREE.SphereGeometry(0.08, 6, 6);
+		const pointMaterial = new THREE.MeshBasicMaterial({ 
+			color: 0x00ffff, 
+			transparent: true, 
+			opacity: 0.95 
+		});
+		
+		// Create 468 landmark points
+		for (let i = 0; i < 468; i++) {
+			const point = new THREE.Mesh(pointGeometry, pointMaterial.clone());
+			faceLandmarkPoints.push(point);
+			faceMeshGroup.add(point);
+		}
+		
+		scene.add(faceMeshGroup);
+	};
+	
+	const updateFaceMesh = (landmarks: any[], blendShapes: any[]) => {
+		if (!faceMeshGroup || !threeRef || !camera || landmarks.length === 0) return;
+		
+		const faceLandmarks = landmarks[0]; // First face
+		
+		// Position face mesh in top-right corner of screen (fixed screen position)
+		// Use camera's right and up vectors to position relative to view
+		const THREE = threeRef;
+		const cameraDirection = new THREE.Vector3();
+		camera.getWorldDirection(cameraDirection);
+		
+		// Position 40 units in front of camera, offset to top-right
+		const faceX = camera.position.x + cameraDirection.x * 40 + 25; // Right offset
+		const faceY = camera.position.y + 15; // Above camera
+		const faceZ = camera.position.z + cameraDirection.z * 40;
+		
+		faceMeshGroup.position.set(faceX, faceY, faceZ);
+		
+		// Update each landmark point position - BIGGER scale
+		for (let i = 0; i < Math.min(faceLandmarks.length, faceLandmarkPoints.length); i++) {
+			const lm = faceLandmarks[i];
+			const point = faceLandmarkPoints[i];
+			
+			// Scale and offset landmarks (they come as 0-1 normalized)
+			// Mirror X so it matches user's perspective, BIGGER scale
+			point.position.set(
+				(lm.x - 0.5) * 40,  // Not mirrored - face faces user
+				-(lm.y - 0.5) * 40,
+				lm.z * 15
+			);
+			
+			// Color key points differently
+			const isEye = (i >= 33 && i <= 133) || (i >= 362 && i <= 398);
+			const isLips = (i >= 61 && i <= 95) || (i >= 146 && i <= 178) || (i >= 291 && i <= 325) || (i >= 375 && i <= 409);
+			const isNose = i >= 1 && i <= 19;
+			
+			if (isEye) {
+				point.material.color.setHex(0xff00ff);
+			} else if (isLips) {
+				point.material.color.setHex(0xff0066);
+			} else if (isNose) {
+				point.material.color.setHex(0xffff00);
+			} else {
+				point.material.color.setHex(0x00ffff);
+			}
+		}
+		
+		// Apply blend shapes for expression (e.g., mouth open, eyebrow raise)
+		if (blendShapes.length > 0) {
+			const mouthOpen = blendShapes.find((b: any) => b.categoryName === 'jawOpen')?.score || 0;
+			const eyeBrowUp = blendShapes.find((b: any) => b.categoryName === 'browOuterUpLeft')?.score || 0;
+			
+			// Scale face based on expressions
+			faceMeshGroup.scale.setScalar(1 + mouthOpen * 0.15 + eyeBrowUp * 0.1);
+		}
+		
+		// Face should look at the camera (toward user)
+		faceMeshGroup.lookAt(camera.position.x, camera.position.y, camera.position.z);
+	};
+	
 	const initGestureControl = async () => {
 		await enumerateVideoDevices();
 		
 		gestureController = new MediaPipeGestureController();
 		await gestureController.initialize(videoElement, gestureCanvas);
 		await gestureController.startCamera(selectedDeviceId || undefined);
+		
+		// Create and setup face mesh
+		if (threeRef) {
+			createFaceMesh(threeRef);
+			gestureController.onFaceLandmarks(updateFaceMesh);
+		}
 		
 		// ☝️ POINTING = TURBO forward into the past (older chats)
 		gestureController.on('Pointing_Up', () => {
@@ -1348,6 +1894,9 @@
 		gestureController.on('ILoveYou', () => {
 			const chatBuildingArray = Array.from(chatBuildings.values());
 			if (chatBuildingArray.length > 0) {
+				// Start warp effect
+				startWarp();
+				
 				// Find next chat ahead on timeline
 				const aheadChats = chatBuildingArray
 					.filter(b => b.position.z > cameraWorldPos.z)
@@ -1369,6 +1918,9 @@
 				cameraTarget.z = target.position.z - 10; // Position behind the chat
 				cameraTarget.y = Math.max(20, target.userData.height * 0.8);
 				zoom = 25;
+				
+				// Stop warp after arriving
+				setTimeout(() => stopWarp(), 800);
 			}
 		});
 	};
@@ -1415,9 +1967,161 @@
 				gestureController.dispose();
 				gestureController = null;
 			}
+			
+			// Remove face mesh from scene
+			if (faceMeshGroup && scene) {
+				scene.remove(faceMeshGroup);
+				faceMeshGroup = null;
+				faceLandmarkPoints = [];
+			}
+			
 			gestureMode = false;
 			currentGesture = '';
 		}
+	};
+	
+	// Audio reactivity functions
+	let audioMode: 'off' | 'mic' | 'system' = 'off';
+	let audioStream: MediaStream | null = null;
+	
+	const initAudioMic = async () => {
+		try {
+			// Create audio context
+			audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+			audioAnalyzer = audioContext.createAnalyser();
+			audioAnalyzer.fftSize = 256;
+			audioAnalyzer.smoothingTimeConstant = 0.8;
+			
+			const bufferLength = audioAnalyzer.frequencyBinCount;
+			audioDataArray = new Uint8Array(bufferLength);
+			
+			// Get microphone input
+			audioStream = await navigator.mediaDevices.getUserMedia({ 
+				audio: {
+					echoCancellation: false,
+					noiseSuppression: false,
+					autoGainControl: false
+				}
+			});
+			
+			const source = audioContext.createMediaStreamSource(audioStream);
+			source.connect(audioAnalyzer);
+			
+			audioEnabled = true;
+			audioMode = 'mic';
+			console.log('🎤 Microphone audio enabled');
+		} catch (error) {
+			console.error('Failed to initialize microphone audio:', error);
+			audioEnabled = false;
+			audioMode = 'off';
+		}
+	};
+	
+	const initAudioSystem = async () => {
+		try {
+			// Create audio context
+			audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+			audioAnalyzer = audioContext.createAnalyser();
+			audioAnalyzer.fftSize = 256;
+			audioAnalyzer.smoothingTimeConstant = 0.8;
+			
+			const bufferLength = audioAnalyzer.frequencyBinCount;
+			audioDataArray = new Uint8Array(bufferLength);
+			
+			// Get system audio via screen share (user must share a tab/window with audio)
+			audioStream = await navigator.mediaDevices.getDisplayMedia({ 
+				video: true, // Required but we won't use it
+				audio: {
+					echoCancellation: false,
+					noiseSuppression: false,
+					autoGainControl: false
+				} as any
+			});
+			
+			// Check if we got audio
+			const audioTracks = audioStream.getAudioTracks();
+			if (audioTracks.length === 0) {
+				throw new Error('No audio track - make sure to share a tab with audio');
+			}
+			
+			// Stop video track since we don't need it
+			audioStream.getVideoTracks().forEach(track => track.stop());
+			
+			const source = audioContext.createMediaStreamSource(audioStream);
+			source.connect(audioAnalyzer);
+			
+			audioEnabled = true;
+			audioMode = 'system';
+			console.log('🔊 System audio enabled');
+		} catch (error) {
+			console.error('Failed to initialize system audio:', error);
+			audioEnabled = false;
+			audioMode = 'off';
+		}
+	};
+	
+	const stopAudio = async () => {
+		if (audioStream) {
+			audioStream.getTracks().forEach(track => track.stop());
+			audioStream = null;
+		}
+		if (audioContext) {
+			await audioContext.close();
+			audioContext = null;
+			audioAnalyzer = null;
+			audioDataArray = null;
+		}
+		audioEnabled = false;
+		audioMode = 'off';
+	};
+	
+	const cycleAudioMode = async () => {
+		// Cycle through: off -> mic -> system -> off
+		if (audioMode === 'off') {
+			await initAudioMic();
+		} else if (audioMode === 'mic') {
+			await stopAudio();
+			await initAudioSystem();
+		} else {
+			await stopAudio();
+		}
+	};
+	
+	const getAudioLevel = (): number => {
+		if (!audioAnalyzer || !audioDataArray || !audioEnabled) return 0;
+		
+		audioAnalyzer.getByteFrequencyData(audioDataArray as Uint8Array<ArrayBuffer>);
+		
+		// Calculate average level
+		let sum = 0;
+		for (let i = 0; i < audioDataArray.length; i++) {
+			sum += audioDataArray[i];
+		}
+		return sum / audioDataArray.length / 255; // Normalize to 0-1
+	};
+	
+	const getFrequencyBands = (): { bass: number; mid: number; high: number } => {
+		if (!audioAnalyzer || !audioDataArray || !audioEnabled) {
+			return { bass: 0, mid: 0, high: 0 };
+		}
+		
+		audioAnalyzer.getByteFrequencyData(audioDataArray as Uint8Array<ArrayBuffer>);
+		const len = audioDataArray.length;
+		
+		// Split into frequency bands
+		let bass = 0, mid = 0, high = 0;
+		const bassEnd = Math.floor(len * 0.1);
+		const midEnd = Math.floor(len * 0.5);
+		
+		for (let i = 0; i < bassEnd; i++) bass += audioDataArray[i];
+		for (let i = bassEnd; i < midEnd; i++) mid += audioDataArray[i];
+		for (let i = midEnd; i < len; i++) high += audioDataArray[i];
+		
+		return {
+			bass: bass / (bassEnd * 255),
+			mid: mid / ((midEnd - bassEnd) * 255),
+			high: high / ((len - midEnd) * 255)
+		};
 	};
 	
 	const handleWheel = (e: WheelEvent) => {
@@ -1432,7 +2136,358 @@
 			cameraTarget.x += e.movementX * 0.5;
 			cameraTarget.y -= e.movementY * 0.3;
 			cameraTarget.y = Math.max(5, Math.min(100, cameraTarget.y));
+		} else {
+			// Hover detection when not dragging
+			checkHover(e);
 		}
+	};
+	
+	const checkHover = (e: MouseEvent) => {
+		if (!threeRef || !camera || !sceneCanvas) return;
+		
+		const THREE = threeRef;
+		const rect = sceneCanvas.getBoundingClientRect();
+		const mouse = new THREE.Vector2(
+			((e.clientX - rect.left) / rect.width) * 2 - 1,
+			-((e.clientY - rect.top) / rect.height) * 2 + 1
+		);
+		
+		const raycaster = new THREE.Raycaster();
+		raycaster.setFromCamera(mouse, camera);
+		
+		// First check for model orb hovers
+		const modelMeshes: any[] = [];
+		modelHub.forEach((orb: any) => {
+			orb.traverse((child: any) => {
+				if (child.isMesh) {
+					child.userData.parentOrb = orb;
+					modelMeshes.push(child);
+				}
+			});
+		});
+		
+		const modelIntersects = raycaster.intersectObjects(modelMeshes, false);
+		if (modelIntersects.length > 0) {
+			const hit = modelIntersects[0].object;
+			const orb = hit.userData.parentOrb;
+			if (orb?.userData?.isModel) {
+				hoveredModel = orb;
+				sceneCanvas.style.cursor = 'var(--cyber-cursor-pointer)';
+				// Show model info - use modelId for stats, modelName for display
+				const stats = modelStats.get(orb.userData.modelId);
+				const displayName = orb.userData.modelName || orb.userData.modelId;
+				if (stats && stats.chatCount > 0) {
+					const lastUsedStr = stats.lastUsed ? stats.lastUsed.toLocaleDateString() : 'Never';
+					currentGesture = `🤖 ${displayName} | ${stats.chatCount} chats | Last: ${lastUsedStr} | Click to chat`;
+				} else {
+					currentGesture = `🤖 ${displayName} | Click to chat`;
+				}
+				return;
+			}
+		} else if (hoveredModel) {
+			hoveredModel = null;
+			if (!currentGesture.startsWith('🎯')) currentGesture = '';
+		}
+		
+		const chatBuildingArray = Array.from(chatBuildings.values());
+		const allMeshes: any[] = [];
+		
+		for (const building of chatBuildingArray) {
+			building.traverse((child: any) => {
+				if (child.isMesh) {
+					child.userData.parentBuilding = building;
+					allMeshes.push(child);
+				}
+			});
+		}
+		
+		const intersects = raycaster.intersectObjects(allMeshes, false);
+		
+		if (intersects.length > 0) {
+			const hit = intersects[0].object;
+			const building = hit.userData.parentBuilding;
+			
+			if (building?.userData?.isChat && building !== hoveredBuilding) {
+				// Unhighlight previous
+				if (hoveredBuilding) {
+					setBuildingHighlight(hoveredBuilding, false);
+				}
+				// Highlight new
+				hoveredBuilding = building;
+				setBuildingHighlight(building, true);
+				sceneCanvas.style.cursor = 'var(--cyber-cursor-pointer)';
+			}
+		} else if (hoveredBuilding) {
+			setBuildingHighlight(hoveredBuilding, false);
+			hoveredBuilding = null;
+			sceneCanvas.style.cursor = 'var(--cyber-cursor-grab)';
+		}
+	};
+	
+	// Generate a unique ID for messages
+	const generateMessageId = () => crypto.randomUUID();
+	
+	// Start a new chat with a specific model - creates persistent chat session
+	const startNewChatWithModel = async (modelId: string, displayName?: string) => {
+		const name = displayName || modelId;
+		
+		// Initialize cyberspace chat state
+		cyberspaceChat = {
+			active: true,
+			modelId: modelId,
+			displayName: name,
+			chatId: '',
+			messages: [],
+			inputText: '',
+			isLoading: true // Show loading while creating chat
+		};
+		currentGesture = `🤖 Creating chat with ${name}...`;
+		
+		try {
+			// Create a new persistent chat in the database
+			const chatData = {
+				models: [modelId],
+				messages: [],
+				history: {
+					messages: {},
+					currentId: null
+				},
+				tags: [],
+				timestamp: Date.now()
+			};
+			
+			const newChat = await createNewChat(localStorage.token, chatData, null);
+			
+			if (newChat?.id) {
+				cyberspaceChat.chatId = newChat.id;
+				currentGesture = `🤖 Chatting with ${name}`;
+				console.log(`Created new chat: ${newChat.id}`);
+				
+				// Refresh the chats store so sidebar updates
+				const updatedChats = await getChatList(localStorage.token, 1);
+				chats.set(updatedChats);
+			} else {
+				throw new Error('Failed to create chat');
+			}
+		} catch (error) {
+			console.error('Failed to create chat:', error);
+			currentGesture = `⚠️ Chat creation failed - using temporary session`;
+			// Continue with temporary session if creation fails
+		} finally {
+			cyberspaceChat.isLoading = false;
+		}
+		
+		// Focus input after render
+		tick().then(() => {
+			if (chatInputRef) chatInputRef.focus();
+		});
+	};
+	
+	// Save chat to database
+	const saveChatToDatabase = async () => {
+		if (!cyberspaceChat.chatId) return;
+		
+		try {
+			// Build the chat history structure that Open WebUI expects
+			const messagesMap: Record<string, any> = {};
+			let lastId: string | null = null;
+			
+			cyberspaceChat.messages.forEach((msg, index) => {
+				const msgId = msg.id || generateMessageId();
+				messagesMap[msgId] = {
+					id: msgId,
+					parentId: lastId,
+					childrenIds: [],
+					role: msg.role,
+					content: msg.content,
+					timestamp: Math.floor(Date.now() / 1000)
+				};
+				
+				// Link parent to child
+				if (lastId && messagesMap[lastId]) {
+					messagesMap[lastId].childrenIds.push(msgId);
+				}
+				
+				lastId = msgId;
+			});
+			
+			const chatData = {
+				models: [cyberspaceChat.modelId],
+				messages: cyberspaceChat.messages.map(m => ({
+					role: m.role,
+					content: m.content
+				})),
+				history: {
+					messages: messagesMap,
+					currentId: lastId
+				},
+				title: cyberspaceChat.messages[0]?.content?.slice(0, 50) || 'Cyberspace Chat',
+				timestamp: Date.now()
+			};
+			
+			await updateChatById(localStorage.token, cyberspaceChat.chatId, chatData);
+		} catch (error) {
+			console.error('Failed to save chat:', error);
+		}
+	};
+	
+	// Send message to model in cyberspace
+	const sendCyberspaceMessage = async () => {
+		if (!cyberspaceChat.inputText.trim() || cyberspaceChat.isLoading) return;
+		
+		const userMessage = cyberspaceChat.inputText.trim();
+		const userMsgId = generateMessageId();
+		cyberspaceChat.inputText = '';
+		cyberspaceChat.messages = [...cyberspaceChat.messages, { role: 'user', content: userMessage, id: userMsgId }];
+		cyberspaceChat.isLoading = true;
+		
+		try {
+			// Build messages array for API
+			const apiMessages = cyberspaceChat.messages.map(m => ({
+				role: m.role,
+				content: m.content
+			}));
+			
+			// Call OpenAI-compatible chat endpoint
+			const response = await fetch(`${WEBUI_API_BASE_URL}/chat/completions`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${localStorage.token}`
+				},
+				body: JSON.stringify({
+					model: cyberspaceChat.modelId,
+					messages: apiMessages,
+					stream: false
+				})
+			});
+			
+			if (!response.ok) {
+				throw new Error(`API error: ${response.status}`);
+			}
+			
+			const data = await response.json();
+			const assistantMessage = data.choices?.[0]?.message?.content || 'No response';
+			const assistantMsgId = generateMessageId();
+			
+			cyberspaceChat.messages = [...cyberspaceChat.messages, { role: 'assistant', content: assistantMessage, id: assistantMsgId }];
+			
+			// Save to database after each exchange
+			await saveChatToDatabase();
+		} catch (error) {
+			console.error('Cyberspace chat error:', error);
+			cyberspaceChat.messages = [...cyberspaceChat.messages, { 
+				role: 'assistant', 
+				content: `⚠️ Error: ${error instanceof Error ? error.message : 'Failed to get response'}` 
+			}];
+		} finally {
+			cyberspaceChat.isLoading = false;
+		}
+	};
+	
+	// Open an existing chat in cyberspace chat interface
+	const openExistingChat = async (chatIdToOpen: string, chatTitle: string, modelName: string) => {
+		// Initialize cyberspace chat state
+		cyberspaceChat = {
+			active: true,
+			modelId: modelName || '',
+			displayName: chatTitle || 'Chat',
+			chatId: chatIdToOpen,
+			messages: [],
+			inputText: '',
+			isLoading: true
+		};
+		currentGesture = `📖 Loading chat history...`;
+		
+		try {
+			// Fetch the full chat data
+			const chatData = await getChatById(localStorage.token, chatIdToOpen);
+			
+			if (chatData?.chat) {
+				// Extract messages from chat history
+				const history = chatData.chat.history;
+				const messages: { role: 'user' | 'assistant'; content: string; id?: string }[] = [];
+				
+				if (history?.messages && history?.currentId) {
+					// Walk through the message tree from root to current
+					const messageMap = history.messages;
+					let currentMsgId = history.currentId;
+					const messageChain: string[] = [];
+					
+					// Build chain from current back to root
+					while (currentMsgId && messageMap[currentMsgId]) {
+						messageChain.unshift(currentMsgId);
+						currentMsgId = messageMap[currentMsgId].parentId;
+					}
+					
+					// Extract messages in order
+					for (const msgId of messageChain) {
+						const msg = messageMap[msgId];
+						if (msg && (msg.role === 'user' || msg.role === 'assistant')) {
+							messages.push({
+								role: msg.role,
+								content: msg.content || '',
+								id: msgId
+							});
+						}
+					}
+				}
+				
+				// Update model ID if available
+				if (chatData.chat.models?.[0]) {
+					cyberspaceChat.modelId = chatData.chat.models[0];
+				}
+				
+				cyberspaceChat.messages = messages;
+				cyberspaceChat.displayName = chatData.chat.title || chatTitle || 'Chat';
+				currentGesture = `📖 ${cyberspaceChat.displayName}`;
+				console.log(`Loaded chat with ${messages.length} messages`);
+			}
+		} catch (error) {
+			console.error('Failed to load chat:', error);
+			currentGesture = `⚠️ Failed to load chat`;
+		} finally {
+			cyberspaceChat.isLoading = false;
+		}
+		
+		// Focus input after render
+		tick().then(() => {
+			if (chatInputRef) chatInputRef.focus();
+		});
+	};
+	
+	// Open chat in main OWUI interface
+	const openInOWUI = () => {
+		if (cyberspaceChat.chatId) {
+			onClose(); // Close Pi Gateway
+			goto(`/c/${cyberspaceChat.chatId}`); // Navigate to chat
+		}
+	};
+	
+	// Close cyberspace chat
+	const closeCyberspaceChat = () => {
+		cyberspaceChat.active = false;
+		cyberspaceChat.modelId = '';
+		cyberspaceChat.displayName = '';
+		cyberspaceChat.chatId = '';
+		cyberspaceChat.messages = [];
+		cyberspaceChat.inputText = '';
+		currentGesture = '';
+	};
+	
+	const setBuildingHighlight = (building: any, highlight: boolean) => {
+		building.traverse((child: any) => {
+			if (child.isMesh && child.material) {
+				if (highlight) {
+					child.userData.originalOpacity = child.material.opacity;
+					child.material.opacity = Math.min(1, child.material.opacity * 1.8);
+					child.material.emissiveIntensity = 0.5;
+				} else if (child.userData.originalOpacity !== undefined) {
+					child.material.opacity = child.userData.originalOpacity;
+					child.material.emissiveIntensity = 0;
+				}
+			}
+		});
 	};
 	
 	const handleClick = (e: MouseEvent) => {
@@ -1447,6 +2502,28 @@
 		
 		const raycaster = new THREE.Raycaster();
 		raycaster.setFromCamera(mouse, camera);
+		
+		// First check for model orb clicks
+		const modelMeshes: any[] = [];
+		modelHub.forEach((orb: any) => {
+			orb.traverse((child: any) => {
+				if (child.isMesh) {
+					child.userData.parentOrb = orb;
+					modelMeshes.push(child);
+				}
+			});
+		});
+		
+		const modelIntersects = raycaster.intersectObjects(modelMeshes, false);
+		if (modelIntersects.length > 0) {
+			const hit = modelIntersects[0].object;
+			const orb = hit.userData.parentOrb;
+			if (orb?.userData?.isModel) {
+				// Start new chat with this model - pass modelId for API, modelName for display
+				startNewChatWithModel(orb.userData.modelId, orb.userData.modelName);
+				return;
+			}
+		}
 		
 		// Check for intersections with chat buildings
 		const chatBuildingArray = Array.from(chatBuildings.values());
@@ -1469,17 +2546,102 @@
 			
 			if (building?.userData?.isChat) {
 				selectedChatBuilding = building;
-				currentGesture = `🎯 Selected: ${building.userData.chatTitle}`;
-				
-				// Clear gesture message after 2 seconds
-				setTimeout(() => {
-					if (currentGesture.startsWith('🎯')) currentGesture = '';
-				}, 2000);
+				// Open the existing chat in cyberspace chat interface
+				openExistingChat(building.userData.chatId, building.userData.chatTitle, building.userData.modelName);
 			}
 		} else {
 			// Clicked empty space - deselect
 			selectedChatBuilding = null;
 		}
+	};
+	
+	const handleKeyDown = (e: KeyboardEvent) => {
+		// Don't intercept keys when cyberspace chat is active (allow typing)
+		if (cyberspaceChat.active) {
+			// Only handle Escape to close chat
+			if (e.key === 'Escape') {
+				closeCyberspaceChat();
+				e.preventDefault();
+			}
+			return;
+		}
+		
+		switch (e.key) {
+			case 'ArrowUp':
+			case 'w':
+				cameraTarget.z -= 20; // Backward (toward now)
+				e.preventDefault();
+				break;
+			case 'ArrowDown':
+			case 's':
+				cameraTarget.z += 20; // Forward (toward past)
+				e.preventDefault();
+				break;
+			case 'ArrowLeft':
+			case 'a':
+				cameraTarget.x -= 15; // Strafe left (morning)
+				e.preventDefault();
+				break;
+			case 'ArrowRight':
+			case 'd':
+				cameraTarget.x += 15; // Strafe right (evening)
+				e.preventDefault();
+				break;
+			case 'q':
+				cameraTarget.y = Math.min(120, cameraTarget.y + 10); // Ascend
+				e.preventDefault();
+				break;
+			case 'e':
+				cameraTarget.y = Math.max(5, cameraTarget.y - 10); // Descend
+				e.preventDefault();
+				break;
+			case 'Enter':
+				if (selectedChatBuilding?.userData?.chatId) {
+					openSelectedChat();
+				} else if (hoveredBuilding?.userData?.isChat) {
+					selectedChatBuilding = hoveredBuilding;
+				}
+				e.preventDefault();
+				break;
+			case 'Escape':
+				selectedChatBuilding = null;
+				e.preventDefault();
+				break;
+			case ' ': // Spacebar - warp to next chat
+				warpToNextChat();
+				e.preventDefault();
+				break;
+		}
+	};
+	
+	const warpToNextChat = () => {
+		const chatBuildingArray = Array.from(chatBuildings.values());
+		if (chatBuildingArray.length === 0) return;
+		
+		const aheadChats = chatBuildingArray
+			.filter(b => b.position.z > cameraWorldPos.z + 5)
+			.sort((a, b) => a.position.z - b.position.z);
+		
+		let target;
+		if (aheadChats.length > 0) {
+			target = aheadChats[0];
+		} else {
+			const sorted = [...chatBuildingArray].sort((a, b) => a.position.z - b.position.z);
+			target = sorted[0];
+		}
+		
+		// Start warp effect
+		startWarp();
+		
+		selectedChatBuilding = target;
+		cameraTarget.x = target.position.x;
+		cameraTarget.z = target.position.z - 10;
+		cameraTarget.y = Math.max(20, target.userData.height * 0.8);
+		
+		// Stop warp after arriving
+		setTimeout(() => {
+			stopWarp();
+		}, 800);
 	};
 	
 	onMount(async () => {
@@ -1492,6 +2654,8 @@
 				renderer.setSize(window.innerWidth, window.innerHeight);
 			}
 		});
+		
+		window.addEventListener('keydown', handleKeyDown);
 	});
 	
 	onDestroy(() => {
@@ -1503,19 +2667,31 @@
 			gestureController.dispose();
 		}
 		
+		// Clean up audio
+		stopAudio();
+		
+		window.removeEventListener('keydown', handleKeyDown);
+		
 		if (renderer) {
 			renderer.dispose();
 		}
 	});
 </script>
 
-<div class="theater-container" bind:this={container}>
+<div 
+	class="theater-container" 
+	bind:this={container}
+	on:mousemove={onChatDrag}
+	on:mouseup={stopChatDrag}
+	on:mouseleave={stopChatDrag}
+	role="application"
+>
 	<canvas 
 		bind:this={sceneCanvas}
 		class="scene-canvas"
-		on:wheel={handleWheel}
-		on:mousemove={handleMouseMove}
-		on:click={handleClick}
+		on:wheel={(e) => { if (!isDraggingChat && !isResizingChat) handleWheel(e); }}
+		on:mousemove={(e) => { if (!isDraggingChat && !isResizingChat) handleMouseMove(e); }}
+		on:click={(e) => { if (!isDraggingChat && !isResizingChat) handleClick(e); }}
 	></canvas>
 	
 	<div class="controls-overlay">
@@ -1578,6 +2754,29 @@
 			{/if}
 		</div>
 		
+		<!-- Minimap -->
+		<div class="minimap">
+			<div class="minimap-title">TIMELINE</div>
+			<div class="minimap-content">
+				{#each Array.from(chatBuildings.values()) as building}
+					<div 
+						class="minimap-dot"
+						class:selected={building === selectedChatBuilding}
+						class:hovered={building === hoveredBuilding}
+						style="left: {50 + (building.position.x / 50) * 40}%; top: {Math.min(90, Math.max(5, (building.position.z / (timelineEnd || 100)) * 85))}%;"
+					></div>
+				{/each}
+				<div 
+					class="minimap-camera"
+					style="left: {50 + (cameraWorldPos.x / 50) * 40}%; top: {Math.min(90, Math.max(5, (cameraWorldPos.z / (timelineEnd || 100)) * 85))}%;"
+				></div>
+			</div>
+			<div class="minimap-labels">
+				<span>NOW</span>
+				<span>PAST</span>
+			</div>
+		</div>
+		
 		<div class="bottom-controls">
 			<button 
 				class="control-btn" 
@@ -1587,16 +2786,117 @@
 				{gestureMode ? '🤚 JACKED IN' : '👋 JACK IN'}
 			</button>
 			
+			<button 
+				class="control-btn audio-btn" 
+				class:active={audioEnabled}
+				on:click={cycleAudioMode}
+			>
+				{#if audioMode === 'off'}
+					🔇 AUDIO
+				{:else if audioMode === 'mic'}
+					🎤 MIC
+				{:else}
+					🔊 SYSTEM
+				{/if}
+			</button>
+			
 			<div class="help-text">
 				{#if gestureMode}
 					<div>☝️ Point → Past | ✊ Fist ← Now | ✋ Palm = Select</div>
 					<div>✌️ Overview | 👍 Evening 👎 Morning | 🤟 Warp Next</div>
 				{:else}
-					<div>🖱️ Drag = Strafe | 🔄 Scroll = Timeline | 🖱️ Click = Select chat</div>
+					<div>⌨️ WASD/Arrows = Move | Q/E = Up/Down | Space = Warp | Enter = Open | Esc = Deselect</div>
 				{/if}
 			</div>
 		</div>
 	</div>
+	
+	<!-- Cyberspace Chat Interface -->
+	{#if cyberspaceChat.active}
+		<div 
+			class="cyberspace-chat"
+			style="width: {chatWindowSize.width}px; height: {chatWindowSize.height}px; {chatWindowPos.x !== 0 || chatWindowPos.y !== 0 ? `left: ${chatWindowPos.x}px; top: ${chatWindowPos.y}px; right: auto; transform: none;` : ''}"
+		>
+			<!-- Resize handles -->
+			<div class="resize-handle resize-n" on:mousedown={(e) => startChatResize(e, 'n')} role="separator" aria-orientation="horizontal"></div>
+			<div class="resize-handle resize-s" on:mousedown={(e) => startChatResize(e, 's')} role="separator" aria-orientation="horizontal"></div>
+			<div class="resize-handle resize-e" on:mousedown={(e) => startChatResize(e, 'e')} role="separator" aria-orientation="vertical"></div>
+			<div class="resize-handle resize-w" on:mousedown={(e) => startChatResize(e, 'w')} role="separator" aria-orientation="vertical"></div>
+			<div class="resize-handle resize-ne" on:mousedown={(e) => startChatResize(e, 'ne')} role="separator"></div>
+			<div class="resize-handle resize-nw" on:mousedown={(e) => startChatResize(e, 'nw')} role="separator"></div>
+			<div class="resize-handle resize-se" on:mousedown={(e) => startChatResize(e, 'se')} role="separator"></div>
+			<div class="resize-handle resize-sw" on:mousedown={(e) => startChatResize(e, 'sw')} role="separator"></div>
+			
+			<div 
+				class="cyber-chat-header"
+				on:mousedown={startChatDrag}
+				role="button"
+				tabindex="0"
+				style="cursor: move;"
+			>
+				<div class="cyber-chat-title">
+					<span class="cyber-model-icon">🤖</span>
+					<span>{cyberspaceChat.displayName}</span>
+					<span class="drag-hint">⋮⋮</span>
+				</div>
+				<button class="cyber-close-btn" on:click|stopPropagation={closeCyberspaceChat}>✕</button>
+			</div>
+			
+			<div class="cyber-chat-messages">
+				{#if cyberspaceChat.messages.length === 0 && !cyberspaceChat.isLoading}
+					<div class="cyber-welcome">
+						<div class="cyber-welcome-icon">💬</div>
+						<div>Start chatting with {cyberspaceChat.displayName}</div>
+						<div class="cyber-welcome-hint">Type a message below</div>
+					</div>
+				{/if}
+				
+				{#each cyberspaceChat.messages as message}
+					<div class="cyber-message" class:user={message.role === 'user'} class:assistant={message.role === 'assistant'}>
+						<div class="cyber-message-role">{message.role === 'user' ? '👤 You' : '🤖 AI'}</div>
+						<div class="cyber-message-content">{message.content}</div>
+					</div>
+				{/each}
+				
+				{#if cyberspaceChat.isLoading}
+					<div class="cyber-message assistant">
+						<div class="cyber-message-role">🤖 AI</div>
+						<div class="cyber-message-content cyber-loading">
+							<span class="cyber-dot"></span>
+							<span class="cyber-dot"></span>
+							<span class="cyber-dot"></span>
+						</div>
+					</div>
+				{/if}
+			</div>
+			
+			<div class="cyber-chat-input">
+				<input 
+					type="text" 
+					bind:this={chatInputRef}
+					bind:value={cyberspaceChat.inputText}
+					placeholder="Type your message..."
+					on:keydown={(e) => e.key === 'Enter' && sendCyberspaceMessage()}
+					disabled={cyberspaceChat.isLoading}
+				/>
+				<button 
+					class="cyber-send-btn" 
+					on:click={sendCyberspaceMessage}
+					disabled={cyberspaceChat.isLoading || !cyberspaceChat.inputText.trim()}
+				>
+					⚡ SEND
+				</button>
+			</div>
+			
+			{#if cyberspaceChat.chatId}
+				<div class="cyber-chat-footer">
+					<button class="cyber-open-owui-btn" on:click={openInOWUI}>
+						🚀 Open in Open WebUI
+					</button>
+				</div>
+			{/if}
+		</div>
+	{/if}
 	
 	{#if gestureMode}
 		<div class="gesture-container">
@@ -1638,22 +2938,27 @@
 </div>
 
 <style>
+	/* Custom cyber cursor */
 	.theater-container {
 		position: relative;
 		width: 100%;
 		height: 100%;
 		overflow: hidden;
+		--cyber-cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='3' fill='%2300ffff' opacity='0.8'/%3E%3Ccircle cx='16' cy='16' r='8' fill='none' stroke='%2300ffff' stroke-width='1' opacity='0.6'/%3E%3Cline x1='16' y1='0' x2='16' y2='10' stroke='%2300ffff' stroke-width='1' opacity='0.8'/%3E%3Cline x1='16' y1='22' x2='16' y2='32' stroke='%2300ffff' stroke-width='1' opacity='0.8'/%3E%3Cline x1='0' y1='16' x2='10' y2='16' stroke='%2300ffff' stroke-width='1' opacity='0.8'/%3E%3Cline x1='22' y1='16' x2='32' y2='16' stroke='%2300ffff' stroke-width='1' opacity='0.8'/%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='%23ff00ff' stroke-width='1' stroke-dasharray='4 4' opacity='0.4'/%3E%3C/svg%3E") 16 16, crosshair;
+		--cyber-cursor-pointer: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cpolygon points='8,4 8,28 14,22 20,28 24,24 18,18 26,18' fill='%2300ffff' stroke='%23ff00ff' stroke-width='1'/%3E%3C/svg%3E") 8 4, pointer;
+		--cyber-cursor-grab: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='4' fill='%2300ffff' opacity='0.9'/%3E%3Ccircle cx='16' cy='16' r='10' fill='none' stroke='%2300ffff' stroke-width='2' opacity='0.6'/%3E%3Cpath d='M16 2 L16 8 M16 24 L16 30 M2 16 L8 16 M24 16 L30 16' stroke='%23ff00ff' stroke-width='2' opacity='0.7'/%3E%3C/svg%3E") 16 16, grab;
+		cursor: var(--cyber-cursor);
 	}
 	
 	.scene-canvas {
 		display: block;
 		width: 100%;
 		height: 100%;
-		cursor: grab;
+		cursor: var(--cyber-cursor-grab);
 	}
 	
 	.scene-canvas:active {
-		cursor: grabbing;
+		cursor: var(--cyber-cursor-grab);
 	}
 	
 	.controls-overlay {
@@ -1838,6 +3143,82 @@
 		opacity: 0.7;
 		text-align: center;
 		color: #00ffff;
+	}
+	
+	.minimap {
+		position: absolute;
+		bottom: 8rem;
+		left: 1.5rem;
+		width: 120px;
+		height: 180px;
+		background: rgba(0, 0, 0, 0.85);
+		border: 2px solid #00ffff;
+		border-radius: 0.5rem;
+		padding: 0.5rem;
+		font-family: 'Courier New', monospace;
+		box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+	}
+	
+	.minimap-title {
+		font-size: 0.6rem;
+		color: #00ffff;
+		text-align: center;
+		margin-bottom: 0.3rem;
+		letter-spacing: 0.1em;
+		opacity: 0.8;
+	}
+	
+	.minimap-content {
+		position: relative;
+		width: 100%;
+		height: calc(100% - 30px);
+		background: rgba(0, 50, 50, 0.3);
+		border-radius: 0.25rem;
+		overflow: hidden;
+	}
+	
+	.minimap-dot {
+		position: absolute;
+		width: 4px;
+		height: 4px;
+		background: #00aaaa;
+		border-radius: 50%;
+		transform: translate(-50%, -50%);
+		transition: all 0.1s;
+	}
+	
+	.minimap-dot.selected {
+		width: 8px;
+		height: 8px;
+		background: #ff00ff;
+		box-shadow: 0 0 8px #ff00ff;
+	}
+	
+	.minimap-dot.hovered {
+		width: 6px;
+		height: 6px;
+		background: #ffff00;
+		box-shadow: 0 0 6px #ffff00;
+	}
+	
+	.minimap-camera {
+		position: absolute;
+		width: 0;
+		height: 0;
+		border-left: 6px solid transparent;
+		border-right: 6px solid transparent;
+		border-bottom: 10px solid #00ff00;
+		transform: translate(-50%, -50%);
+		filter: drop-shadow(0 0 4px #00ff00);
+	}
+	
+	.minimap-labels {
+		display: flex;
+		justify-content: space-between;
+		font-size: 0.5rem;
+		color: #00ffff;
+		opacity: 0.6;
+		margin-top: 0.2rem;
 	}
 	
 	.gesture-feedback {
@@ -2026,5 +3407,284 @@
 		color: #ff00ff;
 		font-weight: bold;
 		box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.2);
+	}
+	
+	/* Cyberspace Chat Interface */
+	.cyberspace-chat {
+		position: fixed;
+		right: 1.5rem;
+		top: 50%;
+		transform: translateY(-50%);
+		width: 400px;
+		max-height: 70vh;
+		background: rgba(0, 0, 20, 0.6);
+		border: 2px solid #00ffff;
+		border-radius: 1rem;
+		display: flex;
+		flex-direction: column;
+		box-shadow: 0 0 30px rgba(0, 255, 255, 0.4), 0 0 60px rgba(255, 0, 255, 0.2);
+		font-family: 'Courier New', monospace;
+		z-index: 1000;
+		animation: cyber-slide-in 0.3s ease-out;
+		backdrop-filter: blur(4px);
+	}
+	
+	@keyframes cyber-slide-in {
+		from { opacity: 0; transform: translateY(-50%) translateX(50px); }
+		to { opacity: 1; transform: translateY(-50%) translateX(0); }
+	}
+	
+	.cyber-chat-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 1rem;
+		border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+		background: linear-gradient(135deg, rgba(0, 255, 255, 0.1), rgba(255, 0, 255, 0.1));
+		cursor: move;
+		user-select: none;
+	}
+	
+	.cyber-chat-header:active {
+		background: linear-gradient(135deg, rgba(0, 255, 255, 0.2), rgba(255, 0, 255, 0.2));
+	}
+	
+	.cyber-chat-title {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		color: #00ffff;
+		font-weight: bold;
+		text-shadow: 0 0 10px #00ffff;
+	}
+	
+	.drag-hint {
+		opacity: 0.4;
+		font-size: 0.8rem;
+		margin-left: 0.5rem;
+		letter-spacing: 2px;
+	}
+	
+	.cyber-model-icon {
+		font-size: 1.5rem;
+	}
+	
+	.cyber-close-btn {
+		background: transparent;
+		border: 1px solid #ff00ff;
+		color: #ff00ff;
+		width: 2rem;
+		height: 2rem;
+		border-radius: 50%;
+		cursor: pointer;
+		font-size: 1rem;
+		transition: all 0.2s;
+	}
+	
+	.cyber-close-btn:hover {
+		background: rgba(255, 0, 255, 0.3);
+		box-shadow: 0 0 15px #ff00ff;
+	}
+	
+	.cyber-chat-messages {
+		flex: 1;
+		overflow-y: auto;
+		padding: 1rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
+		min-height: 100px;
+	}
+	
+	/* Resize handles */
+	.resize-handle {
+		position: absolute;
+		background: transparent;
+		z-index: 10;
+	}
+	
+	.resize-n, .resize-s {
+		left: 10px;
+		right: 10px;
+		height: 8px;
+		cursor: ns-resize;
+	}
+	.resize-n { top: -4px; }
+	.resize-s { bottom: -4px; }
+	
+	.resize-e, .resize-w {
+		top: 10px;
+		bottom: 10px;
+		width: 8px;
+		cursor: ew-resize;
+	}
+	.resize-e { right: -4px; }
+	.resize-w { left: -4px; }
+	
+	.resize-ne, .resize-nw, .resize-se, .resize-sw {
+		width: 16px;
+		height: 16px;
+	}
+	.resize-ne { top: -4px; right: -4px; cursor: nesw-resize; }
+	.resize-nw { top: -4px; left: -4px; cursor: nwse-resize; }
+	.resize-se { bottom: -4px; right: -4px; cursor: nwse-resize; }
+	.resize-sw { bottom: -4px; left: -4px; cursor: nesw-resize; }
+	
+	/* Visual indicator on corner handles */
+	.resize-se::after {
+		content: '';
+		position: absolute;
+		bottom: 4px;
+		right: 4px;
+		width: 10px;
+		height: 10px;
+		border-right: 2px solid rgba(0, 255, 255, 0.5);
+		border-bottom: 2px solid rgba(0, 255, 255, 0.5);
+	}
+	
+	.cyber-welcome {
+		text-align: center;
+		color: #00ffff;
+		opacity: 0.7;
+		padding: 2rem;
+	}
+	
+	.cyber-welcome-icon {
+		font-size: 3rem;
+		margin-bottom: 1rem;
+	}
+	
+	.cyber-welcome-hint {
+		font-size: 0.8rem;
+		margin-top: 0.5rem;
+		opacity: 0.6;
+	}
+	
+	.cyber-message {
+		padding: 0.75rem;
+		border-radius: 0.5rem;
+		max-width: 90%;
+	}
+	
+	.cyber-message.user {
+		background: rgba(255, 0, 255, 0.2);
+		border: 1px solid rgba(255, 0, 255, 0.5);
+		margin-left: auto;
+	}
+	
+	.cyber-message.assistant {
+		background: rgba(0, 255, 255, 0.1);
+		border: 1px solid rgba(0, 255, 255, 0.3);
+		margin-right: auto;
+	}
+	
+	.cyber-message-role {
+		font-size: 0.7rem;
+		opacity: 0.7;
+		margin-bottom: 0.3rem;
+	}
+	
+	.cyber-message-content {
+		color: #fff;
+		font-size: 0.9rem;
+		line-height: 1.4;
+		white-space: pre-wrap;
+		word-break: break-word;
+	}
+	
+	.cyber-loading {
+		display: flex;
+		gap: 0.3rem;
+	}
+	
+	.cyber-dot {
+		width: 8px;
+		height: 8px;
+		background: #00ffff;
+		border-radius: 50%;
+		animation: cyber-pulse 1s infinite;
+	}
+	
+	.cyber-dot:nth-child(2) { animation-delay: 0.2s; }
+	.cyber-dot:nth-child(3) { animation-delay: 0.4s; }
+	
+	@keyframes cyber-pulse {
+		0%, 100% { opacity: 0.3; transform: scale(0.8); }
+		50% { opacity: 1; transform: scale(1.2); }
+	}
+	
+	.cyber-chat-input {
+		display: flex;
+		gap: 0.5rem;
+		padding: 1rem;
+		border-top: 1px solid rgba(0, 255, 255, 0.3);
+	}
+	
+	.cyber-chat-input input {
+		flex: 1;
+		background: rgba(0, 0, 0, 0.5);
+		border: 1px solid #00ffff;
+		border-radius: 0.5rem;
+		padding: 0.75rem;
+		color: #fff;
+		font-family: 'Courier New', monospace;
+		font-size: 0.9rem;
+	}
+	
+	.cyber-chat-input input:focus {
+		outline: none;
+		box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+	}
+	
+	.cyber-chat-input input::placeholder {
+		color: rgba(0, 255, 255, 0.5);
+	}
+	
+	.cyber-send-btn {
+		background: linear-gradient(135deg, rgba(255, 0, 255, 0.3), rgba(0, 255, 255, 0.3));
+		border: 2px solid #ff00ff;
+		border-radius: 0.5rem;
+		padding: 0.75rem 1rem;
+		color: #ff00ff;
+		font-family: 'Courier New', monospace;
+		font-weight: bold;
+		cursor: pointer;
+		transition: all 0.2s;
+		text-shadow: 0 0 5px #ff00ff;
+	}
+	
+	.cyber-send-btn:hover:not(:disabled) {
+		background: rgba(255, 0, 255, 0.4);
+		box-shadow: 0 0 20px #ff00ff;
+	}
+	
+	.cyber-send-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+	
+	.cyber-chat-footer {
+		padding: 0.75rem 1rem;
+		border-top: 1px solid rgba(0, 255, 255, 0.2);
+		display: flex;
+		justify-content: center;
+	}
+	
+	.cyber-open-owui-btn {
+		background: linear-gradient(135deg, rgba(0, 255, 255, 0.2), rgba(255, 0, 255, 0.2));
+		border: 1px solid #00ffff;
+		border-radius: 0.5rem;
+		padding: 0.5rem 1rem;
+		color: #00ffff;
+		font-family: 'Courier New', monospace;
+		font-size: 0.85rem;
+		cursor: pointer;
+		transition: all 0.2s;
+		text-shadow: 0 0 5px #00ffff;
+	}
+	
+	.cyber-open-owui-btn:hover {
+		background: rgba(0, 255, 255, 0.3);
+		box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
 	}
 </style>

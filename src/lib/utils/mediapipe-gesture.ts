@@ -1,4 +1,4 @@
-import { GestureRecognizer, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
+import { GestureRecognizer, FaceLandmarker, FilesetResolver, DrawingUtils } from '@mediapipe/tasks-vision';
 
 export type GestureType = 
   | 'Thumb_Up' 
@@ -18,8 +18,11 @@ export type AllGestureTypes = GestureType | DualGestureType;
 
 export type GestureCallback = (gesture: AllGestureTypes, handedness: string) => void;
 
+export type FaceLandmarkCallback = (landmarks: any[], blendShapes: any[]) => void;
+
 export class MediaPipeGestureController {
   private gestureRecognizer: GestureRecognizer | null = null;
+  private faceLandmarker: FaceLandmarker | null = null;
   private video: HTMLVideoElement | null = null;
   private canvasElement: HTMLCanvasElement | null = null;
   private canvasCtx: CanvasRenderingContext2D | null = null;
@@ -34,6 +37,9 @@ export class MediaPipeGestureController {
   private rightHandGesture: GestureType | null = null;
   private lastDualGestureTime = 0;
   private dualGestureDebounceMs = 200;
+  
+  // Face landmark callbacks
+  private faceLandmarkCallbacks: FaceLandmarkCallback[] = [];
   
   async initialize(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasElement): Promise<void> {
     this.video = videoElement;
@@ -54,6 +60,18 @@ export class MediaPipeGestureController {
       minHandDetectionConfidence: 0.5,
       minHandPresenceConfidence: 0.5,
       minTrackingConfidence: 0.5
+    });
+    
+    // Initialize face landmarker
+    this.faceLandmarker = await FaceLandmarker.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
+        delegate: 'GPU'
+      },
+      runningMode: 'VIDEO',
+      numFaces: 1,
+      outputFaceBlendshapes: true,
+      outputFacialTransformationMatrixes: true
     });
   }
   
@@ -97,6 +115,15 @@ export class MediaPipeGestureController {
       if (this.video.readyState === this.video.HAVE_ENOUGH_DATA) {
         const nowInMs = Date.now();
         const results = this.gestureRecognizer.recognizeForVideo(this.video, nowInMs);
+        
+        // Face landmark detection
+        if (this.faceLandmarker && this.faceLandmarkCallbacks.length > 0) {
+          const faceResults = this.faceLandmarker.detectForVideo(this.video, nowInMs);
+          if (faceResults.faceLandmarks && faceResults.faceLandmarks.length > 0) {
+            const blendShapes = faceResults.faceBlendshapes?.[0]?.categories || [];
+            this.faceLandmarkCallbacks.forEach(cb => cb(faceResults.faceLandmarks, blendShapes));
+          }
+        }
         
         this.canvasCtx.save();
         this.canvasCtx.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height);
@@ -224,6 +251,21 @@ export class MediaPipeGestureController {
     }
   }
   
+  onFaceLandmarks(callback: FaceLandmarkCallback): void {
+    this.faceLandmarkCallbacks.push(callback);
+  }
+  
+  offFaceLandmarks(callback?: FaceLandmarkCallback): void {
+    if (!callback) {
+      this.faceLandmarkCallbacks = [];
+      return;
+    }
+    const index = this.faceLandmarkCallbacks.indexOf(callback);
+    if (index > -1) {
+      this.faceLandmarkCallbacks.splice(index, 1);
+    }
+  }
+  
   stopCamera(): void {
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
@@ -244,10 +286,16 @@ export class MediaPipeGestureController {
     this.stopCamera();
     this.callbacks.clear();
     this.lastGestureTime.clear();
+    this.faceLandmarkCallbacks = [];
     
     if (this.gestureRecognizer) {
       this.gestureRecognizer.close();
       this.gestureRecognizer = null;
+    }
+    
+    if (this.faceLandmarker) {
+      this.faceLandmarker.close();
+      this.faceLandmarker = null;
     }
   }
 }
