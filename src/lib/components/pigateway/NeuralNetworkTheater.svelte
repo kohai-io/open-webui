@@ -157,6 +157,9 @@
 	let warpSpeed = 0;
 	let warpLines: any[] = [];
 	
+	// Equalizer state
+	let eqBars: number[] = new Array(16).fill(0);
+	
 	const initThreeJS = async () => {
 		// @ts-ignore - CDN import
 		const THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
@@ -515,10 +518,10 @@
 				const markerMaterial = new THREE.LineBasicMaterial({ color: markerColor, transparent: true, opacity: 0.4 });
 				scene.add(new THREE.Line(markerGeometry, markerMaterial));
 				
-				// Date label sprite - positioned high above buildings (max height is 80)
+				// Date label sprite - positioned low near grid
 				const dateLabel = getDateLabel(timestamp);
 				const labelSprite = createTextSprite(THREE, dateLabel, markerColor);
-				labelSprite.position.set(-35, 95, z);
+				labelSprite.position.set(-35, 25, z);
 				labelSprite.scale.set(10, 2.5, 1);
 				scene.add(labelSprite);
 			}
@@ -930,39 +933,50 @@
 	};
 	
 	const createParticleSystem = (THREE: any) => {
-		const particleCount = 4000;
+		const particleCount = 800; // More particles for finer equalizer granularity
 		const particlesGeometry = new THREE.BufferGeometry();
 		const positions = new Float32Array(particleCount * 3);
 		const colors = new Float32Array(particleCount * 3);
 		const velocities: number[] = [];
-		const basePositions = new Float32Array(particleCount * 3); // Store original positions
+		const packetData: { axis: string; direction: number; speed: number; gridLine: number }[] = [];
 		
 		for (let i = 0; i < particleCount; i++) {
-			const x = (Math.random() - 0.5) * 300;
-			const y = Math.random() * 100;
-			const z = (Math.random() - 0.5) * 300;
+			// Start particles on grid lines
+			const axis = Math.random() < 0.5 ? 'x' : 'z'; // Travel along X or Z axis
+			const gridLine = Math.floor(Math.random() * 20 - 10) * 15; // Grid line position
+			const direction = Math.random() < 0.5 ? 1 : -1;
+			const speed = 0.3 + Math.random() * 0.5;
+			
+			let x, z;
+			if (axis === 'x') {
+				// Travel along X, fixed Z on grid
+				x = (Math.random() - 0.5) * 300;
+				z = gridLine;
+			} else {
+				// Travel along Z, fixed X on grid
+				x = gridLine;
+				z = (Math.random() - 0.5) * 300;
+			}
+			const y = 0.5 + Math.random() * 2; // Low to the ground, on grid
 			
 			positions[i * 3] = x;
 			positions[i * 3 + 1] = y;
 			positions[i * 3 + 2] = z;
 			
-			basePositions[i * 3] = x;
-			basePositions[i * 3 + 1] = y;
-			basePositions[i * 3 + 2] = z;
-			
-			velocities.push(
-				(Math.random() - 0.5) * 0.8,
-				(Math.random() - 0.5) * 0.3,
-				(Math.random() - 0.5) * 0.8
-			);
-			
-			const colorChoice = Math.random();
-			if (colorChoice < 0.4) {
-				colors[i * 3] = 0; colors[i * 3 + 1] = 1; colors[i * 3 + 2] = 1;
-			} else if (colorChoice < 0.7) {
-				colors[i * 3] = 1; colors[i * 3 + 1] = 0; colors[i * 3 + 2] = 1;
+			if (axis === 'x') {
+				velocities.push(direction * speed, 0, 0);
 			} else {
-				colors[i * 3] = 0; colors[i * 3 + 1] = 0.5; colors[i * 3 + 2] = 1;
+				velocities.push(0, 0, direction * speed);
+			}
+			
+			packetData.push({ axis, direction, speed, gridLine });
+			
+			// Color - mostly cyan with some magenta
+			const colorChoice = Math.random();
+			if (colorChoice < 0.7) {
+				colors[i * 3] = 0; colors[i * 3 + 1] = 1; colors[i * 3 + 2] = 1; // Cyan
+			} else {
+				colors[i * 3] = 1; colors[i * 3 + 1] = 0; colors[i * 3 + 2] = 1; // Magenta
 			}
 		}
 		
@@ -970,7 +984,7 @@
 		particlesGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
 		
 		const particlesMaterial = new THREE.PointsMaterial({
-			size: 0.25,
+			size: 0.5,
 			transparent: true,
 			opacity: 0.9,
 			vertexColors: true,
@@ -979,10 +993,10 @@
 		
 		const particles = new THREE.Points(particlesGeometry, particlesMaterial);
 		particles.userData.velocities = velocities;
-		particles.userData.basePositions = basePositions;
+		particles.userData.packetData = packetData;
 		scene.add(particles);
 		scene.userData.particles = particles;
-		particleSystem = particles; // Store reference for audio reactivity
+		particleSystem = particles;
 	};
 	
 	const createWarpLines = (THREE: any) => {
@@ -1448,6 +1462,9 @@
 		
 		const time = Date.now() * 0.001;
 		
+		// Update equalizer visualization
+		updateEqualizer();
+		
 		// Update camera world position for chunk loading
 		cameraWorldPos.x += (cameraTarget.x - cameraWorldPos.x) * 0.03;
 		cameraWorldPos.z += (cameraTarget.z - cameraWorldPos.z) * 0.03;
@@ -1535,62 +1552,73 @@
 			packet.scale.setScalar(scale);
 		});
 		
-		// Animate flying particles - follow camera + audio reactivity
+		// Animate flying particles - grid-following network packets
 		if (scene.userData.particles) {
 			const positions = scene.userData.particles.geometry.attributes.position.array;
 			const velocities = scene.userData.particles.userData.velocities;
-			const basePositions = scene.userData.particles.userData.basePositions;
+			const packetData = scene.userData.particles.userData.packetData;
 			
 			// Get audio frequency data
-			const { bass, mid, high } = getFrequencyBands();
+			const { bass } = getFrequencyBands();
 			const audioLevel = getAudioLevel();
 			
-			// Audio affects particle size and material
+			// Audio affects particle appearance - keep them small!
 			if (audioEnabled && audioLevel > 0.01) {
-				scene.userData.particles.material.size = 0.25 + bass * 1.5;
+				scene.userData.particles.material.size = 0.4 + bass * 0.3; // Much smaller
 				scene.userData.particles.material.opacity = 0.7 + audioLevel * 0.3;
 			} else {
-				scene.userData.particles.material.size = 0.25;
+				scene.userData.particles.material.size = 0.5;
 				scene.userData.particles.material.opacity = 0.9;
 			}
 			
 			for (let i = 0; i < positions.length / 3; i++) {
-				// Base movement
+				const packet = packetData[i];
+				
+				// Move along grid line
 				positions[i * 3] += velocities[i * 3];
 				positions[i * 3 + 1] += velocities[i * 3 + 1];
 				positions[i * 3 + 2] += velocities[i * 3 + 2];
 				
-				// Audio reactivity - particles pulse and move based on frequency
-				if (audioEnabled && audioLevel > 0.01) {
-					const particleGroup = i % 3; // Divide particles into 3 groups
-					let audioInfluence = 0;
+				// Audio mode - only 50% of particles (even indices) react to audio
+				const isAudioReactive = i % 2 === 0;
+				
+				if (audioEnabled && audioLevel > 0.02 && isAudioReactive) {
+					// Assign each particle to an EQ band (16 bands)
+					const eqBand = i % 16;
+					const eqValue = eqBars[eqBand] || 0;
 					
-					if (particleGroup === 0) {
-						// Bass group - vertical bounce
-						audioInfluence = bass * 15;
-						positions[i * 3 + 1] += Math.sin(time * 8 + i) * audioInfluence;
-					} else if (particleGroup === 1) {
-						// Mid group - horizontal spread
-						audioInfluence = mid * 10;
-						positions[i * 3] += Math.cos(time * 6 + i) * audioInfluence * 0.5;
-						positions[i * 3 + 2] += Math.sin(time * 6 + i) * audioInfluence * 0.5;
-					} else {
-						// High group - rapid flutter
-						audioInfluence = high * 8;
-						positions[i * 3] += (Math.random() - 0.5) * audioInfluence;
-						positions[i * 3 + 1] += (Math.random() - 0.5) * audioInfluence;
-						positions[i * 3 + 2] += (Math.random() - 0.5) * audioInfluence;
-					}
+					// Particles rise like energy streams - smooth wave motion
+					const wavePhase = time * 4 + i * 0.3;
+					const baseRise = eqValue * 25; // Max rise based on EQ
+					const waveOffset = Math.sin(wavePhase) * (3 + eqValue * 8);
+					
+					// Gentle upward drift with wave motion
+					positions[i * 3 + 1] = 1 + baseRise + waveOffset;
+					
+					// Subtle horizontal sway synced to audio
+					const swayAmount = eqValue * 2;
+					positions[i * 3] += Math.sin(wavePhase * 0.7) * swayAmount * 0.1;
+					positions[i * 3 + 2] += Math.cos(wavePhase * 0.5) * swayAmount * 0.1;
+					
+					// Speed boost based on overall audio level
+					const speedMult = 1 + bass * 3;
+					positions[i * 3] += velocities[i * 3] * speedMult;
+					positions[i * 3 + 2] += velocities[i * 3 + 2] * speedMult;
+				} else {
+					// Stay on grid - low to ground
+					positions[i * 3 + 1] = 0.5 + Math.sin(time * 2 + i * 0.1) * 0.3;
 				}
 				
 				// Wrap around camera position
 				const relX = positions[i * 3] - cameraWorldPos.x;
 				const relZ = positions[i * 3 + 2] - cameraWorldPos.z;
 				
-				if (Math.abs(relX) > 150) positions[i * 3] = cameraWorldPos.x - relX * 0.5;
-				if (positions[i * 3 + 1] < 0) positions[i * 3 + 1] = 100;
-				if (positions[i * 3 + 1] > 100) positions[i * 3 + 1] = 0;
-				if (Math.abs(relZ) > 150) positions[i * 3 + 2] = cameraWorldPos.z - relZ * 0.5;
+				if (Math.abs(relX) > 150) {
+					positions[i * 3] = cameraWorldPos.x - relX * 0.9;
+				}
+				if (Math.abs(relZ) > 150) {
+					positions[i * 3 + 2] = cameraWorldPos.z - relZ * 0.9;
+				}
 			}
 			scene.userData.particles.geometry.attributes.position.needsUpdate = true;
 		}
@@ -2067,6 +2095,30 @@
 			mid: mid / ((midEnd - bassEnd) * 255),
 			high: high / ((len - midEnd) * 255)
 		};
+	};
+	
+	const updateEqualizer = () => {
+		if (!audioAnalyzer || !audioDataArray || !audioEnabled) {
+			eqBars = eqBars.map(v => v * 0.9); // Fade out
+			return;
+		}
+		
+		audioAnalyzer.getByteFrequencyData(audioDataArray as Uint8Array<ArrayBuffer>);
+		const len = audioDataArray.length;
+		const barCount = 16;
+		const binSize = Math.floor(len / barCount);
+		
+		const newBars: number[] = [];
+		for (let i = 0; i < barCount; i++) {
+			let sum = 0;
+			for (let j = 0; j < binSize; j++) {
+				sum += audioDataArray[i * binSize + j];
+			}
+			const value = sum / binSize / 255;
+			// Smooth transition
+			newBars.push(Math.max(value, eqBars[i] * 0.85));
+		}
+		eqBars = newBars;
 	};
 	
 	const handleWheel = (e: WheelEvent) => {
@@ -2766,6 +2818,18 @@
 				{/if}
 			</button>
 			
+			<!-- Equalizer visualization -->
+			{#if audioEnabled}
+				<div class="equalizer">
+					{#each eqBars as bar, i}
+						<div 
+							class="eq-bar" 
+							style="height: {Math.max(4, bar * 40)}px; background: {i < 4 ? '#ff00ff' : i < 10 ? '#00ffff' : '#00ff88'};"
+						></div>
+					{/each}
+				</div>
+			{/if}
+			
 			<button 
 				class="control-btn new-chat-btn" 
 				class:active={showModelSelector}
@@ -3442,6 +3506,27 @@
 		50% {
 			box-shadow: 0 0 30px rgba(0, 255, 255, 0.8), 0 0 40px rgba(255, 0, 255, 0.6);
 		}
+	}
+	
+	/* Equalizer visualization */
+	.equalizer {
+		display: flex;
+		align-items: flex-end;
+		gap: 2px;
+		height: 40px;
+		padding: 4px 8px;
+		background: rgba(0, 0, 20, 0.8);
+		border: 1px solid #00ffff;
+		border-radius: 4px;
+		box-shadow: 0 0 10px rgba(0, 255, 255, 0.3), inset 0 0 5px rgba(255, 0, 255, 0.1);
+	}
+	
+	.eq-bar {
+		width: 4px;
+		min-height: 4px;
+		border-radius: 2px;
+		transition: height 0.05s ease-out;
+		box-shadow: 0 0 5px currentColor;
 	}
 	
 	.help-text {
