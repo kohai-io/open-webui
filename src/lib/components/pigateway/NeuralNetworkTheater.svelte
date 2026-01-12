@@ -148,6 +148,10 @@
 		y: 0
 	};
 	
+	// Model selector panel state (UI-based, not 3D)
+	let showModelSelector = false;
+	let availableModelsList: { id: string; name: string; color: string; chatCount: number }[] = [];
+	
 	// Warp effect state
 	let isWarping = false;
 	let warpSpeed = 0;
@@ -272,19 +276,21 @@
 		// Load user chats and create chat buildings in center
 		await loadUserChats(THREE);
 		
-		// Create Model Hub - floating AI model representations
+		// Create Model Hub - small 3D orbs that follow the camera
 		createModelHub(THREE);
 		
 		// Initial chunk loading (procedural buildings in outer areas)
 		updateChunks();
 	};
 	
-	// Model Hub - creates floating orbs for each AI model
+	// Model Hub - creates small floating orbs that follow the camera
+	let modelHubGroup: any = null;
+	
 	const createModelHub = (THREE: any) => {
 		// Get available models from the store (same as chat dropdown)
 		const availableModels = $models || [];
 		
-		// Also collect usage stats from chats for sizing
+		// Collect usage stats from chats
 		const modelUsage: Map<string, { count: number; lastUsed: number }> = new Map();
 		userChats.forEach(chat => {
 			let chatModels: string[] = [];
@@ -302,7 +308,6 @@
 			});
 		});
 		
-		// If no models available, don't create the hub
 		if (availableModels.length === 0) {
 			console.log('No models available for Model Hub');
 			return;
@@ -310,64 +315,53 @@
 		
 		console.log(`Model Hub: Found ${availableModels.length} available models`);
 		
-		// Create Model Hub group - positioned to the left of the timeline
-		const hubGroup = new THREE.Group();
-		hubGroup.position.set(-60, 30, 0); // Left side, elevated
-		
-		// Create a floating platform for the hub
-		const platformGeometry = new THREE.CylinderGeometry(25, 25, 2, 32);
-		const platformMaterial = new THREE.MeshBasicMaterial({
-			color: 0x001122,
-			transparent: true,
-			opacity: 0.5
+		// Build the UI list for the panel selector too
+		availableModelsList = availableModels.map((model: any) => {
+			const modelId = model.id || model.name || 'unknown';
+			const modelName = model.name || model.id || 'Unknown Model';
+			const stats = modelUsage.get(modelId) || { count: 0, lastUsed: 0 };
+			const colorNum = getModelColor(modelId);
+			const colorHex = '#' + colorNum.toString(16).padStart(6, '0');
+			modelStats.set(modelId, { chatCount: stats.count, lastUsed: stats.lastUsed ? new Date(stats.lastUsed * 1000) : null });
+			return { id: modelId, name: modelName, color: colorHex, chatCount: stats.count };
 		});
-		const platform = new THREE.Mesh(platformGeometry, platformMaterial);
-		platform.position.y = -5;
-		hubGroup.add(platform);
 		
-		// Platform ring
-		const ringGeometry = new THREE.TorusGeometry(25, 0.3, 8, 64);
-		const ringMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffff });
-		const ring = new THREE.Mesh(ringGeometry, ringMaterial);
-		ring.rotation.x = Math.PI / 2;
-		ring.position.y = -4;
-		hubGroup.add(ring);
+		// Create Model Hub group - will follow camera
+		modelHubGroup = new THREE.Group();
+		modelHubGroup.name = 'modelHub';
 		
-		// Create orbs for each available model
-		const angleStep = (Math.PI * 2) / Math.max(availableModels.length, 1);
+		// Arrange orbs in a full circular orbit at the top-left of the view
+		const orbCount = Math.min(availableModels.length, 12); // Limit to 12 visible orbs
+		const orbitRadius = 2.5; // Compact circular orbit radius
 		
-		// Adjust platform size based on model count
-		const platformRadius = Math.max(25, availableModels.length * 3);
-		platform.geometry.dispose();
-		platform.geometry = new THREE.CylinderGeometry(platformRadius, platformRadius, 2, 32);
-		ring.geometry.dispose();
-		ring.geometry = new THREE.TorusGeometry(platformRadius, 0.3, 8, 64);
-		
-		availableModels.forEach((model: any, index: number) => {
+		availableModels.slice(0, orbCount).forEach((model: any, index: number) => {
 			const modelId = model.id || model.name || 'unknown';
 			const modelName = model.name || model.id || 'Unknown Model';
 			const stats = modelUsage.get(modelId) || { count: 0, lastUsed: 0 };
 			
-			const angle = index * angleStep;
-			const radius = Math.max(15, availableModels.length * 2);
-			const x = Math.cos(angle) * radius;
-			const z = Math.sin(angle) * radius;
+			// Full circle distribution
+			const angle = (index / orbCount) * Math.PI * 2;
+			const x = Math.cos(angle) * orbitRadius - 10; // Offset to left
+			const y = Math.sin(angle) * orbitRadius + 6; // Offset up (top of view)
+			const z = -15; // In front of camera
 			
-			// Create model orb - size based on usage (bigger = more used)
-			const orbSize = 2 + Math.min(stats.count / 5, 4);
-			const orbGeometry = new THREE.IcosahedronGeometry(orbSize, 1);
+			// Create small model orb
+			const orbSize = 0.4; // Even smaller
 			const color = getModelColor(modelId);
+			
+			// Wireframe outer shell
+			const orbGeometry = new THREE.IcosahedronGeometry(orbSize, 1);
 			const orbMaterial = new THREE.MeshBasicMaterial({
 				color,
 				transparent: true,
-				opacity: 0.8,
+				opacity: 0.7,
 				wireframe: true
 			});
 			const orb = new THREE.Mesh(orbGeometry, orbMaterial);
-			orb.position.set(x, 0, z);
+			orb.position.set(x, y, z);
 			
 			// Inner solid core
-			const coreGeometry = new THREE.IcosahedronGeometry(orbSize * 0.6, 1);
+			const coreGeometry = new THREE.IcosahedronGeometry(orbSize * 0.5, 1);
 			const coreMaterial = new THREE.MeshBasicMaterial({
 				color,
 				transparent: true,
@@ -376,33 +370,31 @@
 			const core = new THREE.Mesh(coreGeometry, coreMaterial);
 			orb.add(core);
 			
-			// Orbiting ring
-			const orbitRing = new THREE.TorusGeometry(orbSize * 1.3, 0.1, 8, 32);
-			const orbitMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.6 });
+			// Small orbiting ring
+			const orbitRing = new THREE.TorusGeometry(orbSize * 1.2, 0.03, 8, 24);
+			const orbitMaterial = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5 });
 			const orbit = new THREE.Mesh(orbitRing, orbitMaterial);
 			orbit.rotation.x = Math.PI / 3;
 			orb.add(orbit);
 			
-			// Store model data - use model.id for API calls
+			// Store model data
 			orb.userData = {
 				isModel: true,
 				modelId: modelId,
 				modelName: modelName,
 				chatCount: stats.count,
 				lastUsed: stats.lastUsed,
-				baseY: 0,
+				baseY: y,
 				rotationSpeed: 0.01 + Math.random() * 0.02,
 				orbitRing: orbit
 			};
 			
-			hubGroup.add(orb);
+			modelHubGroup.add(orb);
 			modelHub.set(modelId, orb);
-			modelStats.set(modelId, { chatCount: stats.count, lastUsed: stats.lastUsed ? new Date(stats.lastUsed * 1000) : null });
 		});
 		
-		// Hub label
-		scene.userData.modelHub = hubGroup;
-		scene.add(hubGroup);
+		// Add to scene (will be repositioned each frame to follow camera)
+		scene.add(modelHubGroup);
 	};
 	
 	// Linear timeline settings
@@ -1548,11 +1540,18 @@
 			});
 		});
 		
+		// Make Model Hub follow camera
+		if (modelHubGroup) {
+			modelHubGroup.position.copy(camera.position);
+			modelHubGroup.rotation.copy(camera.rotation);
+		}
+		
 		// Animate Model Hub orbs
 		modelHub.forEach((orb: any, modelName: string) => {
 			if (orb.userData?.isModel) {
-				// Floating bob motion
-				orb.position.y = orb.userData.baseY + Math.sin(time * 2 + modelName.length) * 1.5;
+				// Subtle floating bob motion
+				const baseY = orb.userData.baseY;
+				orb.position.y = baseY + Math.sin(time * 2 + modelName.length) * 0.15;
 				
 				// Rotate orb
 				orb.rotation.y += orb.userData.rotationSpeed;
@@ -1565,19 +1564,14 @@
 				
 				// Highlight if hovered
 				if (orb === hoveredModel) {
-					orb.scale.setScalar(1.3);
+					orb.scale.setScalar(1.4);
 					orb.material.opacity = 1;
 				} else {
 					orb.scale.setScalar(1);
-					orb.material.opacity = 0.8;
+					orb.material.opacity = 0.7;
 				}
 			}
 		});
-		
-		// Rotate Model Hub platform slowly
-		if (scene.userData.modelHub) {
-			scene.userData.modelHub.rotation.y += 0.001;
-		}
 		
 		// Animate data packets along highways
 		dataStreams.forEach((packet: any) => {
@@ -2181,7 +2175,7 @@
 			if (orb?.userData?.isModel) {
 				hoveredModel = orb;
 				sceneCanvas.style.cursor = 'var(--cyber-cursor-pointer)';
-				// Show model info - use modelId for stats, modelName for display
+				// Show model info
 				const stats = modelStats.get(orb.userData.modelId);
 				const displayName = orb.userData.modelName || orb.userData.modelId;
 				
@@ -2207,6 +2201,7 @@
 			if (!currentGesture.startsWith('🎯')) currentGesture = '';
 		}
 		
+		// Check for chat building hovers
 		const chatBuildingArray = Array.from(chatBuildings.values());
 		const allMeshes: any[] = [];
 		
@@ -2537,7 +2532,7 @@
 			const hit = modelIntersects[0].object;
 			const orb = hit.userData.parentOrb;
 			if (orb?.userData?.isModel) {
-				// Start new chat with this model - pass modelId for API, modelName for display
+				// Start new chat with this model
 				startNewChatWithModel(orb.userData.modelId, orb.userData.modelName);
 				return;
 			}
@@ -2828,6 +2823,14 @@
 				{/if}
 			</button>
 			
+			<button 
+				class="control-btn new-chat-btn" 
+				class:active={showModelSelector}
+				on:click={() => showModelSelector = !showModelSelector}
+			>
+				➕ NEW CHAT
+			</button>
+			
 			<div class="help-text">
 				{#if gestureMode}
 					<div>☝️ Point → Past | ✊ Fist ← Now | ✋ Palm = Select</div>
@@ -2837,6 +2840,33 @@
 				{/if}
 			</div>
 		</div>
+		
+		<!-- Model Selector Panel -->
+		{#if showModelSelector}
+			<div class="model-selector-panel">
+				<div class="model-selector-header">
+					<span>🤖 SELECT MODEL</span>
+					<button class="model-selector-close" on:click={() => showModelSelector = false}>✕</button>
+				</div>
+				<div class="model-selector-list">
+					{#each availableModelsList as model}
+						<button 
+							class="model-selector-item"
+							on:click={() => { startNewChatWithModel(model.id, model.name); showModelSelector = false; }}
+						>
+							<span class="model-color-dot" style="background: {model.color};"></span>
+							<span class="model-name">{model.name}</span>
+							{#if model.chatCount > 0}
+								<span class="model-chat-count">{model.chatCount}</span>
+							{/if}
+						</button>
+					{/each}
+					{#if availableModelsList.length === 0}
+						<div class="model-selector-empty">No models available</div>
+					{/if}
+				</div>
+			</div>
+		{/if}
 	</div>
 	
 	<!-- Cyberspace Chat Interface -->
@@ -3148,6 +3178,128 @@
 		font-size: 0.7rem;
 		color: #ffff00;
 		text-shadow: 0 0 5px #ffff00;
+	}
+	
+	/* Model Selector Panel */
+	.model-selector-panel {
+		position: absolute;
+		bottom: 5rem;
+		left: 50%;
+		transform: translateX(-50%);
+		background: rgba(0, 0, 20, 0.95);
+		border: 2px solid #00ffff;
+		border-radius: 0.75rem;
+		padding: 0;
+		min-width: 280px;
+		max-width: 400px;
+		max-height: 50vh;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+		box-shadow: 0 0 30px rgba(0, 255, 255, 0.4), 0 0 60px rgba(255, 0, 255, 0.2);
+		animation: panel-slide-up 0.2s ease-out;
+		z-index: 100;
+	}
+	
+	@keyframes panel-slide-up {
+		from { opacity: 0; transform: translateX(-50%) translateY(20px); }
+		to { opacity: 1; transform: translateX(-50%) translateY(0); }
+	}
+	
+	.model-selector-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: 0.75rem 1rem;
+		border-bottom: 1px solid rgba(0, 255, 255, 0.3);
+		color: #00ffff;
+		font-family: 'Courier New', monospace;
+		font-weight: bold;
+		font-size: 0.9rem;
+	}
+	
+	.model-selector-close {
+		background: none;
+		border: none;
+		color: #ff00ff;
+		font-size: 1.2rem;
+		cursor: pointer;
+		padding: 0.25rem;
+		line-height: 1;
+	}
+	
+	.model-selector-close:hover {
+		color: #00ffff;
+	}
+	
+	.model-selector-list {
+		overflow-y: auto;
+		max-height: 40vh;
+		padding: 0.5rem;
+	}
+	
+	.model-selector-item {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		width: 100%;
+		padding: 0.6rem 0.75rem;
+		background: rgba(0, 255, 255, 0.05);
+		border: 1px solid transparent;
+		border-radius: 0.5rem;
+		color: #fff;
+		font-family: 'Courier New', monospace;
+		font-size: 0.85rem;
+		cursor: pointer;
+		transition: all 0.15s;
+		text-align: left;
+		margin-bottom: 0.25rem;
+	}
+	
+	.model-selector-item:hover {
+		background: rgba(0, 255, 255, 0.15);
+		border-color: #00ffff;
+		box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+	}
+	
+	.model-color-dot {
+		width: 10px;
+		height: 10px;
+		border-radius: 50%;
+		flex-shrink: 0;
+		box-shadow: 0 0 8px currentColor;
+	}
+	
+	.model-name {
+		flex: 1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	
+	.model-chat-count {
+		background: rgba(255, 0, 255, 0.3);
+		color: #ff00ff;
+		padding: 0.15rem 0.5rem;
+		border-radius: 1rem;
+		font-size: 0.75rem;
+		font-weight: bold;
+	}
+	
+	.model-selector-empty {
+		text-align: center;
+		color: rgba(0, 255, 255, 0.5);
+		padding: 1rem;
+		font-style: italic;
+	}
+	
+	.new-chat-btn {
+		background: linear-gradient(135deg, rgba(0, 255, 255, 0.2), rgba(255, 0, 255, 0.2)) !important;
+		border-color: #00ffff !important;
+	}
+	
+	.new-chat-btn:hover {
+		box-shadow: 0 0 20px rgba(0, 255, 255, 0.5) !important;
 	}
 	
 	.open-chat-btn {
