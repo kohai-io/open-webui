@@ -20,6 +20,8 @@ export type GestureCallback = (gesture: AllGestureTypes, handedness: string) => 
 
 export type FaceLandmarkCallback = (landmarks: any[], blendShapes: any[]) => void;
 
+export type HandLandmarkCallback = (landmarks: any[], handednesses: any[]) => void;
+
 export class MediaPipeGestureController {
   private gestureRecognizer: GestureRecognizer | null = null;
   private faceLandmarker: FaceLandmarker | null = null;
@@ -40,6 +42,9 @@ export class MediaPipeGestureController {
   
   // Face landmark callbacks
   private faceLandmarkCallbacks: FaceLandmarkCallback[] = [];
+  
+  // Hand landmark callbacks
+  private handLandmarkCallbacks: HandLandmarkCallback[] = [];
   
   async initialize(videoElement: HTMLVideoElement, canvasElement: HTMLCanvasElement): Promise<void> {
     this.video = videoElement;
@@ -129,6 +134,11 @@ export class MediaPipeGestureController {
         this.canvasCtx.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height);
         
         if (results.landmarks) {
+          // Invoke hand landmark callbacks
+          if (this.handLandmarkCallbacks.length > 0 && results.landmarks.length > 0) {
+            this.handLandmarkCallbacks.forEach(cb => cb(results.landmarks, results.handednesses || []));
+          }
+          
           for (const landmarks of results.landmarks) {
             const drawingUtils = new DrawingUtils(this.canvasCtx);
             drawingUtils.drawConnectors(landmarks, GestureRecognizer.HAND_CONNECTIONS, {
@@ -272,6 +282,21 @@ export class MediaPipeGestureController {
     const index = this.faceLandmarkCallbacks.indexOf(callback);
     if (index > -1) {
       this.faceLandmarkCallbacks.splice(index, 1);
+    }
+  }
+  
+  onHandLandmarks(callback: HandLandmarkCallback): void {
+    this.handLandmarkCallbacks.push(callback);
+  }
+  
+  offHandLandmarks(callback?: HandLandmarkCallback): void {
+    if (!callback) {
+      this.handLandmarkCallbacks = [];
+      return;
+    }
+    const index = this.handLandmarkCallbacks.indexOf(callback);
+    if (index > -1) {
+      this.handLandmarkCallbacks.splice(index, 1);
     }
   }
   

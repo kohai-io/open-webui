@@ -1711,6 +1711,183 @@
 	let faceLandmarkPoints: any[] = [];
 	let faceMeshLines: any = null;
 	
+	// Hand mesh state
+	let handMeshGroups: any[] = [null, null]; // Up to 2 hands
+	let handLandmarkPoints: any[][] = [[], []];
+	let handMeshLines: any[] = [null, null];
+	
+	// Hand connections (MediaPipe hand landmarks)
+	const HAND_CONNECTIONS = [
+		// Thumb
+		[0, 1], [1, 2], [2, 3], [3, 4],
+		// Index finger
+		[0, 5], [5, 6], [6, 7], [7, 8],
+		// Middle finger
+		[0, 9], [9, 10], [10, 11], [11, 12],
+		// Ring finger
+		[0, 13], [13, 14], [14, 15], [15, 16],
+		// Pinky
+		[0, 17], [17, 18], [18, 19], [19, 20],
+		// Palm
+		[5, 9], [9, 13], [13, 17]
+	];
+	
+	const createHandMesh = (THREE: any, handIndex: number) => {
+		if (handMeshGroups[handIndex]) {
+			// Remove from parent (scene or faceMeshGroup)
+			if (handMeshGroups[handIndex].parent) {
+				handMeshGroups[handIndex].parent.remove(handMeshGroups[handIndex]);
+			}
+		}
+		
+		const handGroup = new THREE.Group();
+		handGroup.userData.isHandMesh = true;
+		
+		// Create 21 landmark points for hand
+		const pointGeometry = new THREE.SphereGeometry(0.06, 6, 6);
+		const pointMaterial = new THREE.MeshBasicMaterial({ 
+			color: handIndex === 0 ? 0x00ff88 : 0xff8800, // Green for left, orange for right
+			transparent: true, 
+			opacity: 1.0 
+		});
+		
+		const points: any[] = [];
+		for (let i = 0; i < 21; i++) {
+			const point = new THREE.Mesh(pointGeometry, pointMaterial.clone());
+			
+			// Add glow
+			const glowGeometry = new THREE.SphereGeometry(0.1, 4, 4);
+			const glowMaterial = new THREE.MeshBasicMaterial({
+				color: handIndex === 0 ? 0x00ff88 : 0xff8800,
+				transparent: true,
+				opacity: 0.2
+			});
+			const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+			point.add(glow);
+			point.userData.glow = glow;
+			
+			points.push(point);
+			handGroup.add(point);
+		}
+		
+		handLandmarkPoints[handIndex] = points;
+		
+		// Create line geometry for hand connections
+		const lineMaterial = new THREE.LineBasicMaterial({
+			color: handIndex === 0 ? 0x00ff88 : 0xff8800,
+			transparent: true,
+			opacity: 0.9
+		});
+		
+		const lineGeometry = new THREE.BufferGeometry();
+		const lines = new THREE.LineSegments(lineGeometry, lineMaterial);
+		lines.frustumCulled = false;
+		handGroup.add(lines);
+		handMeshLines[handIndex] = lines;
+		
+		handMeshGroups[handIndex] = handGroup;
+		scene.add(handGroup);
+	};
+	
+	const updateHandMesh = (landmarks: any[], handednesses: any[]) => {
+		if (!threeRef || !camera) return;
+		
+		const THREE = threeRef;
+		
+		// Track which hands are currently detected
+		const detectedHands = new Set<number>();
+		
+		// Update each detected hand
+		for (let h = 0; h < Math.min(landmarks.length, 2); h++) {
+			const handLandmarks = landmarks[h];
+			// Use loop index directly - simpler and more reliable
+			const handIndex = h;
+			detectedHands.add(handIndex);
+			
+			// Create hand mesh if it doesn't exist
+			if (!handMeshGroups[handIndex]) {
+				createHandMesh(THREE, handIndex);
+			}
+			
+			const handGroup = handMeshGroups[handIndex];
+			const points = handLandmarkPoints[handIndex];
+			
+			// Re-add to scene if it was removed
+			if (!handGroup.parent) {
+				scene.add(handGroup);
+			}
+			
+			// Make hand follow camera (same as face)
+			handGroup.position.copy(camera.position);
+			handGroup.rotation.copy(camera.rotation);
+			
+			// Position hand in camera space - beside the face
+			// Face is at X=22, so put hands right next to it
+			const handScale = 10;
+			const offsetX = handIndex === 0 ? 20 : 24; // Very tight to face (face at 22)
+			const offsetY = 10; // Same height as face
+			const offsetZ = -35; // Same depth as face
+			
+			// Update point positions - position hands facing the user (palm toward camera)
+			for (let i = 0; i < Math.min(handLandmarks.length, points.length); i++) {
+				const lm = handLandmarks[i];
+				const point = points[i];
+				
+				// No X mirror - MediaPipe already provides mirrored view
+				// Negate Z so palm faces toward user
+				point.position.set(
+					(lm.x - 0.5) * handScale + offsetX,
+					-(lm.y - 0.5) * handScale + offsetY,
+					-lm.z * 10 + offsetZ // Negate Z and increase scale for depth
+				);
+				
+				// Color fingertips differently
+				const isFingertip = [4, 8, 12, 16, 20].includes(i);
+				const isThumb = i >= 1 && i <= 4;
+				
+				if (isFingertip) {
+					point.material.color.setHex(0xff00ff); // Magenta fingertips
+					if (point.userData.glow) point.userData.glow.material.color.setHex(0xff00ff);
+				} else if (isThumb) {
+					point.material.color.setHex(0xffff00); // Yellow thumb
+					if (point.userData.glow) point.userData.glow.material.color.setHex(0xffff00);
+				} else {
+					const baseColor = handIndex === 0 ? 0x00ff88 : 0xff8800;
+					point.material.color.setHex(baseColor);
+					if (point.userData.glow) point.userData.glow.material.color.setHex(baseColor);
+				}
+			}
+			
+			// Update lines
+			const lines = handMeshLines[handIndex];
+			if (lines) {
+				const linePoints: any[] = [];
+				
+				for (const [idx1, idx2] of HAND_CONNECTIONS) {
+					const p1 = points[idx1];
+					const p2 = points[idx2];
+					
+					if (p1 && p2) {
+						linePoints.push(new THREE.Vector3(p1.position.x, p1.position.y, p1.position.z));
+						linePoints.push(new THREE.Vector3(p2.position.x, p2.position.y, p2.position.z));
+					}
+				}
+				
+				if (lines.geometry) lines.geometry.dispose();
+				lines.geometry = new THREE.BufferGeometry().setFromPoints(linePoints);
+			}
+		}
+		
+		// Remove hands that aren't detected from the scene
+		for (let h = 0; h < 2; h++) {
+			if (handMeshGroups[h] && !detectedHands.has(h)) {
+				if (handMeshGroups[h].parent) {
+					handMeshGroups[h].parent.remove(handMeshGroups[h]);
+				}
+			}
+		}
+	};
+	
 	const createFaceMesh = (THREE: any) => {
 		if (faceMeshGroup) {
 			scene.remove(faceMeshGroup);
@@ -1892,10 +2069,11 @@
 		await gestureController.initialize(videoElement, gestureCanvas);
 		await gestureController.startCamera(selectedDeviceId || undefined);
 		
-		// Create and setup face mesh
+		// Create and setup face mesh and hand tracking
 		if (threeRef) {
 			createFaceMesh(threeRef);
 			gestureController.onFaceLandmarks(updateFaceMesh);
+			gestureController.onHandLandmarks(updateHandMesh);
 		}
 		
 		// ✊ FIST = TURBO forward into the past (older chats)
