@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount, onDestroy, tick } from 'svelte';
 	import { chats, chatId, models } from '$lib/stores';
-	import { getChatList, createNewChat, updateChatById, getPinnedChatList, getChatById } from '$lib/apis/chats';
+	import { getChatList, createNewChat, updateChatById, getPinnedChatList, getChatById, getChatsByFolderId } from '$lib/apis/chats';
+	import { getFolders, getFolderById } from '$lib/apis/folders';
 	import { goto } from '$app/navigation';
 	import { MediaPipeGestureController, type GestureType, type DualGestureType, type AllGestureTypes } from '$lib/utils/mediapipe-gesture';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
@@ -66,6 +67,11 @@
 	let chatBuildings: Map<string, any> = new Map(); // chatId -> building mesh
 	let hoveredChat: any = null;
 	let selectedChatBuilding: any = null;
+	
+	// Folder data for visualization
+	let folders: Map<string, any> = new Map(); // folderId -> folder data
+	let folderNodes: Map<string, any> = new Map(); // folderId -> folder 3D node
+	let folderConnections: any[] = []; // Lines connecting folders to their chats
 	
 	// Cyberspace Chat Interface
 	let cyberspaceChat = {
@@ -459,6 +465,14 @@
 	let timelineStart = 0; // Z position of oldest chat
 	let timelineEnd = 0; // Z position of newest chat
 	
+	// Lazy loading pagination state
+	let currentPage = 1;
+	let hasMoreChats = true;
+	let isLoadingMoreChats = false;
+	let loadedChatIds = new Set<string>(); // Track which chats are already loaded
+	const CHATS_PER_PAGE = 50; // Matches API default
+	const LOAD_TRIGGER_DISTANCE = 200; // Z distance from timeline end to trigger loading
+	
 	// Get date label for a timestamp
 	const getDateLabel = (timestamp: number): string => {
 		const date = new Date(timestamp);
@@ -487,11 +501,21 @@
 	
 	const loadUserChats = async (THREE: any) => {
 		try {
-			// Load recent chats
-			const chatList = await getChatList(localStorage.token, 1, true, true);
+			// Load first page of chats
+			currentPage = 1;
+			const chatList = await getChatList(localStorage.token, currentPage, true, true);
 			userChats = chatList || [];
 			
-			if (userChats.length === 0) return;
+			if (userChats.length === 0) {
+				hasMoreChats = false;
+				return;
+			}
+			
+			// Track loaded chat IDs
+			userChats.forEach(chat => loadedChatIds.add(chat.id));
+			
+			// Check if there might be more chats
+			hasMoreChats = userChats.length >= CHATS_PER_PAGE;
 			
 			// Sort chats by creation/update time (newest/latest first at start)
 			const sortedChats = [...userChats].sort((a, b) => {
@@ -500,7 +524,7 @@
 				return timeB - timeA; // Newest/latest first
 			});
 			
-			const chatCount = Math.min(sortedChats.length, 50);
+			const chatCount = sortedChats.length;
 			
 			// Create timeline markers and buildings
 			timelineStart = 0;
@@ -537,9 +561,420 @@
 			// Create highways between related chats
 			createChatHighways(THREE);
 			
+			// Load folders and create folder nodes
+			await loadFolders(THREE);
+			
 		} catch (error) {
 			console.error('Failed to load chats:', error);
 		}
+	};
+	
+	// Load folders and create visual nodes for them
+	const loadFolders = async (THREE: any) => {
+		try {
+			const folderList = await getFolders(localStorage.token);
+			
+			if (!folderList || folderList.length === 0) return;
+			
+			// Fetch chats for each folder using the folder endpoint
+			const chatsByFolder = new Map<string, any[]>();
+			
+			for (const folderSummary of folderList) {
+				try {
+					folders.set(folderSummary.id, folderSummary);
+					
+					// Get chats in this folder from the API
+					const folderChats = await getChatsByFolderId(localStorage.token, folderSummary.id);
+					
+					if (folderChats && folderChats.length > 0) {
+						// Store all chat IDs for this folder (for lazy loading updates)
+						folderChatIds.set(folderSummary.id, folderChats.map((fc: any) => fc.id));
+						
+						// Find matching chats from userChats (already loaded buildings)
+						const chatsWithBuildings = folderChats.filter((fc: any) => chatBuildings.has(fc.id));
+						
+						if (chatsWithBuildings.length > 0) {
+							chatsByFolder.set(folderSummary.id, chatsWithBuildings);
+						}
+					}
+				} catch (err) {
+					console.error(`[Folders] Failed to fetch chats for folder ${folderSummary.id}:`, err);
+				}
+			}
+			
+						
+			// Create folder nodes and connections
+			chatsByFolder.forEach((chatsInFolder, folderId) => {
+				const folder = folders.get(folderId);
+				if (!folder || chatsInFolder.length === 0) return;
+				
+				createFolderNode(THREE, folder, chatsInFolder);
+			});
+			
+						
+		} catch (error) {
+			console.error('Failed to load folders:', error);
+		}
+	};
+	
+	// Create a folder node above its chats with connections
+	const createFolderNode = (THREE: any, folder: any, chatsInFolder: any[]) => {
+		// Find the center position of all chats in this folder
+		let sumX = 0, sumZ = 0, minZ = Infinity, maxZ = -Infinity;
+		const chatBuildingsInFolder: any[] = [];
+		
+		chatsInFolder.forEach(chat => {
+			const building = chatBuildings.get(chat.id);
+			if (building) {
+				sumX += building.position.x;
+				sumZ += building.position.z;
+				minZ = Math.min(minZ, building.position.z);
+				maxZ = Math.max(maxZ, building.position.z);
+				chatBuildingsInFolder.push(building);
+			}
+		});
+		
+		if (chatBuildingsInFolder.length === 0) return;
+		
+		const centerX = sumX / chatBuildingsInFolder.length;
+		const centerZ = (minZ + maxZ) / 2;
+		const folderY = 60; // Height above buildings
+		
+		// Create folder node group
+		const folderGroup = new THREE.Group();
+		folderGroup.position.set(centerX, folderY, centerZ);
+		folderGroup.userData = {
+			isFolder: true,
+			folderId: folder.id,
+			folderName: folder.name,
+			chatCount: chatsInFolder.length
+		};
+		
+		// Folder icon - hexagonal prism
+		const hexRadius = 4;
+		const hexHeight = 2;
+		const hexGeometry = new THREE.CylinderGeometry(hexRadius, hexRadius, hexHeight, 6);
+		const hexMaterial = new THREE.MeshBasicMaterial({
+			color: 0xffaa00, // Orange/gold for folders
+			transparent: true,
+			opacity: 0.8
+		});
+		const hexMesh = new THREE.Mesh(hexGeometry, hexMaterial);
+		hexMesh.rotation.y = Math.PI / 6; // Rotate to look like a folder icon
+		folderGroup.add(hexMesh);
+		
+		// Glowing ring around folder
+		const ringGeometry = new THREE.TorusGeometry(hexRadius + 1, 0.3, 8, 32);
+		const ringMaterial = new THREE.MeshBasicMaterial({
+			color: 0xffaa00,
+			transparent: true,
+			opacity: 0.5
+		});
+		const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+		ring.rotation.x = Math.PI / 2;
+		ring.userData.rotationSpeed = 0.01;
+		folderGroup.add(ring);
+		
+		// Folder name label (above the node)
+		const labelSprite = createTextSprite(THREE, folder.name, 0xffaa00);
+		labelSprite.position.set(0, hexHeight + 1.5, 0);
+		labelSprite.scale.set(10, 2.5, 1);
+		folderGroup.add(labelSprite);
+		
+		// Chat count indicator (below the node)
+		const countSprite = createTextSprite(THREE, `${chatsInFolder.length} chats`, 0xffffff);
+		countSprite.position.set(0, -hexHeight - 1, 0);
+		countSprite.scale.set(6, 1.5, 1);
+		folderGroup.add(countSprite);
+		
+		scene.add(folderGroup);
+		folderNodes.set(folder.id, folderGroup);
+		
+		// Create connection lines from folder to each chat
+		chatBuildingsInFolder.forEach(building => {
+			const connection = createFolderConnection(THREE, folderGroup, building);
+			if (connection) {
+				scene.add(connection);
+				folderConnections.push(connection);
+			}
+		});
+	};
+	
+	// Create a glowing connection line from folder node to chat building
+	const createFolderConnection = (THREE: any, folderNode: any, chatBuilding: any): any => {
+		const startPos = folderNode.position;
+		const endPos = chatBuilding.position;
+		const buildingHeight = chatBuilding.userData?.height || 10;
+		
+		// Create curved connection using quadratic bezier
+		const midY = (startPos.y + buildingHeight) / 2 + 10;
+		const curve = new THREE.QuadraticBezierCurve3(
+			new THREE.Vector3(startPos.x, startPos.y - 2, startPos.z),
+			new THREE.Vector3(
+				(startPos.x + endPos.x) / 2,
+				midY,
+				(startPos.z + endPos.z) / 2
+			),
+			new THREE.Vector3(endPos.x, buildingHeight + 2, endPos.z)
+		);
+		
+		const points = curve.getPoints(20);
+		const geometry = new THREE.BufferGeometry().setFromPoints(points);
+		
+		// Dashed line material for folder connections
+		const material = new THREE.LineDashedMaterial({
+			color: 0xffaa00,
+			transparent: true,
+			opacity: 0.4,
+			dashSize: 2,
+			gapSize: 1
+		});
+		
+		const line = new THREE.Line(geometry, material);
+		line.computeLineDistances(); // Required for dashed lines
+		line.userData = {
+			isFolderConnection: true,
+			folderId: folderNode.userData.folderId,
+			chatId: chatBuilding.userData.chatId
+		};
+		
+		return line;
+	};
+	
+	// Lazy load more chats when approaching the end of the timeline
+	const loadMoreChats = async () => {
+		if (!hasMoreChats || isLoadingMoreChats || !threeRef) return;
+		
+		isLoadingMoreChats = true;
+		console.log(`[Timeline] Loading page ${currentPage + 1}...`);
+		
+		try {
+			const nextPage = currentPage + 1;
+			const chatList = await getChatList(localStorage.token, nextPage, true, true);
+			
+			if (!chatList || chatList.length === 0) {
+				hasMoreChats = false;
+				console.log('[Timeline] No more chats to load');
+				isLoadingMoreChats = false;
+				return;
+			}
+			
+			// Filter out already loaded chats
+			const newChats = chatList.filter((chat: any) => !loadedChatIds.has(chat.id));
+			
+			if (newChats.length === 0) {
+				hasMoreChats = chatList.length >= CHATS_PER_PAGE;
+				currentPage = nextPage;
+				isLoadingMoreChats = false;
+				return;
+			}
+			
+			console.log(`[Timeline] Loaded ${newChats.length} new chats`);
+			
+			// Track new chat IDs
+			newChats.forEach((chat: any) => loadedChatIds.add(chat.id));
+			
+			// Add to userChats array
+			userChats = [...userChats, ...newChats];
+			
+			// Sort new chats by time (oldest first for appending to timeline)
+			const sortedNewChats = [...newChats].sort((a: any, b: any) => {
+				const timeA = a.created_at || a.updated_at || 0;
+				const timeB = b.created_at || b.updated_at || 0;
+				return timeB - timeA; // Newest first (will be placed at higher Z)
+			});
+			
+			// Get current building count to calculate Z positions
+			const existingBuildingCount = chatBuildings.size;
+			
+			// Create buildings for new chats
+			const THREE = threeRef;
+			for (let i = 0; i < sortedNewChats.length; i++) {
+				const chat = sortedNewChats[i];
+				const globalIndex = existingBuildingCount + i;
+				const timestamp = chat.created_at || chat.updated_at || 0;
+				
+				// X position based on time of day + alternating offset
+				const timeOffset = getTimeOfDayOffset(timestamp);
+				const baseX = timeOffset * 5;
+				const alternateOffset = (globalIndex % 2 === 0) ? -15 : 15;
+				const x = baseX + alternateOffset;
+				
+				const z = globalIndex * TIMELINE_SPACING;
+				
+				const building = createChatBuilding(THREE, chat, x, z, globalIndex);
+				scene.add(building);
+				buildings.push(building);
+				chatBuildings.set(chat.id, building);
+				
+				// Add date marker if needed (at month boundaries)
+				addDateMarkerIfNeeded(THREE, chat, z);
+			}
+			
+			// Update timeline end position
+			timelineEnd = chatBuildings.size * TIMELINE_SPACING;
+			
+			// Update "PAST" marker position
+			updatePastMarker(THREE);
+			
+			// Create highways for new buildings
+			createHighwaysForNewBuildings(THREE, sortedNewChats);
+			
+			// Update folder nodes for newly loaded chats
+			updateFolderNodesForNewChats(THREE, sortedNewChats);
+			
+			currentPage = nextPage;
+			hasMoreChats = chatList.length >= CHATS_PER_PAGE;
+			
+			console.log(`[Timeline] Timeline now has ${chatBuildings.size} chats, hasMore: ${hasMoreChats}`);
+			
+		} catch (error) {
+			console.error('Failed to load more chats:', error);
+		} finally {
+			isLoadingMoreChats = false;
+		}
+	};
+	
+	// Track last date marker to avoid duplicates
+	let lastMarkerMonth = -1;
+	let lastMarkerYear = -1;
+	
+	const addDateMarkerIfNeeded = (THREE: any, chat: any, z: number) => {
+		const timestamp = (chat.created_at || chat.updated_at || 0) * 1000;
+		const date = new Date(timestamp);
+		const month = date.getMonth();
+		const year = date.getFullYear();
+		
+		if (month !== lastMarkerMonth || year !== lastMarkerYear) {
+			lastMarkerMonth = month;
+			lastMarkerYear = year;
+			
+			// Vertical marker line
+			const markerGeometry = new THREE.BufferGeometry().setFromPoints([
+				new THREE.Vector3(-30, 0, z),
+				new THREE.Vector3(30, 0, z)
+			]);
+			const markerColor = 0xff00ff;
+			const markerMaterial = new THREE.LineBasicMaterial({ color: markerColor, transparent: true, opacity: 0.4 });
+			scene.add(new THREE.Line(markerGeometry, markerMaterial));
+			
+			// Date label sprite
+			const dateLabel = getDateLabel(timestamp);
+			const labelSprite = createTextSprite(THREE, dateLabel, markerColor);
+			labelSprite.position.set(-35, 25, z);
+			labelSprite.scale.set(10, 2.5, 1);
+			scene.add(labelSprite);
+		}
+	};
+	
+	// Reference to the "PAST" marker sprite for repositioning
+	let pastMarkerSprite: any = null;
+	
+	const updatePastMarker = (THREE: any) => {
+		const newZ = chatBuildings.size * TIMELINE_SPACING + 10;
+		
+		if (pastMarkerSprite) {
+			pastMarkerSprite.position.z = newZ;
+		} else {
+			// Create if doesn't exist
+			pastMarkerSprite = createTextSprite(THREE, 'PAST ▶', 0xff00ff);
+			pastMarkerSprite.position.set(0, 100, newZ);
+			pastMarkerSprite.scale.set(12, 3, 1);
+			scene.add(pastMarkerSprite);
+		}
+	};
+	
+	const createHighwaysForNewBuildings = (THREE: any, newChats: any[]) => {
+		// Connect new buildings to existing timeline
+		const allBuildings = Array.from(chatBuildings.values());
+		const sortedByZ = [...allBuildings].sort((a, b) => a.position.z - b.position.z);
+		
+		// Find where new buildings start and connect them
+		for (let i = 0; i < sortedByZ.length - 1; i++) {
+			const curr = sortedByZ[i];
+			const next = sortedByZ[i + 1];
+			
+			// Check if this is a new connection (one of them is a new chat)
+			const currIsNew = newChats.some(c => c.id === curr.userData.chatId);
+			const nextIsNew = newChats.some(c => c.id === next.userData.chatId);
+			
+			if (currIsNew || nextIsNew) {
+				const dz = next.position.z - curr.position.z;
+				if (dz < TIMELINE_SPACING * 2) {
+					const highway = createDataHighway(THREE, curr, next);
+					if (highway) scene.add(highway.group);
+				}
+			}
+		}
+	};
+	
+	// Store folder chat IDs for lazy loading updates
+	let folderChatIds: Map<string, string[]> = new Map();
+	
+	// Update folder nodes when new chats are loaded (add connections for chats in existing folders)
+	const updateFolderNodesForNewChats = (THREE: any, newChats: any[]) => {
+		// Check each folder to see if any new chats belong to it
+		folderChatIds.forEach((chatIds, folderId) => {
+			if (chatIds.length === 0) return;
+			
+			// Find new chats that belong to this folder
+			const newChatsInFolder = newChats.filter(chat => chatIds.includes(chat.id));
+			if (newChatsInFolder.length === 0) return;
+			
+			const folder = folders.get(folderId);
+			const folderNode = folderNodes.get(folderId);
+			if (!folderNode) {
+				// Folder node doesn't exist yet - create it with all visible chats
+				const allChatsInFolder = userChats.filter(chat => chatIds.includes(chat.id));
+				if (allChatsInFolder.length > 0 && folder) {
+					createFolderNode(THREE, folder, allChatsInFolder);
+				}
+				return;
+			}
+			
+			// Add connections for new chats
+			newChatsInFolder.forEach(chat => {
+				const building = chatBuildings.get(chat.id);
+				if (building) {
+					const connection = createFolderConnection(THREE, folderNode, building);
+					if (connection) {
+						scene.add(connection);
+						folderConnections.push(connection);
+					}
+				}
+			});
+			
+			// Update folder node position to center over all its visible chats
+			const allChatsInFolder = userChats.filter(chat => chatIds.includes(chat.id));
+			let sumX = 0, sumZ = 0, count = 0;
+			allChatsInFolder.forEach(chat => {
+				const building = chatBuildings.get(chat.id);
+				if (building) {
+					sumX += building.position.x;
+					sumZ += building.position.z;
+					count++;
+				}
+			});
+			
+			if (count > 0) {
+				folderNode.position.x = sumX / count;
+				folderNode.position.z = sumZ / count;
+				
+				// Update chat count label
+				folderNode.userData.chatCount = count;
+				const countSprite = folderNode.children.find((c: any) => 
+					c.isSprite && c.position.y > 4
+				);
+				if (countSprite) {
+					// Remove old sprite and create new one with updated count
+					folderNode.remove(countSprite);
+					const newCountSprite = createTextSprite(THREE, `${count} chats`, 0xffffff);
+					newCountSprite.position.set(0, 8, 0);
+					newCountSprite.scale.set(8, 2, 1);
+					folderNode.add(newCountSprite);
+				}
+			}
+		});
 	};
 	
 	const createTimelineMarkers = (THREE: any, sortedChats: any[]) => {
@@ -1537,6 +1972,13 @@
 		if (time - lastChunkUpdate > 0.5) {
 			updateChunks();
 			lastChunkUpdate = time;
+			
+			// Check if we need to lazy load more chats
+			// Trigger when camera approaches the end of the timeline
+			const distanceToEnd = timelineEnd - cameraWorldPos.z;
+			if (distanceToEnd < LOAD_TRIGGER_DISTANCE && hasMoreChats && !isLoadingMoreChats) {
+				loadMoreChats();
+			}
 		}
 		
 		// Animate buildings
@@ -1554,6 +1996,27 @@
 					child.rotation.z += child.userData.rotationSpeed;
 				}
 			});
+		});
+		
+		// Animate folder nodes
+		folderNodes.forEach((folderNode: any, folderId: string) => {
+			// Gentle floating motion
+			const baseY = 60;
+			folderNode.position.y = baseY + Math.sin(time * 1.5 + folderId.length) * 2;
+			
+			// Rotate the ring around the folder
+			folderNode.children.forEach((child: any) => {
+				if (child.userData.rotationSpeed) {
+					child.rotation.z += child.userData.rotationSpeed;
+				}
+			});
+			
+			// Pulse the hexagon opacity
+			const hexMesh = folderNode.children.find((c: any) => c.geometry?.type === 'CylinderGeometry');
+			if (hexMesh) {
+				const pulse = Math.sin(time * 2 + folderId.length * 0.5) * 0.2 + 0.7;
+				hexMesh.material.opacity = pulse;
+			}
 		});
 		
 		// Make Model Hub follow camera
@@ -3127,7 +3590,7 @@
 					</div>
 					<div class="stat">
 						<span class="label">CHATS:</span>
-						<span class="value">{userChats.length}</span>
+						<span class="value">{chatBuildings.size}{hasMoreChats ? '+' : ''}</span>
 					</div>
 					<div class="stat">
 						<span class="label">ALTITUDE:</span>
@@ -3135,7 +3598,11 @@
 					</div>
 				</div>
 				<div class="timeline-hint">
-					<div>◀ NOW — scroll forward — PAST ▶</div>
+					{#if isLoadingMoreChats}
+						<div class="loading-indicator">⟳ LOADING MORE CHATS...</div>
+					{:else}
+						<div>◀ NOW — scroll forward — PAST ▶</div>
+					{/if}
 				</div>
 			{/if}
 			
@@ -3842,6 +4309,16 @@
 		opacity: 0.7;
 		text-align: center;
 		color: #00ffff;
+	}
+	
+	.loading-indicator {
+		color: #ff00ff;
+		animation: pulse-loading 1s ease-in-out infinite;
+	}
+	
+	@keyframes pulse-loading {
+		0%, 100% { opacity: 0.5; }
+		50% { opacity: 1; }
 	}
 	
 	.minimap {
