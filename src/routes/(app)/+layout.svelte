@@ -403,9 +403,9 @@
 		<PiGateway />
 	{/if}
 	
-	<!-- Pi Gateway Trigger - Bottom Right -->
+	<!-- Pi Gateway Trigger - Bottom Right Corner -->
 	<button
-		class="pi-trigger fixed bottom-1 right-4 opacity-10 hover:opacity-100 transition-opacity duration-300 z-50"
+		class="pi-trigger fixed bottom-0 right-1 opacity-10 hover:opacity-100 transition-opacity duration-300 z-50"
 		on:click={() => showPiGateway.set(true)}
 		title="π Gateway"
 		aria-label="Activate Pi Gateway"
@@ -417,16 +417,17 @@
 <style>
 	.pi-trigger {
 		font-family: 'Times New Roman', serif;
-		font-size: 1.5rem;
+		font-size: 1rem;
 		color: currentColor;
 		background: none;
 		border: none;
 		cursor: pointer;
-		padding: 0.5rem;
+		padding: 0.25rem;
+		line-height: 1;
 	}
 	
 	.pi-trigger:hover {
-		text-shadow: 0 0 10px currentColor;
+		text-shadow: 0 0 8px currentColor;
 	}
 	.loading {
 		display: inline-block;
