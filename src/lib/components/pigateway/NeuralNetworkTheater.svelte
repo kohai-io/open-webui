@@ -6,6 +6,7 @@
 	import { goto } from '$app/navigation';
 	import { MediaPipeGestureController, type GestureType, type DualGestureType, type AllGestureTypes } from '$lib/utils/mediapipe-gesture';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
+	import Markdown from '$lib/components/chat/Messages/Markdown.svelte';
 	
 	export let onClose: () => void;
 	
@@ -219,6 +220,31 @@
 	// Equalizer state
 	let eqBars: number[] = new Array(16).fill(0);
 	
+	// Morphing shape state
+	let morphingShape: any = null;
+	let morphBlendFactor = 0;
+	let morphScaleFactor = 0;
+	let morphShapeFrom = 0;
+	let morphShapeTo = 1;
+	let morphColorFrom = { r: 0.94, g: 0.27, b: 0.27 }; // #ef4444 red
+	let morphColorTo = { r: 0.98, g: 0.45, b: 0.09 }; // #f97316 orange
+	let morphAnimationSpeed = 0.001;
+	let morphEnabled = true;
+	
+	// Rainbow colors for morphing
+	const RAINBOW_COLORS = [
+		{ r: 0.94, g: 0.27, b: 0.27 }, // #ef4444 red
+		{ r: 0.98, g: 0.45, b: 0.09 }, // #f97316 orange
+		{ r: 0.96, g: 0.62, b: 0.04 }, // #f59e0b amber
+		{ r: 0.52, g: 0.80, b: 0.09 }, // #84cc16 lime
+		{ r: 0.06, g: 0.73, b: 0.51 }, // #10b981 emerald
+		{ r: 0.02, g: 0.71, b: 0.83 }, // #06b6d4 cyan
+		{ r: 0.23, g: 0.51, b: 0.96 }, // #3b82f6 blue
+		{ r: 0.55, g: 0.36, b: 0.96 }, // #8b5cf6 violet
+		{ r: 0.85, g: 0.27, b: 0.94 }, // #d946ef fuchsia
+		{ r: 0.96, g: 0.25, b: 0.37 }  // #f43f5e rose
+	];
+	
 	const initThreeJS = async () => {
 		// @ts-ignore - CDN import
 		const THREE = await import('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js');
@@ -340,6 +366,11 @@
 		
 		// Create Model Hub - small 3D orbs that follow the camera
 		createModelHub(THREE);
+		
+		// Create morphing shape
+		if (morphEnabled) {
+			createMorphingShape(THREE);
+		}
 		
 		// Initial chunk loading (procedural buildings in outer areas)
 		updateChunks();
@@ -638,7 +669,7 @@
 		
 		const centerX = sumX / chatBuildingsInFolder.length;
 		const centerZ = (minZ + maxZ) / 2;
-		const folderY = 60; // Height above buildings
+		const folderY = 35; // Height just above chat buildings
 		
 		// Create folder node group
 		const folderGroup = new THREE.Group();
@@ -1188,27 +1219,81 @@
 			buildingGroup.add(floor);
 		}
 		
-		// === GLOWING BEACON ON TOP ===
-		const beaconGeometry = new THREE.OctahedronGeometry(1.2, 0);
-		const beaconMaterial = new THREE.MeshBasicMaterial({
+		// === GLOWING BEACON ON TOP WITH SHADER ===
+		const beaconGeometry = new THREE.OctahedronGeometry(1.2, 2);
+		const beaconMaterial = new THREE.MeshStandardMaterial({
 			color: mainColor,
 			transparent: true,
-			opacity: 0.95
+			opacity: 0.95,
+			metalness: 0.9,
+			roughness: 0.1,
+			emissive: mainColor,
+			emissiveIntensity: 2.0
 		});
+		
+		// Add pulsing shader effect
+		const beaconUniforms = {
+			time: { value: 0 },
+			pulseSpeed: { value: 2.0 + Math.random() }
+		};
+		
+		beaconMaterial.onBeforeCompile = (shader: any) => {
+			shader.uniforms.time = beaconUniforms.time;
+			shader.uniforms.pulseSpeed = beaconUniforms.pulseSpeed;
+			
+			shader.vertexShader = `
+				uniform float time;
+				uniform float pulseSpeed;
+				${shader.vertexShader}
+			`.replace(
+				'#include <begin_vertex>',
+				`#include <begin_vertex>
+				float pulse = sin(time * pulseSpeed) * 0.15 + 1.0;
+				transformed *= pulse;`
+			);
+			
+			beacon.userData.shader = shader;
+		};
+		
 		const beacon = new THREE.Mesh(beaconGeometry, beaconMaterial);
 		beacon.position.y = height + 2;
 		beacon.userData.rotationSpeed = 0.02;
+		beacon.userData.uniforms = beaconUniforms;
 		buildingGroup.add(beacon);
 		
-		// Beacon glow sphere
+		// Beacon glow sphere with shader
 		const glowGeometry = new THREE.SphereGeometry(2.5, 16, 16);
 		const glowMaterial = new THREE.MeshBasicMaterial({
 			color: mainColor,
 			transparent: true,
-			opacity: 0.12
+			opacity: 0.12,
+			side: THREE.BackSide
 		});
+		
+		const glowUniforms = {
+			time: { value: 0 },
+			glowIntensity: { value: 1.0 }
+		};
+		
+		glowMaterial.onBeforeCompile = (shader: any) => {
+			shader.uniforms.time = glowUniforms.time;
+			shader.uniforms.glowIntensity = glowUniforms.glowIntensity;
+			
+			shader.fragmentShader = `
+				uniform float time;
+				uniform float glowIntensity;
+				${shader.fragmentShader}
+			`.replace(
+				'gl_FragColor = vec4( outgoingLight, diffuseColor.a );',
+				`float pulse = sin(time * 3.0) * 0.5 + 0.5;
+				float alpha = diffuseColor.a * (0.12 + pulse * 0.2) * glowIntensity;
+				gl_FragColor = vec4( outgoingLight, alpha );`
+			);
+		};
+		
 		const glow = new THREE.Mesh(glowGeometry, glowMaterial);
 		glow.position.y = height + 2;
+		glow.userData.uniforms = glowUniforms;
 		buildingGroup.add(glow);
 		
 		// === FLOATING TEXT LABEL ===
@@ -1553,23 +1638,377 @@
 		}
 	};
 	
+	// Easing functions for morphing animations
+	const easeOutElastic = (t: number, amplitude = 7, period = 13) => {
+		if (t === 0) return 0;
+		if (t === 1) return 1;
+		const s = period / (2 * Math.PI) * Math.asin(1 / amplitude);
+		return amplitude * Math.pow(2, -10 * t) * Math.sin((t - s) * (2 * Math.PI) / period) + 1;
+	};
+	
+	const easeOutCubic = (t: number) => {
+		return 1 - Math.pow(1 - t, 3);
+	};
+	
+	// Random element from array
+	const randomElement = <T,>(arr: T[]): T => {
+		return arr[Math.floor(Math.random() * arr.length)];
+	};
+	
+	// Create morphing shape with raymarching shader for sharp geometric shapes
+	const createMorphingShape = (THREE: any) => {
+		if (!scene) return;
+		
+		// High-resolution icosahedron as base mesh for raymarching
+		const geometry = new THREE.IcosahedronGeometry(0.9, 30);
+		
+		// Material with metallic/roughness properties
+		const material = new THREE.MeshStandardMaterial({
+			color: new THREE.Color(morphColorFrom.r, morphColorFrom.g, morphColorFrom.b),
+			metalness: 0.5,
+			roughness: 0.15,
+			emissive: new THREE.Color(morphColorFrom.r * 0.3, morphColorFrom.g * 0.3, morphColorFrom.b * 0.3),
+			emissiveIntensity: 0.5
+		});
+		
+		// Shader uniforms
+		const uniforms = {
+			factor: { value: 0.0 },
+			shapeFrom: { value: 0 },
+			shapeTo: { value: 1 }
+		};
+		
+		// Vertex shader with SDF functions and RAYMARCHING
+		const vertexShaderPrefix = `
+			uniform int shapeFrom;
+			uniform int shapeTo;
+			uniform float factor;
+			
+			// === SDF FUNCTIONS ===
+			
+			// Rounded box
+			float sdRoundBox(vec3 p, vec3 b, float r) {
+				vec3 q = abs(p) - b;
+				return length(max(q, 0.0)) + min(max(q.x, max(q.y, q.z)), 0.0) - r;
+			}
+			
+			// Octahedron
+			float sdOctahedron(vec3 p, float s) {
+				p = abs(p);
+				return (p.x + p.y + p.z - s) * 0.57735027;
+			}
+			
+			// Tetrahedron
+			float sdTetrahedron(vec3 p, float r) {
+				float md = max(max(-p.x - p.y - p.z, p.x + p.y - p.z),
+				               max(-p.x + p.y + p.z, p.x - p.y + p.z));
+				return (md - r) / sqrt(3.0);
+			}
+			
+			// Icosahedron
+			float sdIcosahedron(vec3 p, float r) {
+				const float phi = 1.618033988749895;
+				const vec3 n = normalize(vec3(phi, 1.0, 0.0));
+				p = abs(p);
+				float a = dot(p, n);
+				float b = dot(p, vec3(n.z, n.x, n.y));
+				float c = dot(p, vec3(n.y, n.z, n.x));
+				return max(max(a, b), c) - r;
+			}
+			
+			// Dodecahedron
+			float sdDodecahedron(vec3 p, float r) {
+				const float phi = 1.618033988749895;
+				const vec3 n1 = normalize(vec3(1.0, 1.0, 1.0));
+				const vec3 n2 = normalize(vec3(0.0, 1.0, phi));
+				p = abs(p);
+				float a = dot(p, n1);
+				float b = dot(p, n2);
+				float c = dot(p, vec3(n2.z, n2.x, n2.y));
+				float d = dot(p, vec3(n2.y, n2.z, n2.x));
+				return max(max(max(a, b), c), d) - r;
+			}
+			
+			// === EASING ===
+			
+			// Smooth cubic easing - no overshoot
+			float easeOutCubic(float t) {
+				return 1.0 - pow(1.0 - t, 3.0);
+			}
+			
+			// === MAP FUNCTION ===
+			
+			float map(vec3 p) {
+				float a, b;
+				float r = 0.05;
+				
+				if (shapeFrom == 0) a = sdRoundBox(p, vec3(0.4), r);
+				else if (shapeFrom == 1) a = sdDodecahedron(p, 0.55);
+				else if (shapeFrom == 2) a = sdIcosahedron(p, 0.55);
+				else if (shapeFrom == 3) a = sdOctahedron(p, 0.65) - r;
+				else a = sdTetrahedron(p, 0.5);
+				
+				if (shapeTo == 0) b = sdRoundBox(p, vec3(0.4), r);
+				else if (shapeTo == 1) b = sdDodecahedron(p, 0.55);
+				else if (shapeTo == 2) b = sdIcosahedron(p, 0.55);
+				else if (shapeTo == 3) b = sdOctahedron(p, 0.65) - r;
+				else b = sdTetrahedron(p, 0.5);
+				
+				// Use smooth easing to prevent overshoot
+				float t = clamp(easeOutCubic(factor), 0.0, 1.0);
+				return mix(a, b, t);
+			}
+			
+			// === RAYMARCHING ===
+			
+			float march(vec3 ro, vec3 rd) {
+				float t = 0.0;
+				for (int i = 0; i < 64; i++) {
+					vec3 p = ro + rd * t;
+					float d = map(p);
+					if (abs(d) < 0.001) break;
+					t += d;
+					if (t > 10.0) break;
+				}
+				return t;
+			}
+			
+			// === NORMAL CALCULATION ===
+			
+			vec3 getNormal(vec3 p) {
+				float d = map(p);
+				vec2 e = vec2(0.01, 0.0);
+				vec3 n = d - vec3(
+					map(p - e.xyy),
+					map(p - e.yxy),
+					map(p - e.yyx)
+				);
+				return normalize(n);
+			}
+			
+			// === MODIFY VERTEX POSITION ===
+			
+			vec3 modify(vec3 position) {
+				vec3 dir = normalize(position) * -1.0;
+				float d = march(position, dir);
+				// Clamp distance to prevent vertices from going too far
+				d = clamp(d, 0.0, 2.0);
+				vec3 p = position + d * dir;
+				return p;
+			}
+		`;
+		
+		// Inject shader code
+		material.onBeforeCompile = (shader: any) => {
+			shader.uniforms.factor = uniforms.factor;
+			shader.uniforms.shapeFrom = uniforms.shapeFrom;
+			shader.uniforms.shapeTo = uniforms.shapeTo;
+			
+			shader.vertexShader = vertexShaderPrefix + shader.vertexShader;
+			
+			shader.vertexShader = shader.vertexShader.replace(
+				'#include <beginnormal_vertex>',
+				`#include <beginnormal_vertex>
+				vec3 newPosition = modify(position);
+				objectNormal = getNormal(newPosition);`
+			);
+			
+			shader.vertexShader = shader.vertexShader.replace(
+				'#include <begin_vertex>',
+				`#include <begin_vertex>
+				transformed = newPosition;`
+			);
+		};
+		
+		const mesh = new THREE.Mesh(geometry, material);
+		
+		// Position at exact center of model orb ring
+		// Model orbs are positioned relative to modelHubGroup with offset (-10, 6, -15)
+		// So we position the morphing shape at that same offset within the group
+		mesh.position.set(-10, 6, -15);
+		mesh.scale.setScalar(0);
+		
+		mesh.userData = {
+			isMorphing: true,
+			uniforms: uniforms,
+			shapeFrom: 0,
+			shapeTo: 1,
+			blendFactor: 0,
+			scaleFactor: 0
+		};
+		
+		// Add to modelHubGroup instead of scene so it moves with the orbs
+		if (modelHubGroup) {
+			modelHubGroup.add(mesh);
+		} else {
+			// Fallback if modelHubGroup doesn't exist yet
+			scene.add(mesh);
+		}
+		morphingShape = mesh;
+		
+		// Add multiple lights for better material rendering
+		const dirLight = new THREE.DirectionalLight(0xffffff, 3);
+		dirLight.position.set(10, 10, 5);
+		dirLight.castShadow = true;
+		scene.add(dirLight);
+		
+		// Hemisphere light for ambient fill
+		const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 2);
+		hemiLight.position.set(0, 20, 0);
+		scene.add(hemiLight);
+		
+		// Point light for highlights
+		const pointLight = new THREE.PointLight(0x00ffff, 2, 50);
+		pointLight.position.set(15, 10, -10);
+		scene.add(pointLight);
+		
+		// Start initial animation
+		morphScaleFactor = 0;
+		setTimeout(() => {
+			animateScaleIn();
+		}, 500);
+	};
+	
+	// Animate scale in with elastic easing
+	const animateScaleIn = () => {
+		const duration = 1000;
+		const startTime = Date.now();
+		
+		const animate = () => {
+			const elapsed = Date.now() - startTime;
+			const progress = Math.min(elapsed / duration, 1);
+			
+			morphScaleFactor = easeOutElastic(progress);
+			
+			if (progress < 1) {
+				requestAnimationFrame(animate);
+			}
+		};
+		
+		animate();
+	};
+	
+	// Randomize morphing shape
+	const randomizeMorphShape = () => {
+		if (!morphingShape || !morphingShape.userData.uniforms) return;
+		
+		// Update colors
+		morphColorFrom = { ...morphColorTo };
+		do {
+			morphColorTo = randomElement(RAINBOW_COLORS);
+		} while (
+			morphColorTo.r === morphColorFrom.r &&
+			morphColorTo.g === morphColorFrom.g &&
+			morphColorTo.b === morphColorFrom.b
+		);
+		
+		// Update shader uniforms for shape transition
+		const uniforms = morphingShape.userData.uniforms;
+		uniforms.shapeFrom.value = uniforms.shapeTo.value;
+		do {
+			uniforms.shapeTo.value = Math.floor(Math.random() * 5);
+		} while (uniforms.shapeTo.value === uniforms.shapeFrom.value);
+		
+		// Reset blend factor and animate
+		morphBlendFactor = 0;
+		uniforms.factor.value = 0;
+		
+		const duration = 1000;
+		const startTime = Date.now();
+		
+		const animate = () => {
+			const elapsed = Date.now() - startTime;
+			const progress = Math.min(elapsed / duration, 1);
+			
+			morphBlendFactor = progress;
+			uniforms.factor.value = progress;
+			
+			if (progress < 1) {
+				requestAnimationFrame(animate);
+			}
+		};
+		
+		animate();
+	};
+	
 	const generateChunk = (chunkX: number, chunkZ: number) => {
 		const THREE = threeRef;
 		if (!THREE) return null;
 		
 		const chunkGroup = new THREE.Group();
 		
-		// Ground grid for this chunk - endless cyberspace floor
+		// Enhanced ground plane with shader-based scanlines
+		const planeGeometry = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, 20, 20);
+		const planeMaterial = new THREE.MeshStandardMaterial({
+			color: 0x001a33,
+			transparent: true,
+			opacity: 0.8,
+			metalness: 0.9,
+			roughness: 0.1,
+			emissive: 0x00ffff,
+			emissiveIntensity: 0.2
+		});
+		
+		// Add animated scanline shader
+		const planeUniforms = {
+			time: { value: 0 },
+			scanlineSpeed: { value: 2.0 },
+			gridIntensity: { value: 0.5 }
+		};
+		
+		planeMaterial.onBeforeCompile = (shader: any) => {
+			shader.uniforms.time = planeUniforms.time;
+			shader.uniforms.scanlineSpeed = planeUniforms.scanlineSpeed;
+			shader.uniforms.gridIntensity = planeUniforms.gridIntensity;
+			
+			shader.fragmentShader = `
+				uniform float time;
+				uniform float scanlineSpeed;
+				uniform float gridIntensity;
+				${shader.fragmentShader}
+			`.replace(
+				'gl_FragColor = vec4( outgoingLight, diffuseColor.a );',
+				`// Scanline effect
+				vec3 worldPos = (modelMatrix * vec4(vPosition, 1.0)).xyz;
+				float scanline = sin(worldPos.z * 0.5 + time * scanlineSpeed) * 0.5 + 0.5;
+				float gridX = abs(fract(worldPos.x * 0.2) - 0.5) * 2.0;
+				float gridZ = abs(fract(worldPos.z * 0.2) - 0.5) * 2.0;
+				float grid = min(gridX, gridZ);
+				float gridLine = smoothstep(0.9, 1.0, grid);
+				
+				vec3 cyan = vec3(0.0, 1.0, 1.0);
+				vec3 enhanced = outgoingLight + cyan * gridLine * gridIntensity + cyan * scanline * 0.1;
+				gl_FragColor = vec4(enhanced, diffuseColor.a);`
+			);
+		};
+		
+		const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+		plane.rotation.x = -Math.PI / 2;
+		plane.position.set(chunkX * CHUNK_SIZE, 0, chunkZ * CHUNK_SIZE);
+		plane.userData.uniforms = planeUniforms;
+		chunkGroup.add(plane);
+		
+		// Standard grid helper for reference
 		const gridHelper = new THREE.GridHelper(CHUNK_SIZE, 20, 0x00ffff, 0x002233);
-		gridHelper.position.set(chunkX * CHUNK_SIZE, 0, chunkZ * CHUNK_SIZE);
+		gridHelper.position.set(chunkX * CHUNK_SIZE, 0.1, chunkZ * CHUNK_SIZE);
+		gridHelper.material.opacity = 0.3;
+		gridHelper.material.transparent = true;
 		chunkGroup.add(gridHelper);
 		
-		// Elevated grid - ceiling effect
-		const gridHelper2 = new THREE.GridHelper(CHUNK_SIZE, 10, 0xff00ff, 0x220022);
-		gridHelper2.position.set(chunkX * CHUNK_SIZE, 70, chunkZ * CHUNK_SIZE);
-		gridHelper2.material.opacity = 0.15;
-		gridHelper2.material.transparent = true;
-		chunkGroup.add(gridHelper2);
+		// Elevated grid - ceiling effect with shader
+		const ceilingPlane = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, 10, 10);
+		const ceilingMaterial = new THREE.MeshBasicMaterial({
+			color: 0xff00ff,
+			transparent: true,
+			opacity: 0.05,
+			side: THREE.DoubleSide,
+			wireframe: true
+		});
+		
+		const ceiling = new THREE.Mesh(ceilingPlane, ceilingMaterial);
+		ceiling.rotation.x = -Math.PI / 2;
+		ceiling.position.set(chunkX * CHUNK_SIZE, 70, chunkZ * CHUNK_SIZE);
+		chunkGroup.add(ceiling);
 		
 		// No procedural buildings - only user chats are shown
 		
@@ -2000,9 +2439,9 @@
 		
 		// Animate folder nodes
 		folderNodes.forEach((folderNode: any, folderId: string) => {
-			// Gentle floating motion
-			const baseY = 60;
-			folderNode.position.y = baseY + Math.sin(time * 1.5 + folderId.length) * 2;
+			// Gentle floating motion just above chat buildings
+			const baseY = 35;
+			folderNode.position.y = baseY + Math.sin(time * 1.5 + folderId.length) * 1.5;
 			
 			// Rotate the ring around the folder
 			folderNode.children.forEach((child: any) => {
@@ -2150,6 +2589,32 @@
 			scene.userData.spotlights[1].position.z = cameraWorldPos.z + Math.cos(time * 0.3 + Math.PI) * 80;
 		}
 		
+		// Animate grid floor shaders
+		loadedChunks.forEach((chunk: any) => {
+			chunk.children.forEach((child: any) => {
+				if (child.userData?.uniforms?.time) {
+					child.userData.uniforms.time.value = time;
+				}
+			});
+		});
+		
+		// Animate building beacons with shader uniforms
+		chatBuildings.forEach((building: any) => {
+			if (building.userData?.isChat) {
+				building.children.forEach((child: any) => {
+					// Update shader time uniforms for pulsing effects
+					if (child.userData?.uniforms?.time) {
+						child.userData.uniforms.time.value = time;
+					}
+					
+					// Rotate beacons
+					if (child.userData?.rotationSpeed) {
+						child.rotation.y += child.userData.rotationSpeed;
+					}
+				});
+			}
+		});
+		
 		// Audio-reactive buildings - pulse to the beat
 		if (audioEnabled) {
 			const { bass, mid } = getFrequencyBands();
@@ -2160,14 +2625,41 @@
 					const audioScale = baseScale + bass * 0.15;
 					building.scale.setScalar(audioScale);
 					
-					// Pulse beacon brightness with mid frequencies
+					// Boost glow intensity with audio
 					building.children.forEach((child: any) => {
-						if (child.material && child.geometry?.type === 'SphereGeometry') {
-							child.material.opacity = 0.5 + mid * 0.5;
+						if (child.userData?.uniforms?.glowIntensity) {
+							child.userData.uniforms.glowIntensity.value = 1.0 + mid * 2.0;
 						}
 					});
 				}
 			});
+		}
+		
+		// Morphing shape animation with raymarching shader
+		if (morphingShape && morphEnabled) {
+			// Update scale with elastic easing (only during initial scale-in)
+			if (morphScaleFactor < 1) {
+				morphingShape.scale.setScalar(easeOutElastic(morphScaleFactor));
+			}
+			
+			// Rotate the shape
+			morphingShape.rotation.x += 0.005;
+			morphingShape.rotation.y += 0.0045;
+			morphingShape.rotation.z += 0.0055;
+			
+			// Update color with smooth interpolation
+			const colorProgress = easeOutCubic(morphBlendFactor);
+			const r = morphColorFrom.r + (morphColorTo.r - morphColorFrom.r) * colorProgress;
+			const g = morphColorFrom.g + (morphColorTo.g - morphColorFrom.g) * colorProgress;
+			const b = morphColorFrom.b + (morphColorTo.b - morphColorFrom.b) * colorProgress;
+			
+			morphingShape.material.color.setRGB(r, g, b);
+			morphingShape.material.emissive.setRGB(r * 0.3, g * 0.3, b * 0.3);
+			
+			// Auto-randomize every 3 seconds
+			if (morphBlendFactor >= 1 && Math.random() < 0.01) {
+				randomizeMorphShape();
+			}
 		}
 		
 		// Warp speed effect animation
@@ -2253,7 +2745,6 @@
 	
 	const createHandMesh = (THREE: any, handIndex: number) => {
 		if (handMeshGroups[handIndex]) {
-			// Remove from parent (scene or faceMeshGroup)
 			if (handMeshGroups[handIndex].parent) {
 				handMeshGroups[handIndex].parent.remove(handMeshGroups[handIndex]);
 			}
@@ -2262,29 +2753,21 @@
 		const handGroup = new THREE.Group();
 		handGroup.userData.isHandMesh = true;
 		
-		// Create 21 landmark points for hand
-		const pointGeometry = new THREE.SphereGeometry(0.06, 6, 6);
-		const pointMaterial = new THREE.MeshBasicMaterial({ 
-			color: handIndex === 0 ? 0x00ff88 : 0xff8800, // Green for left, orange for right
-			transparent: true, 
-			opacity: 1.0 
+		const handColor = handIndex === 0 ? 0x00ff88 : 0xff8800;
+		
+		// Create metallic spheres for hand landmarks
+		const pointGeometry = new THREE.SphereGeometry(0.2, 8, 8);
+		const pointMaterial = new THREE.MeshStandardMaterial({ 
+			color: handColor,
+			metalness: 0.9,
+			roughness: 0.1,
+			emissive: handColor,
+			emissiveIntensity: 0.6
 		});
 		
 		const points: any[] = [];
 		for (let i = 0; i < 21; i++) {
 			const point = new THREE.Mesh(pointGeometry, pointMaterial.clone());
-			
-			// Add glow
-			const glowGeometry = new THREE.SphereGeometry(0.1, 4, 4);
-			const glowMaterial = new THREE.MeshBasicMaterial({
-				color: handIndex === 0 ? 0x00ff88 : 0xff8800,
-				transparent: true,
-				opacity: 0.2
-			});
-			const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-			point.add(glow);
-			point.userData.glow = glow;
-			
 			points.push(point);
 			handGroup.add(point);
 		}
@@ -2340,41 +2823,35 @@
 			handGroup.position.copy(camera.position);
 			handGroup.rotation.copy(camera.rotation);
 			
-			// Position hand in camera space - beside the face
-			// Face is at X=22, so put hands right next to it
-			const handScale = 10;
-			const offsetX = handIndex === 0 ? 20 : 24; // Very tight to face (face at 22)
-			const offsetY = 10; // Same height as face
-			const offsetZ = -35; // Same depth as face
+			// Position hand in camera space - beside the centered face
+			// Offset Z slightly per hand to prevent overlap when touching
+			const handColor = handIndex === 0 ? 0x00ff88 : 0xff8800;
+			const handScale = 18;
+			const offsetX = handIndex === 0 ? -2 : 2;
+			const offsetY = 18;
+			const offsetZ = handIndex === 0 ? -34 : -36; // Stagger depth to prevent overlap
 			
-			// Update point positions - position hands facing the user (palm toward camera)
+			// Update point positions
 			for (let i = 0; i < Math.min(handLandmarks.length, points.length); i++) {
 				const lm = handLandmarks[i];
 				const point = points[i];
 				
-				// No X mirror - MediaPipe already provides mirrored view
-				// Negate Z so palm faces toward user
 				point.position.set(
 					(lm.x - 0.5) * handScale + offsetX,
 					-(lm.y - 0.5) * handScale + offsetY,
-					-lm.z * 10 + offsetZ // Negate Z and increase scale for depth
+					-lm.z * 10 + offsetZ
 				);
 				
-				// Color fingertips differently
+				// Color fingertips and thumb differently
 				const isFingertip = [4, 8, 12, 16, 20].includes(i);
 				const isThumb = i >= 1 && i <= 4;
 				
-				if (isFingertip) {
-					point.material.color.setHex(0xff00ff); // Magenta fingertips
-					if (point.userData.glow) point.userData.glow.material.color.setHex(0xff00ff);
-				} else if (isThumb) {
-					point.material.color.setHex(0xffff00); // Yellow thumb
-					if (point.userData.glow) point.userData.glow.material.color.setHex(0xffff00);
-				} else {
-					const baseColor = handIndex === 0 ? 0x00ff88 : 0xff8800;
-					point.material.color.setHex(baseColor);
-					if (point.userData.glow) point.userData.glow.material.color.setHex(baseColor);
-				}
+				let color = handColor;
+				if (isFingertip) color = 0xff00ff;
+				else if (isThumb) color = 0xffff00;
+				
+				point.material.color.setHex(color);
+				point.material.emissive.setHex(color);
 			}
 			
 			// Update lines
@@ -2407,6 +2884,9 @@
 		}
 	};
 	
+	// Store face surface mesh reference
+	let faceSurfaceMesh: any = null;
+	
 	const createFaceMesh = (THREE: any) => {
 		if (faceMeshGroup) {
 			scene.remove(faceMeshGroup);
@@ -2415,47 +2895,32 @@
 		faceMeshGroup = new THREE.Group();
 		faceMeshGroup.userData.isFaceMesh = true;
 		
-		// Create high-fidelity points for face landmarks (468 points in MediaPipe face mesh)
-		// Smaller, smoother spheres for cleaner look
-		const pointGeometry = new THREE.SphereGeometry(0.08, 8, 8);
-		const pointMaterial = new THREE.MeshBasicMaterial({ 
+		// Create metallic point spheres - larger for Lawnmower Man style
+		const pointGeometry = new THREE.SphereGeometry(0.12, 6, 6);
+		const pointMaterial = new THREE.MeshStandardMaterial({ 
 			color: 0x00ffff, 
-			transparent: true, 
-			opacity: 1.0 
+			metalness: 0.9,
+			roughness: 0.1,
+			emissive: 0x00ffff,
+			emissiveIntensity: 0.5
 		});
 		
-		// Create 468 landmark points with glow effect
+		// Create 468 landmark points
 		for (let i = 0; i < 468; i++) {
 			const point = new THREE.Mesh(pointGeometry, pointMaterial.clone());
-			
-			// Add outer glow sphere
-			const glowGeometry = new THREE.SphereGeometry(0.12, 6, 6);
-			const glowMaterial = new THREE.MeshBasicMaterial({
-				color: 0x00ffff,
-				transparent: true,
-				opacity: 0.25
-			});
-			const glow = new THREE.Mesh(glowGeometry, glowMaterial);
-			point.add(glow);
-			point.userData.glow = glow;
-			
 			faceLandmarkPoints.push(point);
 			faceMeshGroup.add(point);
 		}
 		
-		// Create line geometry for face mesh connections
-		// Will be populated in updateFaceMesh
+		// Create glowing connection lines
 		const lineMaterial = new THREE.LineBasicMaterial({
 			color: 0x00ffff,
 			transparent: true,
-			opacity: 0.6,
-			linewidth: 2
+			opacity: 0.8
 		});
-		
-		// Create empty geometry - will be filled with actual positions in update
 		const lineGeometry = new THREE.BufferGeometry();
 		faceMeshLines = new THREE.LineSegments(lineGeometry, lineMaterial);
-		faceMeshLines.frustumCulled = false; // Always render
+		faceMeshLines.frustumCulled = false;
 		faceMeshGroup.add(faceMeshLines);
 		
 		scene.add(faceMeshGroup);
@@ -2494,24 +2959,23 @@
 	const updateFaceMesh = (landmarks: any[], blendShapes: any[]) => {
 		if (!faceMeshGroup || !threeRef || !camera || landmarks.length === 0) return;
 		
+		const THREE = threeRef;
 		const faceLandmarks = landmarks[0]; // First face
 		
-		// Make face mesh follow camera (like model nodes)
-		// Position in top-right corner of view, fixed relative to camera
+		// Make face mesh follow camera
 		faceMeshGroup.position.copy(camera.position);
 		faceMeshGroup.rotation.copy(camera.rotation);
 		
-		// Update each landmark point position - positioned in top-right corner
+		// Scale and offset for positioning
+		const faceScale = 25;
+		const offsetX = 0;
+		const offsetY = 18;
+		const offsetZ = -35;
+		
+		// Update each landmark point position
 		for (let i = 0; i < Math.min(faceLandmarks.length, faceLandmarkPoints.length); i++) {
 			const lm = faceLandmarks[i];
 			const point = faceLandmarkPoints[i];
-			
-			// Scale and offset landmarks (they come as 0-1 normalized)
-			// Position relative to camera view: right (+X local), up (+Y local), forward (-Z local)
-			const faceScale = 25; // Bigger face
-			const offsetX = 22;   // Right side of view
-			const offsetY = 12;   // Top of view
-			const offsetZ = -35;  // In front of camera
 			
 			point.position.set(
 				(lm.x - 0.5) * faceScale + offsetX,
@@ -2519,31 +2983,20 @@
 				lm.z * 5 + offsetZ
 			);
 			
-			// Color key points differently with matching glow
+			// Color code different facial features
 			const isEye = (i >= 33 && i <= 133) || (i >= 362 && i <= 398);
 			const isLips = (i >= 61 && i <= 95) || (i >= 146 && i <= 178) || (i >= 291 && i <= 325) || (i >= 375 && i <= 409);
 			const isNose = i >= 1 && i <= 19;
 			const isBrow = (i >= 46 && i <= 55) || (i >= 276 && i <= 285);
-			const isContour = (i >= 234 && i <= 261) || (i >= 454 && i <= 473);
 			
-			let color = 0x00ffff; // Default cyan
-			if (isEye) {
-				color = 0xff00ff; // Magenta for eyes
-			} else if (isLips) {
-				color = 0xff0066; // Pink for lips
-			} else if (isNose) {
-				color = 0xffff00; // Yellow for nose
-			} else if (isBrow) {
-				color = 0xff8800; // Orange for brows
-			} else if (isContour) {
-				color = 0x00ff88; // Green for face contour
-			}
+			let color = 0x00ffff;
+			if (isEye) color = 0xff00ff;
+			else if (isLips) color = 0xff0066;
+			else if (isNose) color = 0xffff00;
+			else if (isBrow) color = 0xff8800;
 			
 			point.material.color.setHex(color);
-			// Update glow color to match
-			if (point.userData.glow) {
-				point.userData.glow.material.color.setHex(color);
-			}
+			point.material.emissive.setHex(color);
 		}
 		
 		// Update line positions to connect points
@@ -3345,7 +3798,17 @@
 		const raycaster = new THREE.Raycaster();
 		raycaster.setFromCamera(mouse, camera);
 		
-		// First check for model orb clicks
+		// First check for morphing shape click
+		if (morphingShape && morphEnabled) {
+			const morphIntersects = raycaster.intersectObject(morphingShape, false);
+			if (morphIntersects.length > 0) {
+				// Clicked on morphing shape - randomize it
+				randomizeMorphShape();
+				return;
+			}
+		}
+		
+		// Check for model orb clicks
 		const modelMeshes: any[] = [];
 		modelHub.forEach((orb: any) => {
 			orb.traverse((child: any) => {
@@ -3392,8 +3855,13 @@
 				openExistingChat(building.userData.chatId, building.userData.chatTitle, building.userData.modelName);
 			}
 		} else {
-			// Clicked empty space - deselect
+			// Clicked empty space - deselect and randomize morphing shape
 			selectedChatBuilding = null;
+			
+			// Randomize morphing shape on click
+			if (morphingShape && morphEnabled) {
+				randomizeMorphShape();
+			}
 		}
 	};
 	
@@ -3451,6 +3919,14 @@
 				break;
 			case ' ': // Spacebar - warp to next chat
 				warpToNextChat();
+				e.preventDefault();
+				break;
+			case 'r':
+			case 'R':
+				// Randomize morphing shape
+				if (morphingShape && morphEnabled) {
+					randomizeMorphShape();
+				}
 				e.preventDefault();
 				break;
 		}
@@ -3862,7 +4338,13 @@
 				{#each cyberspaceChat.messages as message}
 					<div class="cyber-message" class:user={message.role === 'user'} class:assistant={message.role === 'assistant'}>
 						<div class="cyber-message-role">{message.role === 'user' ? '👤 You' : '🤖 AI'}</div>
-						<div class="cyber-message-content">{message.content}</div>
+						<div class="cyber-message-content">
+							{#if message.role === 'assistant'}
+								<Markdown id="cyber-{message.id || ''}" content={message.content} />
+							{:else}
+								{message.content}
+							{/if}
+						</div>
 					</div>
 				{/each}
 				
@@ -3907,7 +4389,7 @@
 	{/if}
 	
 	{#if gestureMode}
-		<div class="gesture-container">
+		<div class="gesture-container" class:hidden-on-mobile={isMobile}>
 			<video bind:this={videoElement} class="gesture-video" autoplay playsinline muted>
 				<track kind="captions" />
 			</video>
@@ -4785,8 +5267,74 @@
 		color: #fff;
 		font-size: 0.9rem;
 		line-height: 1.4;
-		white-space: pre-wrap;
 		word-break: break-word;
+	}
+	
+	/* Markdown styling within cyber chat */
+	.cyber-message-content :global(p) {
+		margin: 0 0 0.5rem 0;
+	}
+	.cyber-message-content :global(p:last-child) {
+		margin-bottom: 0;
+	}
+	.cyber-message-content :global(pre) {
+		background: rgba(0, 0, 0, 0.5);
+		border: 1px solid rgba(0, 255, 255, 0.3);
+		border-radius: 0.375rem;
+		padding: 0.75rem;
+		margin: 0.5rem 0;
+		overflow-x: auto;
+	}
+	.cyber-message-content :global(code) {
+		background: rgba(0, 255, 255, 0.1);
+		padding: 0.1rem 0.3rem;
+		border-radius: 0.25rem;
+		font-family: 'Courier New', monospace;
+		font-size: 0.85em;
+		color: #00ffff;
+	}
+	.cyber-message-content :global(pre code) {
+		background: transparent;
+		padding: 0;
+		color: #e0e0e0;
+	}
+	.cyber-message-content :global(ul), .cyber-message-content :global(ol) {
+		margin: 0.5rem 0;
+		padding-left: 1.5rem;
+	}
+	.cyber-message-content :global(li) {
+		margin: 0.25rem 0;
+	}
+	.cyber-message-content :global(blockquote) {
+		border-left: 3px solid #ff00ff;
+		margin: 0.5rem 0;
+		padding-left: 1rem;
+		color: rgba(255, 255, 255, 0.8);
+	}
+	.cyber-message-content :global(h1), .cyber-message-content :global(h2), .cyber-message-content :global(h3) {
+		color: #00ffff;
+		margin: 0.75rem 0 0.5rem 0;
+	}
+	.cyber-message-content :global(a) {
+		color: #ff00ff;
+		text-decoration: underline;
+	}
+	.cyber-message-content :global(strong) {
+		color: #00ffff;
+	}
+	.cyber-message-content :global(table) {
+		border-collapse: collapse;
+		margin: 0.5rem 0;
+		width: 100%;
+	}
+	.cyber-message-content :global(th), .cyber-message-content :global(td) {
+		border: 1px solid rgba(0, 255, 255, 0.3);
+		padding: 0.5rem;
+		text-align: left;
+	}
+	.cyber-message-content :global(th) {
+		background: rgba(0, 255, 255, 0.1);
+		color: #00ffff;
 	}
 	
 	.cyber-loading {
@@ -5091,6 +5639,11 @@
 			bottom: auto;
 			top: 4.5rem;
 			right: 1rem;
+		}
+		
+		/* Hide camera visual feedback on mobile */
+		.gesture-container.hidden-on-mobile {
+			display: none;
 		}
 		
 		/* Cyberspace Chat - Full screen on mobile */
