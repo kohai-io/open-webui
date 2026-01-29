@@ -146,13 +146,7 @@
       on:click={openPreview}
       on:keydown={(e) => handleKeydown(e, openPreview)}
     >
-      {#if isVisible}
-        <video src={`${contentUrl(item.id)}#t=0.1`} class="w-full h-full pointer-events-none" preload="metadata">
-          <track kind="captions" srclang="en" label="captions" />
-        </video>
-      {:else}
-        <div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-600">🎬</div>
-      {/if}
+      <div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-600">🎬</div>
       <div class="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition">
         <div class="w-12 h-12 rounded-full bg-white/90 dark:bg-gray-900/90 flex items-center justify-center shadow-lg">
           <svg class="w-6 h-6 text-gray-800 dark:text-gray-200 ml-0.5" fill="currentColor" viewBox="0 0 16 16">
@@ -210,13 +204,7 @@
       on:click={openPreview}
       on:keydown={(e) => handleKeydown(e, openPreview)}
     >
-      {#if isVisible}
-        <audio controls src={contentUrl(item.id)} class="w-full">
-          <track kind="captions" srclang="en" label="captions" />
-        </audio>
-      {:else}
-        <div class="text-center text-gray-400 dark:text-gray-600 py-8">🎵</div>
-      {/if}
+      <div class="text-center text-gray-400 dark:text-gray-600 py-8">🎵</div>
     </div>
     <div class="px-3 pb-3 flex items-center justify-between gap-2">
       <div class="text-xs text-gray-700 dark:text-gray-300 truncate flex-1 min-w-0">{item.filename}</div>
