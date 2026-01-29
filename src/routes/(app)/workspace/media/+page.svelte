@@ -60,10 +60,8 @@
     resolvedPrompt = null;
     promptLoading = false;
     // Note: fileToChat map is already populated from backend media-overview response
-    // No need to call resolveFileChat here - it causes unnecessary API calls
-    if (!previewItem?.meta?.prompt) {
-      fetchPromptFromChat(previewItem);
-    }
+    // Disabled fetchPromptFromChat to prevent SQLite database lock contention
+    // from concurrent chat search API calls during scrolling/preview
   };
 
   const handlePreviewNavigate = (e: CustomEvent<number>) => {
