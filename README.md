@@ -14,9 +14,28 @@ This README focuses on what's different in this fork. For general Open WebUI inf
 
 ## Fork-Specific Changes 🔧
 
-### Media Page Performance Fixes
+### Workspace Media Page (`/workspace/media`) 🆕 **FORK-SPECIFIC**
 
-This fork includes critical performance optimizations for the media page when handling large media libraries (tested with 892+ files):
+**This feature is unique to this fork and not present in upstream Open WebUI.**
+
+A comprehensive media library management interface for browsing, organizing, and managing all uploaded files:
+
+- **Unified media library**: Browse all images, videos, audio files, and documents in one place
+- **Multiple view modes**:
+  - Grid view with visual thumbnails
+  - List view with detailed metadata
+  - Hierarchical folder/chat organization
+- **Smart filtering and search**:
+  - Filter by media type (images, videos, audio, documents)
+  - Search by filename
+  - View by chat/folder association or orphaned files
+- **Sorting options**: By date, name, size, or type
+- **Batch operations**: Select multiple files for bulk actions
+- **File preview**: Click to preview media with metadata display
+- **Chat integration**: Quick navigation to associated chats
+- **Delete management**: Remove unwanted files from library
+
+**Performance Optimizations** (tested with 892+ files):
 
 - **Fixed OOM Issues**: Resolved Out of Memory crashes during media page scrolling
   - Reduced Intersection Observer `rootMargin` from 200px to 50px to prevent aggressive image preloading
