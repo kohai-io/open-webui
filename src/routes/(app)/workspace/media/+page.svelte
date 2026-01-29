@@ -467,7 +467,7 @@
           }
         }
       },
-      { root: null, rootMargin: '800px', threshold: 0 }
+      { root: null, rootMargin: '200px', threshold: 0 }
     );
     if (sentinel) observer.observe(sentinel);
   });

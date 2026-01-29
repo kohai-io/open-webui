@@ -30,7 +30,7 @@
           }
         });
       },
-      { rootMargin: '200px' } // Start loading 200px before entering viewport
+      { rootMargin: '50px' } // Start loading 50px before entering viewport (reduced to prevent OOM)
     );
     
     if (cardElement) {
