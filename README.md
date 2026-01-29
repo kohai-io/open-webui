@@ -209,6 +209,16 @@ export HF_HUB_OFFLINE=1
 
 Discover upcoming features on our roadmap in the [Open WebUI Documentation](https://docs.openwebui.com/roadmap/).
 
+## TODO 📝
+
+### Media Page Enhancements
+
+- **Video Thumbnail Generation**: Implement backend thumbnail generation for video files to display previews without loading full video content
+  - Current state: Videos display static 🎬 icon to prevent OOM issues
+  - Proposed solution: Server-side thumbnail generation using ffmpeg/opencv
+  - Implementation: Create thumbnails on upload/first access, serve via `/api/v1/files/{id}/thumbnail` endpoint
+  - Benefits: Visual previews without client-side memory exhaustion
+
 ## License 📜
 
 This project contains code under multiple licenses. The current codebase includes components licensed under the Open WebUI License with an additional requirement to preserve the "Open WebUI" branding, as well as prior contributions under their respective original licenses. For a detailed record of license changes and the applicable terms for each section of the code, please refer to [LICENSE_HISTORY](./LICENSE_HISTORY). For complete and updated licensing details, please see the [LICENSE](./LICENSE) and [LICENSE_HISTORY](./LICENSE_HISTORY) files.
