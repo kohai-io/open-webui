@@ -56,6 +56,21 @@ This fork includes critical performance optimizations for the media page when ha
   - Timestamp tracking for flow creation and updates
   - Integration with Open WebUI Pipelines framework
 
+- **Workspace Editor Page** (`/workspace/editor`) ⚠️ **VERY ALPHA**: Video timeline editor for multi-video composition
+  - **Canvas-based video player**: Custom video playback with timeline synchronization
+  - **Timeline interface**: Visual timeline with drag-and-drop segment editing
+    - Add media from library to timeline
+    - Create multi-video sequences
+    - Segment trimming and positioning
+    - Enable/disable segments
+    - Duplicate and delete segments
+  - **Media pool**: Browse and add videos from media library to timeline
+  - **Markers**: Add chapter markers at specific timeline positions
+  - **Model integration** (placeholder): Send segments to AI models for processing
+  - **Zoom controls**: Adjust timeline zoom level for precision editing
+  - Components: `CanvasVideoPlayer`, `Timeline`, `MediaPool`, `ModelSegmentModal`
+  - **Status**: Experimental feature under active development
+
 - **Enhanced Chat Media Rendering**: Improved multimedia support in chat messages
   - **Video Support**: Inline video player with controls for `<video>` HTML tags
     - Automatic src extraction and sanitization
