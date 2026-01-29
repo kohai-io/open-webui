@@ -30,6 +30,25 @@ This fork includes critical performance optimizations for the media page when ha
 
 ### Custom Features
 
+- **Welcome Landing Page** (`/welcome`): Enhanced onboarding experience
+  - Agent selection interface showing available assistants and functions
+  - File attachment support (images and documents) that transfers to chat
+  - Screen capture/camera integration for quick image input
+  - Web search toggle for enabling search in queries
+  - Voice mode quick access
+  - Seamless transition to chat with pre-selected agents and files
+
+- **Workspace Agents Page** (`/workspace/agents`): Centralized agent management
+  - Categorized agent views:
+    - **My Agents**: User-created agents and assistants
+    - **Shared Agents**: Agents shared by other users
+    - **System Agents**: Platform-wide available agents
+    - **Foundational Models**: Base LLM models
+  - Agent actions: Edit, Clone, Export, Share, Delete
+  - Permission-based access control (owner/group-based write access)
+  - Quick navigation to chat with selected agent
+  - Component reorganization to `src/lib/components/workspace/Agents/`
+
 - **NeuralNetworkTheater (Pi Gateway)**: 3D visualization interface with:
   - Face and hand tracking visualization using MediaPipe
   - Audio-reactive particles and equalizer visualization
