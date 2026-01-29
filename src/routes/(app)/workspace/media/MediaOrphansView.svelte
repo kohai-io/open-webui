@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import MediaCard from '$lib/components/workspace/MediaCard.svelte';
+  import MediaCard from '$lib/components/workspace/Media/MediaCard.svelte';
   import MediaList from './MediaList.svelte';
   import type { MediaFile, ViewMode, SortBy, SortDir } from '$lib/types/media';
 

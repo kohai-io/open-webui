@@ -11,7 +11,7 @@
   import MediaChatView from './MediaChatView.svelte';
   import MediaOrphansView from './MediaOrphansView.svelte';
   import MediaPreviewModal from './MediaPreviewModal.svelte';
-  import MediaSelectionBar from '$lib/components/workspace/MediaSelectionBar.svelte';
+  import MediaSelectionBar from '$lib/components/workspace/Media/MediaSelectionBar.svelte';
   
   // Import utilities and types
   import { classify, contentUrl, fileMetaUrl, filterFiles, sortFiles, groupFiles, calculateCounts } from '$lib/utils/media';
@@ -50,6 +50,11 @@
   // Declare prompt resolution state early to satisfy TS references
   let promptLoading = false;
   let resolvedPrompt: string | null = null;
+  
+  // Declare reactive variables
+  let visibleData: MediaFile[] = [];
+  let groupedVisible: any = {};
+  let counts: any = {};
   const openPreview = async (item: any) => {
     previewItem = item;
     resolvedPrompt = null;
@@ -238,7 +243,12 @@
   };
 
   // Reactive filtered and sorted data
+  let reactiveCounter = { filteredData: 0, visibleData: 0, groupedVisible: 0, counts: 0, storage: 0 };
   $: filteredData = (() => {
+    reactiveCounter.filteredData++;
+    if (reactiveCounter.filteredData % 10 === 0) {
+      console.log('[REACTIVE] filteredData fired:', reactiveCounter.filteredData, 'times');
+    }
     // In overview mode with hierarchy grouping, or in folder mode, we don't list files
     if (mode === 'folder' || (mode === 'overview' && groupBy === 'hierarchy')) {
       return [] as MediaFile[];
@@ -257,10 +267,22 @@
   })();
 
   // Reactive visible slice
-  $: visibleData = filteredData.slice(0, visibleCount);
+  $: {
+    reactiveCounter.visibleData++;
+    if (reactiveCounter.visibleData % 10 === 0) {
+      console.log('[REACTIVE] visibleData fired:', reactiveCounter.visibleData, 'times');
+    }
+    visibleData = filteredData.slice(0, visibleCount);
+  }
 
   // Grouping and counts using utility functions
-  $: groupedVisible = groupFiles(visibleData, groupBy, fileToChat, chatsById, foldersById, linking);
+  $: {
+    reactiveCounter.groupedVisible++;
+    if (reactiveCounter.groupedVisible % 10 === 0) {
+      console.log('[REACTIVE] groupedVisible fired:', reactiveCounter.groupedVisible, 'times');
+    }
+    groupedVisible = groupFiles(visibleData, groupBy, fileToChat, chatsById, foldersById, linking);
+  }
 
   // Load more files from server (server-side pagination)
   const loadMoreFromServer = async () => {
@@ -294,7 +316,13 @@
   };
 
   // Counts per type for tab badges
-  $: counts = calculateCounts(files);
+  $: {
+    reactiveCounter.counts++;
+    if (reactiveCounter.counts % 10 === 0) {
+      console.log('[REACTIVE] counts fired:', reactiveCounter.counts, 'times');
+    }
+    counts = calculateCounts(files);
+  }
 
   onMount(async () => {
     try {
@@ -377,6 +405,10 @@
   let storageTimer: any;
   $: {
     // Bundle all state changes together
+    reactiveCounter.storage++;
+    if (reactiveCounter.storage % 10 === 0) {
+      console.log('[REACTIVE] storage fired:', reactiveCounter.storage, 'times');
+    }
     const state = { viewMode, query, activeTab, sortBy, sortDir, groupBy };
     clearTimeout(storageTimer);
     storageTimer = setTimeout(() => {

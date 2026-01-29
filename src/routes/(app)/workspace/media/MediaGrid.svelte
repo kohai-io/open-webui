@@ -1,6 +1,6 @@
 <script lang="ts">
   import { createEventDispatcher } from 'svelte';
-  import MediaCard from '$lib/components/workspace/MediaCard.svelte';
+  import MediaCard from '$lib/components/workspace/Media/MediaCard.svelte';
   import type { MediaFile } from '$lib/types/media';
 
   export let items: MediaFile[] = [];

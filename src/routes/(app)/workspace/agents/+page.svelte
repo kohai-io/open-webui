@@ -11,7 +11,7 @@
 	import { getGroups } from '$lib/apis/groups';
 	import { copyToClipboard } from '$lib/utils';
 	import type { AgentModel } from '$lib/utils/agents';
-	import AgentSection from '$lib/components/workspace/AgentSection.svelte';
+	import AgentSection from '$lib/components/workspace/Agents/AgentSection.svelte';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import { toast } from 'svelte-sonner';

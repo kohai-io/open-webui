@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getProfileImage, getDescription, type AgentModel } from '$lib/utils/agents';
-	import AgentMenu from './Agents/AgentMenu.svelte';
-	import EllipsisHorizontal from '../icons/EllipsisHorizontal.svelte';
+	import AgentMenu from './AgentMenu.svelte';
+	import EllipsisHorizontal from '../../icons/EllipsisHorizontal.svelte';
 	
 	export let agent: AgentModel;
 	export let onClick: (id: string) => void;
