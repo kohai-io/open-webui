@@ -19,6 +19,8 @@
   let cardElement: HTMLElement;
   let isVisible = false;
   let observer: IntersectionObserver | undefined;
+  let videoThumbnail: string | null = null;
+  let thumbnailLoading = false;
   
   onMount(() => {
     observer = new IntersectionObserver(
@@ -27,6 +29,10 @@
           if (entry.isIntersecting && !isVisible) {
             isVisible = true;
             observer?.unobserve(entry.target);
+            // Generate video thumbnail if needed
+            if (mediaType === 'video' && !videoThumbnail && !thumbnailLoading) {
+              generateVideoThumbnail();
+            }
           }
         });
       },
@@ -41,6 +47,43 @@
   onDestroy(() => {
     observer?.disconnect();
   });
+
+  const generateVideoThumbnail = async () => {
+    thumbnailLoading = true;
+    try {
+      const video = document.createElement('video');
+      video.crossOrigin = 'anonymous';
+      video.preload = 'metadata';
+      video.muted = true;
+      
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => {
+          video.currentTime = 0.1;
+        };
+        video.onseeked = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(video, 0, 0);
+              videoThumbnail = canvas.toDataURL('image/jpeg', 0.7);
+            }
+            resolve();
+          } catch (e) {
+            reject(e);
+          }
+        };
+        video.onerror = reject;
+        video.src = contentUrl(item.id);
+      });
+    } catch (e) {
+      console.warn('Failed to generate video thumbnail:', e);
+    } finally {
+      thumbnailLoading = false;
+    }
+  };
 
   const openPreview = () => {
     dispatch('preview', item);
@@ -139,14 +182,28 @@
 {:else if mediaType === 'video'}
   <div bind:this={cardElement} class="group block rounded-xl overflow-hidden border border-gray-100 dark:border-gray-900 bg-white dark:bg-gray-900 hover:shadow-sm transition">
     <div 
-      class="aspect-video bg-black cursor-zoom-in relative" 
+      class="aspect-video bg-black cursor-zoom-in relative overflow-hidden" 
       role="button" 
       tabindex="0" 
       aria-label="Preview video" 
       on:click={openPreview}
       on:keydown={(e) => handleKeydown(e, openPreview)}
     >
-      <div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-600">🎬</div>
+      {#if videoThumbnail}
+        <img 
+          src={videoThumbnail} 
+          alt={item.filename} 
+          class="w-full h-full object-contain"
+        />
+      {:else}
+        <div class="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-600">
+          {#if thumbnailLoading}
+            <div class="text-sm">Loading...</div>
+          {:else}
+            🎬
+          {/if}
+        </div>
+      {/if}
       <div class="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition">
         <div class="w-12 h-12 rounded-full bg-white/90 dark:bg-gray-900/90 flex items-center justify-center shadow-lg">
           <svg class="w-6 h-6 text-gray-800 dark:text-gray-200 ml-0.5" fill="currentColor" viewBox="0 0 16 16">
