@@ -59,10 +59,8 @@
     previewItem = item;
     resolvedPrompt = null;
     promptLoading = false;
-    const token = localStorage.token;
-    if (item?.id) {
-      await resolveFileChat(item.id, files, fileToChat, chatsById, token);
-    }
+    // Note: fileToChat map is already populated from backend media-overview response
+    // No need to call resolveFileChat here - it causes unnecessary API calls
     if (!previewItem?.meta?.prompt) {
       fetchPromptFromChat(previewItem);
     }
