@@ -1,5 +1,12 @@
 # Open WebUI 👋
 
+> [!NOTE]
+> **This is a fork of [Open WebUI](https://github.com/open-webui/open-webui)** maintained by [@kohai-io](https://github.com/kohai-io).
+> 
+> This fork is developed with assistance from Large Language Models (LLMs) and includes custom modifications and enhancements.
+> 
+> For the official upstream project, visit: https://github.com/open-webui/open-webui
+
 ![GitHub stars](https://img.shields.io/github/stars/open-webui/open-webui?style=social)
 ![GitHub forks](https://img.shields.io/github/forks/open-webui/open-webui?style=social)
 ![GitHub watchers](https://img.shields.io/github/watchers/open-webui/open-webui?style=social)
