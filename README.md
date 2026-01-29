@@ -49,6 +49,32 @@ This fork includes critical performance optimizations for the media page when ha
   - Quick navigation to chat with selected agent
   - Component reorganization to `src/lib/components/workspace/Agents/`
 
+- **Workspace Flows Page** (`/workspace/flows`): Pipeline and workflow management
+  - Create, edit, and manage custom flows/pipelines
+  - Flow actions: Create, Edit, Duplicate, Delete
+  - Search and filter flows by name
+  - Timestamp tracking for flow creation and updates
+  - Integration with Open WebUI Pipelines framework
+
+- **Enhanced Chat Media Rendering**: Improved multimedia support in chat messages
+  - **Video Support**: Inline video player with controls for `<video>` HTML tags
+    - Automatic src extraction and sanitization
+    - Full-width responsive player with rounded corners
+    - Native browser controls (play, pause, volume, fullscreen)
+  - **Audio Support**: Inline audio player for `<audio>` HTML tags
+    - Support for both direct src and `<source>` tag formats
+    - Full-width responsive player
+  - **YouTube Embeds**: Native iframe embedding for YouTube videos
+    - Automatic aspect-ratio preservation
+    - Full feature support (autoplay, clipboard-write, etc.)
+  - **Generic iFrame Support**: Sandboxed iframe rendering for embedded content
+    - Auto-height adjustment for content
+    - Security sandboxing for cross-origin content
+  - **HTML File Rendering**: Direct rendering of HTML file content via iframe
+    - Configurable sandbox permissions (forms, same-origin)
+    - Full-screen support
+  - Implementation in `src/lib/components/chat/Messages/Markdown/HTMLToken.svelte`
+
 - **NeuralNetworkTheater (Pi Gateway)**: 3D visualization interface with:
   - Face and hand tracking visualization using MediaPipe
   - Audio-reactive particles and equalizer visualization
