@@ -12,32 +12,14 @@
 This README focuses on what's different in this fork. For general Open WebUI information, installation guides, and full feature documentation, please visit the [upstream repository](https://github.com/open-webui/open-webui).
 
 
-## Fork-Specific Changes 🔧
+## Fork-Specific Features 🔧
 
-### Workspace Media Page (`/workspace/media`) 🆕 **FORK-SPECIFIC**
-
-**This feature is unique to this fork and not present in upstream Open WebUI.**
-
-A comprehensive media library management interface for browsing, organizing, and managing all uploaded files:
-
-- **Unified media library**: Browse all images, videos, audio files, and documents in one place
-- **Multiple view modes**:
-  - Grid view with visual thumbnails
-  - List view with detailed metadata
-  - Hierarchical folder/chat organization
-- **Smart filtering and search**:
-  - Filter by media type (images, videos, audio, documents)
-  - Search by filename
-  - View by chat/folder association or orphaned files
-- **Sorting options**: By date, name, size, or type
-- **Batch operations**: Select multiple files for bulk actions
-- **File preview**: Click to preview media with metadata display
-- **Chat integration**: Quick navigation to associated chats
-- **Delete management**: Remove unwanted files from library
-
-**Performance**: Optimized for large libraries (tested with 892+ files) with lazy loading and memory-efficient rendering.
-
-### Custom Features
+- **Workspace Media Page** (`/workspace/media`): Comprehensive media library management
+  - Browse all images, videos, audio files, and documents in one place
+  - Multiple view modes: grid, list, hierarchical folder/chat organization
+  - Filter by media type, search by filename, view orphaned files
+  - Sorting, batch operations, file preview, chat integration
+  - Optimized for large libraries (tested with 892+ files)
 
 - **Welcome Landing Page** (`/welcome`): Enhanced onboarding experience
   - Agent selection interface showing available assistants and functions
