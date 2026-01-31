@@ -1,13 +1,55 @@
 <script lang="ts">
-	import { getContext } from 'svelte';
+	import { onMount, onDestroy, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { config } from '$lib/stores';
 
 	const i18n = getContext('i18n');
 
 	let loading = false;
+	let authorizing = false;
 	let syncingAll = false;
 	let authStatus: { authorized: boolean; expires_at: string | null } | null = null;
+
+	// Listen for OAuth callback messages
+	const handleOAuthMessage = (event: MessageEvent) => {
+		if (event.data?.type === 'google_drive_auth_success') {
+			toast.success($i18n.t('Google Drive authorized successfully'));
+			checkAuthStatus();
+			authorizing = false;
+		} else if (event.data?.type === 'google_drive_auth_error') {
+			toast.error($i18n.t('Authorization failed: {{error}}', { error: event.data.error }));
+			authorizing = false;
+		}
+	};
+
+	onMount(() => {
+		window.addEventListener('message', handleOAuthMessage);
+	});
+
+	onDestroy(() => {
+		window.removeEventListener('message', handleOAuthMessage);
+	});
+
+	const authorizeGoogleDrive = () => {
+		authorizing = true;
+		const width = 600;
+		const height = 700;
+		const left = window.screenX + (window.outerWidth - width) / 2;
+		const top = window.screenY + (window.outerHeight - height) / 2;
+
+		const authUrl = `/api/v1/google-drive/oauth/authorize`;
+		const popup = window.open(
+			authUrl,
+			'google_drive_auth',
+			`width=${width},height=${height},left=${left},top=${top},popup=1`
+		);
+
+		// Check if popup was blocked
+		if (!popup) {
+			toast.error($i18n.t('Popup blocked. Please allow popups for this site.'));
+			authorizing = false;
+		}
+	};
 
 	const checkAuthStatus = async () => {
 		try {
@@ -106,6 +148,33 @@
 						</div>
 					{/if}
 				</div>
+
+				<!-- Authorize Button -->
+				{#if !authStatus?.authorized}
+					<div class="mb-4">
+						<div class="flex w-full justify-between">
+							<div class="self-center text-xs font-medium">
+								{$i18n.t('Authorize Access')}
+							</div>
+						</div>
+
+						<div class="mt-2">
+							<button
+								class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+								on:click={authorizeGoogleDrive}
+								disabled={authorizing}
+							>
+								{authorizing ? $i18n.t('Authorizing...') : $i18n.t('Authorize Google Drive')}
+							</button>
+						</div>
+
+						<div class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+							{$i18n.t(
+								'Connect your Google Drive account to access and import files directly.'
+							)}
+						</div>
+					</div>
+				{/if}
 
 				<!-- Clear Authorization -->
 				<div class="mb-4">
