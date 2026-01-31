@@ -1758,20 +1758,50 @@
 			const allFiles = [..._files, ...previousFiles];
 			console.log('All files to process:', allFiles);
 			
-			const fileIds = allFiles
-				.filter((f: any) => f.type === 'image' || f.type === 'file' || f.type === 'video')
-				.map((f: any) => {
-					// Try direct id property first
-					if (f.id) return f.id;
-					if (f.file?.id) return f.file.id;
-					// Extract from URL format: /api/v1/files/{id}/content
-					if (f.url) {
-						const match = f.url.match(/\/api\/v1\/files\/([a-f0-9-]+)\/content/i);
-						if (match) return match[1];
+			// Process files - upload base64 images to server first
+			const fileIds: string[] = [];
+			for (const f of allFiles) {
+				if (f.type !== 'image' && f.type !== 'file' && f.type !== 'video') continue;
+				
+				// Try direct id property first
+				if (f.id) {
+					fileIds.push(f.id);
+					continue;
+				}
+				if (f.file?.id) {
+					fileIds.push(f.file.id);
+					continue;
+				}
+				// Extract from URL format: /api/v1/files/{id}/content
+				if (f.url) {
+					const match = f.url.match(/\/api\/v1\/files\/([a-f0-9-]+)\/content/i);
+					if (match) {
+						fileIds.push(match[1]);
+						continue;
 					}
-					return null;
-				})
-				.filter((id: any) => id !== null);
+					
+					// Handle base64 data URLs - upload to server first
+					if (f.url.startsWith('data:')) {
+						try {
+							console.log('Uploading base64 image to server...');
+							// Convert base64 to blob
+							const response = await fetch(f.url);
+							const blob = await response.blob();
+							const fileName = `flow-input-${Date.now()}.${blob.type.split('/')[1] || 'png'}`;
+							const file = new File([blob], fileName, { type: blob.type });
+							
+							// Upload to server
+							const uploadedFile = await uploadFile(localStorage.token, file);
+							if (uploadedFile?.id) {
+								console.log('Uploaded base64 image, got ID:', uploadedFile.id);
+								fileIds.push(uploadedFile.id);
+							}
+						} catch (err) {
+							console.error('Failed to upload base64 image:', err);
+						}
+					}
+				}
+			}
 			
 			console.log('Extracted file IDs:', fileIds);
 
