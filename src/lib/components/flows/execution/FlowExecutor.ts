@@ -318,11 +318,33 @@ export class FlowExecutor {
 		return result.dataUri;
 	}
 
-	private async executeInputNode(node: FlowNode): Promise<string> {
+	private async executeInputNode(node: FlowNode): Promise<string | string[]> {
 		const data = node.data as any;
-		// If there's a media file, return the file ID
-		// Otherwise return the text value
-		return data.mediaFileId || data.value || '';
+		
+		// Collect all inputs: text value and any file IDs
+		const results: string[] = [];
+		
+		// Add text value if present
+		if (data.value) {
+			results.push(data.value);
+		}
+		
+		// Add file IDs - support both single mediaFileId and array of fileIds
+		if (data.fileIds && Array.isArray(data.fileIds)) {
+			results.push(...data.fileIds);
+		} else if (data.mediaFileId) {
+			results.push(data.mediaFileId);
+		}
+		
+		// If only one result, return as string for backwards compatibility
+		// If multiple, return array so model node can process all inputs
+		if (results.length === 0) {
+			return '';
+		} else if (results.length === 1) {
+			return results[0];
+		} else {
+			return results;
+		}
 	}
 
 	private async executeModelNode(node: FlowNode, inputs: any[]): Promise<string> {
@@ -337,14 +359,25 @@ export class FlowExecutor {
 		console.log('Raw inputs:', inputs);
 		console.log('Prompt template:', data.prompt);
 
+		// Flatten inputs - input nodes may return arrays of [text, fileId1, fileId2, ...]
+		const flatInputs: any[] = [];
+		for (const input of inputs) {
+			if (Array.isArray(input)) {
+				flatInputs.push(...input);
+			} else {
+				flatInputs.push(input);
+			}
+		}
+		console.log('Flattened inputs:', flatInputs);
+
 		// Interpolate prompt with inputs
 		let prompt = data.prompt || '';
 		let imageFileIds: string[] = [];
 		let textInputs: string[] = [];
 		
 		// Process all inputs - separate file IDs from text
-		for (let i = 0; i < inputs.length; i++) {
-			const input = inputs[i];
+		for (let i = 0; i < flatInputs.length; i++) {
+			const input = flatInputs[i];
 			console.log(`Input ${i}:`, typeof input, 'Value:', input);
 			
 			const inputStr = typeof input === 'string' ? input : JSON.stringify(input);

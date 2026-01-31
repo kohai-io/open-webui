@@ -1742,14 +1742,22 @@
 				nodeNames.set(node.id, label);
 			}
 
-			// Inject user prompt into input nodes
+			// Extract file IDs from attached files
+			const fileIds = _files
+				.filter((f: any) => f.type === 'image' || f.type === 'file')
+				.map((f: any) => f.id || (f.file?.id));
+
+			// Inject user prompt and files into input nodes
 			const nodesWithInput = fullFlow.nodes.map((node: any) => {
 				if (node.type === 'input') {
 					return {
 						...node,
 						data: {
 							...node.data,
-							value: userPrompt
+							value: userPrompt,
+							// Pass file IDs to input node - use first file for mediaFileId, all files in array
+							mediaFileId: fileIds.length > 0 ? fileIds[0] : node.data?.mediaFileId,
+							fileIds: fileIds.length > 0 ? fileIds : undefined
 						}
 					};
 				}
