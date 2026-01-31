@@ -22,7 +22,8 @@
 		temporaryChatEnabled,
 		settings,
 		config,
-		flows
+		flows,
+		functions
 	} from '$lib/stores';
 	import { getAccessibleFlows } from '$lib/apis/flows';
 	import type { Flow } from '$lib/types/flows';
@@ -132,14 +133,22 @@
 		updateFuse();
 	}
 
-	// Helper to check if a model is an "agent" (has base_model_id = user-created custom assistant)
-	const isAgent = (item: any) => {
-		return item.model?.info?.base_model_id || item.model?.base_model_id;
+	// Get function IDs for categorization
+	$: functionIds = new Set(($functions ?? []).map((f: any) => f.id));
+
+	// Helper to check if a model is a function/pipeline (system agent)
+	const isFunction = (item: any) => {
+		return functionIds.has(item.model?.id || item.value);
 	};
 
-	// Helper to check if a model is a real LLM model (local or external, but NOT an agent)
+	// Helper to check if a model is a user-created agent (has base_model_id)
+	const isUserAgent = (item: any) => {
+		return (item.model?.info?.base_model_id || item.model?.base_model_id) && !isFunction(item);
+	};
+
+	// Helper to check if a model is a real LLM model (not an agent or function)
 	const isModel = (item: any) => {
-		return !isAgent(item);
+		return !isUserAgent(item) && !isFunction(item);
 	};
 
 	$: filteredItems = (
@@ -172,7 +181,7 @@
 					.filter((item) => {
 						// Category filter
 						if (selectedCategory === '' || selectedCategory === 'all') return true;
-						if (selectedCategory === 'agents') return isAgent(item);
+						if (selectedCategory === 'agents') return isUserAgent(item) || isFunction(item);
 						if (selectedCategory === 'models') return isModel(item);
 						return true;
 					})
@@ -199,7 +208,7 @@
 					.filter((item) => {
 						// Category filter
 						if (selectedCategory === '' || selectedCategory === 'all') return true;
-						if (selectedCategory === 'agents') return isAgent(item);
+						if (selectedCategory === 'agents') return isUserAgent(item) || isFunction(item);
 						if (selectedCategory === 'models') return isModel(item);
 						return true;
 					})
@@ -534,7 +543,7 @@
 								{$i18n.t('All')}
 							</button>
 
-							{#if items.some((item) => isAgent(item))}
+							{#if items.some((item) => isUserAgent(item) || isFunction(item))}
 								<button
 									class="min-w-fit outline-none px-1.5 py-0.5 {selectedCategory === 'agents'
 										? ''
