@@ -132,14 +132,14 @@
 		updateFuse();
 	}
 
-	// Helper to check if a model is "external" (external connection type = real LLM APIs)
-	const isExternalModel = (item: any) => {
-		return item.model?.connection_type === 'external';
+	// Helper to check if a model is an "agent" (has base_model_id = user-created custom assistant)
+	const isAgent = (item: any) => {
+		return item.model?.info?.base_model_id || item.model?.base_model_id;
 	};
 
-	// Helper to check if a model is an "agent" (local/non-external = OWUI functions, custom assistants, etc.)
-	const isAgent = (item: any) => {
-		return !isExternalModel(item);
+	// Helper to check if a model is a real LLM model (local or external, but NOT an agent)
+	const isModel = (item: any) => {
+		return !isAgent(item);
 	};
 
 	$: filteredItems = (
@@ -173,7 +173,7 @@
 						// Category filter
 						if (selectedCategory === '' || selectedCategory === 'all') return true;
 						if (selectedCategory === 'agents') return isAgent(item);
-						if (selectedCategory === 'models') return isExternalModel(item);
+						if (selectedCategory === 'models') return isModel(item);
 						return true;
 					})
 			: items
@@ -200,7 +200,7 @@
 						// Category filter
 						if (selectedCategory === '' || selectedCategory === 'all') return true;
 						if (selectedCategory === 'agents') return isAgent(item);
-						if (selectedCategory === 'models') return isExternalModel(item);
+						if (selectedCategory === 'models') return isModel(item);
 						return true;
 					})
 	).filter((item) => !(item.model?.info?.meta?.hidden ?? false));
@@ -572,7 +572,7 @@
 								</button>
 							{/if}
 
-							{#if items.some((item) => isExternalModel(item))}
+							{#if items.some((item) => isModel(item))}
 								<button
 									class="min-w-fit outline-none px-1.5 py-0.5 {selectedCategory === 'models'
 										? ''
