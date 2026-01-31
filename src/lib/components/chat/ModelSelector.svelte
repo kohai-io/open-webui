@@ -40,7 +40,8 @@
 
 	$: if (selectedModels.length > 0 && $models.length > 0) {
 		const _selectedModels = selectedModels.map((model) =>
-			$models.map((m) => m.id).includes(model) ? model : ''
+			// Preserve flow selections (flow:xxx) or valid model IDs
+			model.startsWith('flow:') || $models.map((m) => m.id).includes(model) ? model : ''
 		);
 
 		if (JSON.stringify(_selectedModels) !== JSON.stringify(selectedModels)) {

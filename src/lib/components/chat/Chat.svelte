@@ -1790,7 +1790,8 @@
 		}
 
 		const _selectedModels = selectedModels.map((modelId) =>
-			$models.map((m) => m.id).includes(modelId) ? modelId : ''
+			// Preserve flow selections (flow:xxx) or valid model IDs
+			modelId.startsWith('flow:') || $models.map((m) => m.id).includes(modelId) ? modelId : ''
 		);
 
 		if (JSON.stringify(selectedModels) !== JSON.stringify(_selectedModels)) {
