@@ -21,8 +21,11 @@
 		mobile,
 		temporaryChatEnabled,
 		settings,
-		config
+		config,
+		flows
 	} from '$lib/stores';
+	import { getAccessibleFlows } from '$lib/apis/flows';
+	import type { Flow } from '$lib/types/flows';
 	import { toast } from 'svelte-sonner';
 	import { capitalizeFirstLetter, sanitizeResponseContent, splitStream } from '$lib/utils';
 	import { getModels } from '$lib/apis';
@@ -70,6 +73,25 @@
 
 	let selectedTag = '';
 	let selectedConnectionType = '';
+	let showFlows = false;
+
+	// Load flows when dropdown opens
+	const loadFlows = async () => {
+		if ($flows === null) {
+			try {
+				const accessibleFlows = await getAccessibleFlows(localStorage.token);
+				flows.set(accessibleFlows);
+			} catch (error) {
+				console.error('Error loading flows:', error);
+				flows.set([]);
+			}
+		}
+	};
+
+	// Check if current value is a flow
+	$: isFlowSelected = value?.startsWith('flow:');
+	$: selectedFlowId = isFlowSelected ? value.replace('flow:', '') : null;
+	$: selectedFlowItem = selectedFlowId ? ($flows ?? []).find(f => f.id === selectedFlowId) : null;
 
 	let ollamaVersion = null;
 	let selectedModelIdx = 0;
@@ -369,6 +391,7 @@
 		searchValue = '';
 		window.setTimeout(() => document.getElementById('model-search-input')?.focus(), 0);
 
+		loadFlows();
 		resetView();
 	}}
 	closeFocus={false}
@@ -394,7 +417,14 @@
 				);
 			}}
 		>
-			{#if selectedModel}
+			{#if isFlowSelected && selectedFlowItem}
+				<span class="flex items-center gap-1.5">
+					<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<circle cx="12" cy="5" r="3" /><line x1="12" y1="8" x2="12" y2="16" /><circle cx="6" cy="19" r="3" /><circle cx="18" cy="19" r="3" /><line x1="12" y1="16" x2="6" y2="16" /><line x1="12" y1="16" x2="18" y2="16" />
+					</svg>
+					{selectedFlowItem.name}
+				</span>
+			{:else if selectedModel}
 				{selectedModel.label}
 			{:else}
 				{placeholder}
@@ -462,16 +492,17 @@
 							class="flex gap-1 w-fit text-center text-sm rounded-full bg-transparent px-1.5 whitespace-nowrap"
 							bind:this={tagsContainerElement}
 						>
-							{#if items.find((item) => item.model?.connection_type === 'local') || items.find((item) => item.model?.connection_type === 'external') || items.find((item) => item.model?.direct) || tags.length > 0}
+							{#if items.find((item) => item.model?.connection_type === 'local') || items.find((item) => item.model?.connection_type === 'external') || items.find((item) => item.model?.direct) || tags.length > 0 || ($flows ?? []).length > 0}
 								<button
 									class="min-w-fit outline-none px-1.5 py-0.5 {selectedTag === '' &&
-									selectedConnectionType === ''
+									selectedConnectionType === '' && !showFlows
 										? ''
 										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
-									aria-pressed={selectedTag === '' && selectedConnectionType === ''}
+									aria-pressed={selectedTag === '' && selectedConnectionType === '' && !showFlows}
 									on:click={() => {
 										selectedConnectionType = '';
 										selectedTag = '';
+										showFlows = false;
 									}}
 								>
 									{$i18n.t('All')}
@@ -517,9 +548,29 @@
 									on:click={() => {
 										selectedTag = '';
 										selectedConnectionType = 'direct';
+										showFlows = false;
 									}}
 								>
 									{$i18n.t('Direct')}
+								</button>
+							{/if}
+
+							{#if ($flows ?? []).length > 0}
+								<button
+									class="min-w-fit outline-none px-1.5 py-0.5 {showFlows
+										? ''
+										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize flex items-center gap-1"
+									aria-pressed={showFlows}
+									on:click={() => {
+										selectedTag = '';
+										selectedConnectionType = '';
+										showFlows = true;
+									}}
+								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<circle cx="12" cy="5" r="3" /><line x1="12" y1="8" x2="12" y2="16" /><circle cx="6" cy="19" r="3" /><circle cx="18" cy="19" r="3" /><line x1="12" y1="16" x2="6" y2="16" /><line x1="12" y1="16" x2="18" y2="16" />
+									</svg>
+									{$i18n.t('Flows')}
 								</button>
 							{/if}
 
@@ -545,28 +596,73 @@
 			</div>
 
 			<div class="px-2.5 max-h-64 overflow-y-auto group relative">
-				{#each filteredItems as item, index}
-					<ModelItem
-						{selectedModelIdx}
-						{item}
-						{index}
-						{value}
-						{pinModelHandler}
-						{unloadModelHandler}
-						onClick={() => {
-							value = item.value;
-							selectedModelIdx = index;
-
-							show = false;
-						}}
-					/>
-				{:else}
-					<div class="">
+				{#if showFlows}
+					<!-- Flows List -->
+					{#each ($flows ?? []).filter(f => f.name.toLowerCase().includes(searchValue.toLowerCase())) as flow, index}
+						<button
+							class="flex w-full font-medium line-clamp-1 select-none items-center rounded-button py-2 pl-3 pr-1.5 text-sm text-gray-700 dark:text-gray-100 outline-hidden transition-all duration-75 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-xl cursor-pointer {value === `flow:${flow.id}` ? 'bg-gray-100 dark:bg-gray-800' : ''}"
+							on:click={() => {
+								value = `flow:${flow.id}`;
+								show = false;
+							}}
+						>
+							<div class="flex items-center gap-2 w-full">
+								<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 flex-shrink-0 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="12" cy="5" r="3" /><line x1="12" y1="8" x2="12" y2="16" /><circle cx="6" cy="19" r="3" /><circle cx="18" cy="19" r="3" /><line x1="12" y1="16" x2="6" y2="16" /><line x1="12" y1="16" x2="18" y2="16" />
+								</svg>
+								<div class="flex-1 text-left truncate">
+									<div class="font-medium">{flow.name}</div>
+									{#if flow.description}
+										<div class="text-xs text-gray-500 truncate">{flow.description}</div>
+									{/if}
+								</div>
+								{#if value === `flow:${flow.id}`}
+									<Check className="w-4 h-4 text-blue-500" />
+								{/if}
+							</div>
+						</button>
+					{:else}
 						<div class="block px-3 py-2 text-sm text-gray-700 dark:text-gray-100">
-							{$i18n.t('No results found')}
+							{$i18n.t('No flows available')}
 						</div>
-					</div>
-				{/each}
+					{/each}
+					
+					<a
+						href="/workspace/flows"
+						class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+						on:click={() => { show = false; }}
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+							<circle cx="12" cy="12" r="3" />
+							<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+						</svg>
+						{$i18n.t('Manage Flows')}
+					</a>
+				{:else}
+					<!-- Models List -->
+					{#each filteredItems as item, index}
+						<ModelItem
+							{selectedModelIdx}
+							{item}
+							{index}
+							{value}
+							{pinModelHandler}
+							{unloadModelHandler}
+							onClick={() => {
+								value = item.value;
+								selectedModelIdx = index;
+
+								show = false;
+							}}
+						/>
+					{:else}
+						<div class="">
+							<div class="block px-3 py-2 text-sm text-gray-700 dark:text-gray-100">
+								{$i18n.t('No results found')}
+							</div>
+						</div>
+					{/each}
+				{/if}
 
 				{#if !(searchValue.trim() in $MODEL_DOWNLOAD_POOL) && searchValue && ollamaVersion && $user?.role === 'admin'}
 					<Tooltip
