@@ -82,6 +82,7 @@
 	import { getTools } from '$lib/apis/tools';
 	import { uploadFile } from '$lib/apis/files';
 	import { getFlowById } from '$lib/apis/flows';
+	import { saveFlowExecution } from '$lib/apis/flows/executions';
 	import { FlowExecutor } from '$lib/components/flows/execution/FlowExecutor';
 	import { createOpenAITextStream } from '$lib/apis/streaming';
 	import { getFunctions } from '$lib/apis/functions';
@@ -1742,10 +1743,21 @@
 				nodeNames.set(node.id, label);
 			}
 
-			// Extract file IDs from attached files
+			// Extract file IDs from attached files - handle both id property and URL format
 			const fileIds = _files
 				.filter((f: any) => f.type === 'image' || f.type === 'file')
-				.map((f: any) => f.id || (f.file?.id));
+				.map((f: any) => {
+					// Try direct id property first
+					if (f.id) return f.id;
+					if (f.file?.id) return f.file.id;
+					// Extract from URL format: /api/v1/files/{id}/content
+					if (f.url) {
+						const match = f.url.match(/\/api\/v1\/files\/([a-f0-9-]+)\/content/i);
+						if (match) return match[1];
+					}
+					return null;
+				})
+				.filter((id: any) => id !== null);
 
 			// Inject user prompt and files into input nodes
 			const nodesWithInput = fullFlow.nodes.map((node: any) => {
@@ -1870,6 +1882,13 @@
 			};
 
 			await saveChatHandler($chatId, history);
+
+			// Save flow execution to history
+			const executionResult = {
+				...result,
+				flowId: flowId
+			};
+			await saveFlowExecution(localStorage.token, flowId, executionResult);
 		} catch (error: any) {
 			console.error('Flow execution error:', error);
 			history.messages[responseMessageId] = {
