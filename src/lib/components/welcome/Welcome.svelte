@@ -12,6 +12,7 @@
 	import Camera from '$lib/components/icons/Camera.svelte';
 	import Voice from '$lib/components/icons/Voice.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import VoiceRecording from '$lib/components/chat/MessageInput/VoiceRecording.svelte';
 	import Sidebar from '$lib/components/icons/Sidebar.svelte';
 	import UserMenu from '$lib/components/layout/Sidebar/UserMenu.svelte';
 
@@ -23,6 +24,8 @@
 	let filesInputElement: HTMLInputElement;
 	let cameraInputElement: HTMLInputElement;
 	let webSearchEnabled = false;
+	let recording = false;
+	let inputElement: HTMLInputElement;
 
 	const detectMobile = () => {
 		const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
@@ -175,6 +178,25 @@
 		}
 		goto('/?call=true');
 	};
+
+	const handleDictate = async () => {
+		try {
+			const stream = await navigator.mediaDevices
+				.getUserMedia({ audio: true })
+				.catch((err) => {
+					toast.error($i18n.t('Permission denied when accessing microphone: {{error}}', { error: err }));
+					return null;
+				});
+
+			if (stream) {
+				recording = true;
+				const tracks = stream.getTracks();
+				tracks.forEach((track) => track.stop());
+			}
+		} catch {
+			toast.error($i18n.t('Permission denied when accessing microphone'));
+		}
+	};
 </script>
 
 <div class="h-screen max-h-[100dvh] w-full max-w-full flex flex-col overflow-y-auto {$showSidebar
@@ -246,6 +268,29 @@
 
 			<!-- Chat Input -->
 			<div class="mb-12 w-full">
+				<!-- Voice Recording Overlay -->
+				{#if recording}
+					<div class="mb-4">
+						<VoiceRecording
+							bind:recording
+							onCancel={async () => {
+								recording = false;
+								await tick();
+								inputElement?.focus();
+							}}
+							onConfirm={async (data) => {
+								const { text } = data;
+								recording = false;
+								await tick();
+								if (text && inputElement) {
+									inputElement.value = text;
+									inputElement.focus();
+								}
+							}}
+						/>
+					</div>
+				{/if}
+
 				<!-- Hidden file inputs -->
 				<input
 					bind:this={filesInputElement}
@@ -299,7 +344,7 @@
 					</div>
 				{/if}
 
-				<form on:submit|preventDefault={handleSearch}>
+				<form on:submit|preventDefault={handleSearch} class={recording ? 'hidden' : ''}>
 					<div class="relative">
 						<div class="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
 							<button
@@ -332,21 +377,42 @@
 							</button>
 						</div>
 						<input
+							bind:this={inputElement}
 							type="text"
 							name="message"
 							placeholder={$i18n.t('Ask me anything...')}
-							class="w-full px-6 py-4 pl-36 pr-24 text-lg rounded-2xl bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
+							class="w-full px-6 py-4 pl-36 pr-32 text-lg rounded-2xl bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
 						/>
-						<div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+						<div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+							<Tooltip content={$i18n.t('Dictate')}>
+								<button
+									type="button"
+									on:click={handleDictate}
+									class="text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-1.5"
+									aria-label={$i18n.t('Dictate')}
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 20 20"
+										fill="currentColor"
+										class="size-5"
+									>
+										<path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
+										<path
+											d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-1.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z"
+										/>
+									</svg>
+								</button>
+							</Tooltip>
 							{#if $user?.role === 'admin' || ($user?.permissions?.chat?.call ?? true)}
 								<Tooltip content={$i18n.t('Voice mode')}>
 									<button
 										type="button"
 										on:click={handleVoiceMode}
-										class="p-2 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition"
-										title={$i18n.t('Voice mode')}
+										class="bg-black text-white hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full p-1.5 mr-1"
+										aria-label={$i18n.t('Voice mode')}
 									>
-										<Voice className="w-5 h-5" strokeWidth="2.5" />
+										<Voice className="size-5" strokeWidth="2.5" />
 									</button>
 								</Tooltip>
 							{/if}
