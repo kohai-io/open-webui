@@ -42,7 +42,8 @@
 		functions,
 		selectedFolder,
 		pinnedChats,
-		showEmbeds
+		showEmbeds,
+		flows
 	} from '$lib/stores';
 
 	import {
@@ -80,6 +81,7 @@
 	} from '$lib/apis';
 	import { getTools } from '$lib/apis/tools';
 	import { uploadFile } from '$lib/apis/files';
+	import { executeFlow } from '$lib/apis/flows';
 	import { createOpenAITextStream } from '$lib/apis/streaming';
 	import { getFunctions } from '$lib/apis/functions';
 	import { updateFolderById } from '$lib/apis/folders';
@@ -1640,8 +1642,152 @@
 	// Chat functions
 	//////////////////////////
 
+	const submitFlowPrompt = async (userPrompt: string, flowId: string) => {
+		console.log('submitFlowPrompt', userPrompt, flowId);
+
+		if (userPrompt === '' && files.length === 0) {
+			toast.error($i18n.t('Please enter a prompt'));
+			return;
+		}
+
+		const flow = ($flows ?? []).find(f => f.id === flowId);
+		if (!flow) {
+			toast.error($i18n.t('Flow not found'));
+			return;
+		}
+
+		messageInput?.setText('');
+		prompt = '';
+
+		const messages = createMessagesList(history, history.currentId);
+		const _files = JSON.parse(JSON.stringify(files));
+		files = [];
+
+		// Create user message
+		const userMessageId = uuidv4();
+		const userMessage = {
+			id: userMessageId,
+			parentId: messages.length !== 0 ? messages.at(-1).id : null,
+			childrenIds: [],
+			role: 'user',
+			content: userPrompt,
+			files: _files.length > 0 ? _files : undefined,
+			timestamp: Math.floor(Date.now() / 1000)
+		};
+
+		// Create response message placeholder
+		const responseMessageId = uuidv4();
+		const responseMessage = {
+			id: responseMessageId,
+			parentId: userMessageId,
+			childrenIds: [],
+			role: 'assistant',
+			content: '',
+			done: false,
+			model: `flow:${flowId}`,
+			modelName: flow.name,
+			modelIdx: 0,
+			timestamp: Math.floor(Date.now() / 1000),
+			statusHistory: [{ action: 'start', description: $i18n.t('Executing flow...'), done: false }]
+		};
+
+		// Add messages to history
+		history.messages[userMessageId] = userMessage;
+		userMessage.childrenIds.push(responseMessageId);
+		history.messages[responseMessageId] = responseMessage;
+		history.currentId = responseMessageId;
+
+		if (messages.length !== 0) {
+			history.messages[messages.at(-1).id].childrenIds.push(userMessageId);
+		}
+
+		await tick();
+		if (autoScroll) {
+			scrollToBottom();
+		}
+
+		// Initialize chat if first message
+		if (messages.length === 0) {
+			await initChatHandler(history);
+		} else {
+			await saveChatHandler($chatId, history);
+		}
+
+		generating = true;
+
+		try {
+			// Execute the flow
+			const result = await executeFlow(localStorage.token, flowId, {
+				input: userPrompt,
+				files: _files
+			});
+
+			// Extract output from flow result - look for output node result or use full result
+			let outputContent = '';
+			if (result.nodeResults) {
+				// Find output node result
+				const outputNodeResult = Object.entries(result.nodeResults).find(
+					([key, value]) => key.includes('output') || (value as any)?.type === 'output'
+				);
+				if (outputNodeResult) {
+					outputContent = (outputNodeResult[1] as any)?.content || (outputNodeResult[1] as any)?.output || JSON.stringify(outputNodeResult[1]);
+				} else {
+					// Use last node result or full results
+					const nodeValues = Object.values(result.nodeResults);
+					const lastResult = nodeValues[nodeValues.length - 1];
+					outputContent = typeof lastResult === 'string' ? lastResult : JSON.stringify(result.nodeResults, null, 2);
+				}
+			} else {
+				outputContent = JSON.stringify(result, null, 2);
+			}
+
+			// Update response message with flow result
+			history.messages[responseMessageId] = {
+				...history.messages[responseMessageId],
+				content: outputContent,
+				done: true,
+				statusHistory: [
+					...history.messages[responseMessageId].statusHistory,
+					{ action: 'complete', description: $i18n.t('Flow completed'), done: true }
+				]
+			};
+
+			await saveChatHandler($chatId, history);
+		} catch (error: any) {
+			console.error('Flow execution error:', error);
+			history.messages[responseMessageId] = {
+				...history.messages[responseMessageId],
+				content: '',
+				error: { content: error?.message || $i18n.t('Flow execution failed') },
+				done: true,
+				statusHistory: [
+					...history.messages[responseMessageId].statusHistory,
+					{ action: 'error', description: error?.message || $i18n.t('Flow execution failed'), done: true }
+				]
+			};
+			toast.error(error?.message || $i18n.t('Flow execution failed'));
+		} finally {
+			generating = false;
+			await tick();
+			if (autoScroll) {
+				scrollToBottom();
+			}
+		}
+	};
+
 	const submitPrompt = async (userPrompt, { _raw = false } = {}) => {
 		console.log('submitPrompt', userPrompt, $chatId);
+
+		// Check if a flow is selected
+		const selectedFlowId = selectedModels[0]?.startsWith('flow:') 
+			? selectedModels[0].replace('flow:', '') 
+			: null;
+
+		if (selectedFlowId) {
+			// Handle flow execution
+			await submitFlowPrompt(userPrompt, selectedFlowId);
+			return;
+		}
 
 		const _selectedModels = selectedModels.map((modelId) =>
 			$models.map((m) => m.id).includes(modelId) ? modelId : ''
