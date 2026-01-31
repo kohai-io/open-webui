@@ -89,6 +89,13 @@
 
 	const handleImageClick = (e: MouseEvent) => {
 		if (disabled) return;
+		
+		// Left click opens fullscreen directly
+		openFullscreen();
+	};
+
+	const handleContextMenu = (e: MouseEvent) => {
+		if (disabled) return;
 
 		e.preventDefault();
 		e.stopPropagation();
@@ -234,9 +241,9 @@
 		bind:this={imageElement}
 		{src}
 		{alt}
-		class="rounded-lg cursor-crosshair max-h-96"
+		class="rounded-lg cursor-pointer max-h-96"
 		on:click={handleImageClick}
-		on:contextmenu|preventDefault={handleImageClick}
+		on:contextmenu|preventDefault={handleContextMenu}
 	/>
 
 	<!-- Click marker -->
