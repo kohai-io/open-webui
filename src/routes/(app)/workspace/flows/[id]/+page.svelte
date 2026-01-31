@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, getContext } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { getFlowById, updateFlowById } from '$lib/apis/flows';
@@ -7,10 +7,14 @@
 	import { toast } from 'svelte-sonner';
 	import FlowEditor from '$lib/components/flows/FlowEditor.svelte';
 	import ExecutionHistory from '$lib/components/flows/panels/ExecutionHistory.svelte';
+	import AccessControlModal from '$lib/components/workspace/common/AccessControlModal.svelte';
 	import { currentFlow, loadFlow, saveFlowState, isExecuting, flowNodes, flowEdges, updateNodeData } from '$lib/stores/flows';
 	import { FlowExecutor } from '$lib/components/flows/execution/FlowExecutor';
-	import type { Flow } from '$lib/types/flows';
+	import { user } from '$lib/stores';
+	import type { Flow, AccessControl } from '$lib/types/flows';
 	import { get } from 'svelte/store';
+
+	const i18n = getContext('i18n');
 
 	let flowId: string = '';
 	let flow: Flow | null = null;
@@ -19,8 +23,10 @@
 	let executing = false;
 	let currentExecutor: FlowExecutor | null = null;
 	let showHistory = false;
+	let showAccessControlModal = false;
 	let lastExecutionResults: Record<string, any> = {}; // Store execution results for each node
 	let editorViewMode: 'edit' | 'execution' = 'edit'; // Control editor view mode
+	let accessControl: any = null;
 
 	$: flowId = $page.params.id || '';
 
@@ -35,6 +41,7 @@
 			const data = await getFlowById(token, flowId);
 			if (data) {
 				flow = data;
+				accessControl = data.access_control ?? null;
 				loadFlow(data);
 			} else {
 				toast.error('Flow not found');
@@ -66,7 +73,8 @@
 				name: flowState.name,
 				description: flowState.description,
 				nodes: flowState.nodes,
-				edges: flowState.edges
+				edges: flowState.edges,
+				access_control: accessControl
 			});
 
 			if (updated) {
@@ -357,6 +365,35 @@
 				</div>
 			</div>
 			<div class="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+				<!-- Share/Access Control Button -->
+				<button
+					on:click={() => (showAccessControlModal = true)}
+					class="px-2 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors flex items-center gap-1 sm:gap-2 flex-1 sm:flex-initial justify-center"
+					title="Share & Permissions"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="w-3 h-3 sm:w-4 sm:h-4"
+						viewBox="0 0 24 24"
+						fill="none"
+						stroke="currentColor"
+						stroke-width="2"
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					>
+						{#if accessControl === null}
+							<!-- Globe icon for public -->
+							<circle cx="12" cy="12" r="10" />
+							<line x1="2" y1="12" x2="22" y2="12" />
+							<path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+						{:else}
+							<!-- Lock icon for private/restricted -->
+							<rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+							<path d="M7 11V7a5 5 0 0 1 10 0v4" />
+						{/if}
+					</svg>
+					<span class="hidden sm:inline">{accessControl === null ? 'Public' : 'Private'}</span>
+				</button>
 				<button
 					on:click={() => (showHistory = !showHistory)}
 					class="px-2 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm {showHistory ? 'bg-gray-200 dark:bg-gray-700' : 'bg-gray-100 dark:bg-gray-800'} hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors flex items-center gap-1 sm:gap-2 flex-1 sm:flex-initial justify-center"
@@ -445,4 +482,12 @@
 			{/if}
 		</div>
 	</div>
+
+	<!-- Access Control Modal -->
+	<AccessControlModal
+		bind:show={showAccessControlModal}
+		bind:accessControl
+		accessRoles={['read', 'write']}
+		allowPublic={$user?.permissions?.sharing?.public_flows || $user?.role === 'admin'}
+	/>
 {/if}
