@@ -132,19 +132,14 @@
 		updateFuse();
 	}
 
-	// Helper to check if a model is an "agent" (has base_model_id)
-	const isAgent = (item: any) => {
-		return item.model?.info?.base_model_id || item.model?.base_model_id;
-	};
-
-	// Helper to check if a model is "external" (external connection type)
-	const isExternal = (item: any) => {
+	// Helper to check if a model is "external" (external connection type = real LLM APIs)
+	const isExternalModel = (item: any) => {
 		return item.model?.connection_type === 'external';
 	};
 
-	// Helper to check if a model is a foundational model (not an agent, not external)
-	const isFoundationalModel = (item: any) => {
-		return !isAgent(item);
+	// Helper to check if a model is an "agent" (local/non-external = OWUI functions, custom assistants, etc.)
+	const isAgent = (item: any) => {
+		return !isExternalModel(item);
 	};
 
 	$: filteredItems = (
@@ -177,9 +172,8 @@
 					.filter((item) => {
 						// Category filter
 						if (selectedCategory === '' || selectedCategory === 'all') return true;
-						if (selectedCategory === 'models') return isFoundationalModel(item) && !isExternal(item);
 						if (selectedCategory === 'agents') return isAgent(item);
-						if (selectedCategory === 'external') return isExternal(item);
+						if (selectedCategory === 'models') return isExternalModel(item);
 						return true;
 					})
 			: items
@@ -205,9 +199,8 @@
 					.filter((item) => {
 						// Category filter
 						if (selectedCategory === '' || selectedCategory === 'all') return true;
-						if (selectedCategory === 'models') return isFoundationalModel(item) && !isExternal(item);
 						if (selectedCategory === 'agents') return isAgent(item);
-						if (selectedCategory === 'external') return isExternal(item);
+						if (selectedCategory === 'models') return isExternalModel(item);
 						return true;
 					})
 	).filter((item) => !(item.model?.info?.meta?.hidden ?? false));
@@ -538,22 +531,6 @@
 								{$i18n.t('All')}
 							</button>
 
-							{#if items.some((item) => isFoundationalModel(item) && !isExternal(item))}
-								<button
-									class="min-w-fit outline-none px-1.5 py-0.5 {selectedCategory === 'models'
-										? ''
-										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
-									aria-pressed={selectedCategory === 'models'}
-									on:click={() => {
-										selectedCategory = 'models';
-										selectedConnectionType = '';
-										selectedTag = '';
-									}}
-								>
-									{$i18n.t('Models')}
-								</button>
-							{/if}
-
 							{#if items.some((item) => isAgent(item))}
 								<button
 									class="min-w-fit outline-none px-1.5 py-0.5 {selectedCategory === 'agents'
@@ -589,19 +566,19 @@
 								</button>
 							{/if}
 
-							{#if items.some((item) => isExternal(item))}
+							{#if items.some((item) => isExternalModel(item))}
 								<button
-									class="min-w-fit outline-none px-1.5 py-0.5 {selectedCategory === 'external'
+									class="min-w-fit outline-none px-1.5 py-0.5 {selectedCategory === 'models'
 										? ''
 										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
-									aria-pressed={selectedCategory === 'external'}
+									aria-pressed={selectedCategory === 'models'}
 									on:click={() => {
-										selectedCategory = 'external';
+										selectedCategory = 'models';
 										selectedConnectionType = '';
 										selectedTag = '';
 									}}
 								>
-									{$i18n.t('External')}
+									{$i18n.t('Models')}
 								</button>
 							{/if}
 
