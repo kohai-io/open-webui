@@ -73,7 +73,7 @@
 
 	let selectedTag = '';
 	let selectedConnectionType = '';
-	let showFlows = false;
+	let selectedCategory = ''; // 'all', 'models', 'agents', 'flows', 'external'
 
 	// Load flows when dropdown opens
 	const loadFlows = async () => {
@@ -132,6 +132,21 @@
 		updateFuse();
 	}
 
+	// Helper to check if a model is an "agent" (has base_model_id)
+	const isAgent = (item: any) => {
+		return item.model?.info?.base_model_id || item.model?.base_model_id;
+	};
+
+	// Helper to check if a model is "external" (external connection type)
+	const isExternal = (item: any) => {
+		return item.model?.connection_type === 'external';
+	};
+
+	// Helper to check if a model is a foundational model (not an agent, not external)
+	const isFoundationalModel = (item: any) => {
+		return !isAgent(item);
+	};
+
 	$: filteredItems = (
 		searchValue
 			? fuse
@@ -159,6 +174,14 @@
 							return item.model?.direct;
 						}
 					})
+					.filter((item) => {
+						// Category filter
+						if (selectedCategory === '' || selectedCategory === 'all') return true;
+						if (selectedCategory === 'models') return isFoundationalModel(item) && !isExternal(item);
+						if (selectedCategory === 'agents') return isAgent(item);
+						if (selectedCategory === 'external') return isExternal(item);
+						return true;
+					})
 			: items
 					.filter((item) => {
 						if (selectedTag === '') {
@@ -179,9 +202,17 @@
 							return item.model?.direct;
 						}
 					})
+					.filter((item) => {
+						// Category filter
+						if (selectedCategory === '' || selectedCategory === 'all') return true;
+						if (selectedCategory === 'models') return isFoundationalModel(item) && !isExternal(item);
+						if (selectedCategory === 'agents') return isAgent(item);
+						if (selectedCategory === 'external') return isExternal(item);
+						return true;
+					})
 	).filter((item) => !(item.model?.info?.meta?.hidden ?? false));
 
-	$: if (selectedTag || selectedConnectionType) {
+	$: if (selectedTag || selectedConnectionType || selectedCategory) {
 		resetView();
 	} else {
 		resetView();
@@ -492,85 +523,85 @@
 							class="flex gap-1 w-fit text-center text-sm rounded-full bg-transparent px-1.5 whitespace-nowrap"
 							bind:this={tagsContainerElement}
 						>
-							{#if items.find((item) => item.model?.connection_type === 'local') || items.find((item) => item.model?.connection_type === 'external') || items.find((item) => item.model?.direct) || tags.length > 0 || ($flows ?? []).length > 0}
+								<!-- Category tabs: All, Models, Agents, Flows, External -->
+							<button
+								class="min-w-fit outline-none px-1.5 py-0.5 {selectedCategory === '' || selectedCategory === 'all'
+									? ''
+									: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
+								aria-pressed={selectedCategory === '' || selectedCategory === 'all'}
+								on:click={() => {
+									selectedCategory = 'all';
+									selectedConnectionType = '';
+									selectedTag = '';
+								}}
+							>
+								{$i18n.t('All')}
+							</button>
+
+							{#if items.some((item) => isFoundationalModel(item) && !isExternal(item))}
 								<button
-									class="min-w-fit outline-none px-1.5 py-0.5 {selectedTag === '' &&
-									selectedConnectionType === '' && !showFlows
+									class="min-w-fit outline-none px-1.5 py-0.5 {selectedCategory === 'models'
 										? ''
 										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
-									aria-pressed={selectedTag === '' && selectedConnectionType === '' && !showFlows}
+									aria-pressed={selectedCategory === 'models'}
 									on:click={() => {
+										selectedCategory = 'models';
 										selectedConnectionType = '';
 										selectedTag = '';
-										showFlows = false;
 									}}
 								>
-									{$i18n.t('All')}
+									{$i18n.t('Models')}
 								</button>
 							{/if}
 
-							{#if items.find((item) => item.model?.connection_type === 'local')}
+							{#if items.some((item) => isAgent(item))}
 								<button
-									class="min-w-fit outline-none px-1.5 py-0.5 {selectedConnectionType === 'local'
+									class="min-w-fit outline-none px-1.5 py-0.5 {selectedCategory === 'agents'
 										? ''
 										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
-									aria-pressed={selectedConnectionType === 'local'}
+									aria-pressed={selectedCategory === 'agents'}
 									on:click={() => {
+										selectedCategory = 'agents';
+										selectedConnectionType = '';
 										selectedTag = '';
-										selectedConnectionType = 'local';
 									}}
 								>
-									{$i18n.t('Local')}
-								</button>
-							{/if}
-
-							{#if items.find((item) => item.model?.connection_type === 'external')}
-								<button
-									class="min-w-fit outline-none px-1.5 py-0.5 {selectedConnectionType === 'external'
-										? ''
-										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
-									aria-pressed={selectedConnectionType === 'external'}
-									on:click={() => {
-										selectedTag = '';
-										selectedConnectionType = 'external';
-									}}
-								>
-									{$i18n.t('External')}
-								</button>
-							{/if}
-
-							{#if items.find((item) => item.model?.direct)}
-								<button
-									class="min-w-fit outline-none px-1.5 py-0.5 {selectedConnectionType === 'direct'
-										? ''
-										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
-									aria-pressed={selectedConnectionType === 'direct'}
-									on:click={() => {
-										selectedTag = '';
-										selectedConnectionType = 'direct';
-										showFlows = false;
-									}}
-								>
-									{$i18n.t('Direct')}
+									{$i18n.t('Agents')}
 								</button>
 							{/if}
 
 							{#if ($flows ?? []).length > 0}
 								<button
-									class="min-w-fit outline-none px-1.5 py-0.5 {showFlows
+									class="min-w-fit outline-none px-1.5 py-0.5 {selectedCategory === 'flows'
 										? ''
 										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize flex items-center gap-1"
-									aria-pressed={showFlows}
+									aria-pressed={selectedCategory === 'flows'}
 									on:click={() => {
-										selectedTag = '';
+										selectedCategory = 'flows';
 										selectedConnectionType = '';
-										showFlows = true;
+										selectedTag = '';
 									}}
 								>
 									<svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 										<circle cx="12" cy="5" r="3" /><line x1="12" y1="8" x2="12" y2="16" /><circle cx="6" cy="19" r="3" /><circle cx="18" cy="19" r="3" /><line x1="12" y1="16" x2="6" y2="16" /><line x1="12" y1="16" x2="18" y2="16" />
 									</svg>
 									{$i18n.t('Flows')}
+								</button>
+							{/if}
+
+							{#if items.some((item) => isExternal(item))}
+								<button
+									class="min-w-fit outline-none px-1.5 py-0.5 {selectedCategory === 'external'
+										? ''
+										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
+									aria-pressed={selectedCategory === 'external'}
+									on:click={() => {
+										selectedCategory = 'external';
+										selectedConnectionType = '';
+										selectedTag = '';
+									}}
+								>
+									{$i18n.t('External')}
 								</button>
 							{/if}
 
@@ -583,6 +614,7 @@
 										aria-pressed={selectedTag === tag}
 										on:click={() => {
 											selectedConnectionType = '';
+											selectedCategory = '';
 											selectedTag = tag;
 										}}
 									>
@@ -596,7 +628,7 @@
 			</div>
 
 			<div class="px-2.5 max-h-64 overflow-y-auto group relative">
-				{#if showFlows}
+				{#if selectedCategory === 'flows'}
 					<!-- Flows List -->
 					{#each ($flows ?? []).filter(f => f.name.toLowerCase().includes(searchValue.toLowerCase())) as flow, index}
 						<button
