@@ -131,6 +131,17 @@ export interface FlowEdge {
 	animated?: boolean;
 }
 
+export interface AccessControl {
+	read?: {
+		group_ids?: string[];
+		user_ids?: string[];
+	};
+	write?: {
+		group_ids?: string[];
+		user_ids?: string[];
+	};
+}
+
 export interface Flow {
 	id: string;
 	name: string;
@@ -145,6 +156,7 @@ export interface Flow {
 		category?: string;
 		version?: number;
 	};
+	access_control?: AccessControl | null;
 }
 
 export interface FlowExecutionContext {

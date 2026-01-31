@@ -6,9 +6,12 @@ from open_webui.models.flows import (
     FlowUpdateForm,
     FlowResponse,
     FlowListResponse,
+    FlowUserResponse,
     FlowModel,
     Flows,
 )
+from open_webui.models.groups import Groups
+from open_webui.utils.access_control import has_access
 from open_webui.models.flow_executions import (
     FlowExecutionForm,
     FlowExecutionResponse,
@@ -29,11 +32,11 @@ router = APIRouter()
 @router.get("/", response_model=list[FlowListResponse])
 async def get_flows(user=Depends(get_verified_user)):
     """
-    Get all flows for the current user
+    Get all flows the user can write (owns or has write access)
+    Used for workspace/flows list
     """
-    flows = Flows.get_flows_by_user_id(user.id)
+    flows = Flows.get_flows_by_user_id(user.id, permission="write")
     
-    # Return simplified list response
     return [
         FlowListResponse(
             id=flow.id,
@@ -44,6 +47,36 @@ async def get_flows(user=Depends(get_verified_user)):
             created_at=flow.created_at,
             updated_at=flow.updated_at,
             meta=flow.meta,
+            access_control=flow.access_control,
+        )
+        for flow in flows
+    ]
+
+
+############################
+# GetAccessibleFlows (for chat selector)
+############################
+
+
+@router.get("/accessible", response_model=list[FlowListResponse])
+async def get_accessible_flows(user=Depends(get_verified_user)):
+    """
+    Get all flows the user can read (owns or has read access)
+    Used for chat interface flow selector
+    """
+    flows = Flows.get_flows_by_user_id(user.id, permission="read")
+    
+    return [
+        FlowListResponse(
+            id=flow.id,
+            name=flow.name,
+            description=flow.description,
+            nodes=flow.nodes,
+            edges=flow.edges,
+            created_at=flow.created_at,
+            updated_at=flow.updated_at,
+            meta=flow.meta,
+            access_control=flow.access_control,
         )
         for flow in flows
     ]
@@ -75,6 +108,7 @@ async def create_new_flow(
                 created_at=flow.created_at,
                 updated_at=flow.updated_at,
                 meta=flow.meta,
+                access_control=flow.access_control,
             )
         else:
             raise HTTPException(
@@ -86,6 +120,23 @@ async def create_new_flow(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e),
         )
+
+
+def has_flow_access(
+    user_id: str, user_role: str, flow: FlowModel, permission: str = "read"
+) -> bool:
+    """
+    Check if user has access to a flow.
+    Admins always have access. Owners always have access.
+    Others need explicit access_control permission.
+    """
+    if user_role == "admin":
+        return True
+    if flow.user_id == user_id:
+        return True
+    
+    user_group_ids = {group.id for group in Groups.get_groups_by_member_id(user_id)}
+    return has_access(user_id, permission, flow.access_control, user_group_ids)
 
 
 ############################
@@ -106,8 +157,8 @@ async def get_flow_by_id(id: str, user=Depends(get_verified_user)):
             detail=ERROR_MESSAGES.NOT_FOUND,
         )
 
-    # Check if user owns the flow or is admin
-    if flow.user_id != user.id and user.role != "admin":
+    # Check if user has read access
+    if not has_flow_access(user.id, user.role, flow, "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
@@ -123,6 +174,7 @@ async def get_flow_by_id(id: str, user=Depends(get_verified_user)):
         created_at=flow.created_at,
         updated_at=flow.updated_at,
         meta=flow.meta,
+        access_control=flow.access_control,
     )
 
 
@@ -148,8 +200,8 @@ async def update_flow_by_id(
             detail=ERROR_MESSAGES.NOT_FOUND,
         )
 
-    # Check if user owns the flow or is admin
-    if flow.user_id != user.id and user.role != "admin":
+    # Check if user has write access
+    if not has_flow_access(user.id, user.role, flow, "write"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
@@ -168,6 +220,7 @@ async def update_flow_by_id(
             created_at=updated_flow.created_at,
             updated_at=updated_flow.updated_at,
             meta=updated_flow.meta,
+            access_control=updated_flow.access_control,
         )
     else:
         raise HTTPException(
@@ -197,8 +250,8 @@ async def duplicate_flow_by_id(
             detail=ERROR_MESSAGES.NOT_FOUND,
         )
 
-    # Check if user owns the flow or is admin
-    if flow.user_id != user.id and user.role != "admin":
+    # Check if user has read access (can duplicate if can read)
+    if not has_flow_access(user.id, user.role, flow, "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
@@ -217,6 +270,7 @@ async def duplicate_flow_by_id(
             created_at=duplicated_flow.created_at,
             updated_at=duplicated_flow.updated_at,
             meta=duplicated_flow.meta,
+            access_control=duplicated_flow.access_control,
         )
     else:
         raise HTTPException(
@@ -233,7 +287,7 @@ async def duplicate_flow_by_id(
 @router.delete("/{id}", response_model=bool)
 async def delete_flow_by_id(id: str, user=Depends(get_verified_user)):
     """
-    Delete a flow by ID
+    Delete a flow by ID (only owner or admin can delete)
     """
     flow = Flows.get_flow_by_id(id)
     
@@ -243,7 +297,7 @@ async def delete_flow_by_id(id: str, user=Depends(get_verified_user)):
             detail=ERROR_MESSAGES.NOT_FOUND,
         )
 
-    # Check if user owns the flow or is admin
+    # Only owner or admin can delete
     if flow.user_id != user.id and user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -272,8 +326,8 @@ async def export_flow_by_id(id: str, user=Depends(get_verified_user)):
             detail=ERROR_MESSAGES.NOT_FOUND,
         )
 
-    # Check if user owns the flow or is admin
-    if flow.user_id != user.id and user.role != "admin":
+    # Check if user has read access
+    if not has_flow_access(user.id, user.role, flow, "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
@@ -333,6 +387,7 @@ async def import_flow(
                 created_at=flow.created_at,
                 updated_at=flow.updated_at,
                 meta=flow.meta,
+                access_control=flow.access_control,
             )
         else:
             raise HTTPException(
@@ -369,8 +424,8 @@ async def execute_flow_by_id(
             detail=ERROR_MESSAGES.NOT_FOUND,
         )
 
-    # Check if user owns the flow or is admin
-    if flow.user_id != user.id and user.role != "admin":
+    # Check if user has read access to execute
+    if not has_flow_access(user.id, user.role, flow, "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
@@ -407,8 +462,8 @@ async def create_flow_execution(
             detail=ERROR_MESSAGES.NOT_FOUND,
         )
 
-    # Check if user owns the flow or is admin
-    if flow.user_id != user.id and user.role != "admin":
+    # Check if user has read access to save execution
+    if not has_flow_access(user.id, user.role, flow, "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
@@ -461,8 +516,8 @@ async def get_flow_executions(
             detail=ERROR_MESSAGES.NOT_FOUND,
         )
 
-    # Check if user owns the flow or is admin
-    if flow.user_id != user.id and user.role != "admin":
+    # Check if user has read access
+    if not has_flow_access(user.id, user.role, flow, "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
@@ -504,8 +559,8 @@ async def get_flow_execution_stats(
             detail=ERROR_MESSAGES.NOT_FOUND,
         )
 
-    # Check if user owns the flow or is admin
-    if flow.user_id != user.id and user.role != "admin":
+    # Check if user has read access
+    if not has_flow_access(user.id, user.role, flow, "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
@@ -532,8 +587,8 @@ async def get_flow_execution_by_id(
             detail=ERROR_MESSAGES.NOT_FOUND,
         )
 
-    # Check if user owns the flow or is admin
-    if flow.user_id != user.id and user.role != "admin":
+    # Check if user has read access
+    if not has_flow_access(user.id, user.role, flow, "read"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
@@ -587,8 +642,8 @@ async def delete_flow_execution(
             detail=ERROR_MESSAGES.NOT_FOUND,
         )
 
-    # Check if user owns the flow or is admin
-    if flow.user_id != user.id and user.role != "admin":
+    # Check if user has write access to delete executions
+    if not has_flow_access(user.id, user.role, flow, "write"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
@@ -630,8 +685,8 @@ async def delete_all_flow_executions(
             detail=ERROR_MESSAGES.NOT_FOUND,
         )
 
-    # Check if user owns the flow or is admin
-    if flow.user_id != user.id and user.role != "admin":
+    # Check if user has write access to delete executions
+    if not has_flow_access(user.id, user.role, flow, "write"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
