@@ -1896,6 +1896,10 @@
 						} else if (outputValue.content) {
 							// Object with content property
 							outputContent += (outputContent ? '\n\n' : '') + outputValue.content;
+						} else if (outputValue.value !== undefined) {
+							// Object with value property (common flow output format)
+							const val = outputValue.value;
+							outputContent += (outputContent ? '\n\n' : '') + (typeof val === 'string' ? val : JSON.stringify(val, null, 2));
 						} else {
 							// Other object - stringify it
 							outputContent += (outputContent ? '\n\n' : '') + JSON.stringify(outputValue, null, 2);
