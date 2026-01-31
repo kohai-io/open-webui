@@ -1758,27 +1758,7 @@
 			// Execute the flow client-side
 			const result = await executor.execute();
 
-			// Extract output from flow result - look for output node result
-			let outputContent = '';
-			if (result.nodeResults) {
-				// Find output node result by looking for nodes with 'output' in the ID
-				const outputNodeResult = Object.entries(result.nodeResults).find(
-					([key]) => key.includes('output')
-				);
-				if (outputNodeResult) {
-					const outputValue = outputNodeResult[1];
-					outputContent = typeof outputValue === 'string' ? outputValue : JSON.stringify(outputValue, null, 2);
-				} else {
-					// Use last node result or full results
-					const nodeValues = Object.values(result.nodeResults);
-					const lastResult = nodeValues[nodeValues.length - 1];
-					outputContent = typeof lastResult === 'string' ? lastResult : JSON.stringify(result.nodeResults, null, 2);
-				}
-			} else {
-				outputContent = JSON.stringify(result, null, 2);
-			}
-
-			// Check for errors
+			// Check for errors first
 			if (result.status === 'error' && result.errors) {
 				const errorMessages = Object.entries(result.errors)
 					.map(([nodeId, error]) => `${nodeId}: ${error}`)
@@ -1786,10 +1766,61 @@
 				throw new Error(errorMessages || 'Flow execution failed');
 			}
 
+			// Extract outputs from flow result - collect all output node results
+			let outputContent = '';
+			let outputFiles: any[] = [];
+			
+			if (result.nodeResults) {
+				// Find all output node results
+				const outputNodeResults = Object.entries(result.nodeResults).filter(
+					([key]) => key.includes('output')
+				);
+				
+				for (const [, outputValue] of outputNodeResults) {
+					// Check if this is a file output
+					if (outputValue && typeof outputValue === 'object') {
+						if (outputValue.fileId) {
+							// This is a file output - add to files array
+							const fileType = outputValue.fileType || 'file';
+							if (fileType === 'image' || fileType === 'video') {
+								outputFiles.push({
+									type: fileType,
+									url: `/api/v1/files/${outputValue.fileId}/content`
+								});
+							} else {
+								outputFiles.push({
+									type: fileType,
+									id: outputValue.fileId,
+									url: `/api/v1/files/${outputValue.fileId}/content`
+								});
+							}
+						} else if (outputValue.content) {
+							// Object with content property
+							outputContent += (outputContent ? '\n\n' : '') + outputValue.content;
+						} else {
+							// Other object - stringify it
+							outputContent += (outputContent ? '\n\n' : '') + JSON.stringify(outputValue, null, 2);
+						}
+					} else if (typeof outputValue === 'string') {
+						outputContent += (outputContent ? '\n\n' : '') + outputValue;
+					}
+				}
+				
+				// If no output nodes found, use last node result
+				if (outputNodeResults.length === 0) {
+					const nodeValues = Object.values(result.nodeResults);
+					const lastResult = nodeValues[nodeValues.length - 1];
+					outputContent = typeof lastResult === 'string' ? lastResult : JSON.stringify(lastResult, null, 2);
+				}
+			} else {
+				outputContent = JSON.stringify(result, null, 2);
+			}
+
 			// Update response message with flow result
 			history.messages[responseMessageId] = {
 				...history.messages[responseMessageId],
 				content: outputContent,
+				files: outputFiles.length > 0 ? outputFiles : undefined,
 				done: true,
 				statusHistory: [
 					...(history.messages[responseMessageId].statusHistory || []),
