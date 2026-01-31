@@ -81,7 +81,8 @@
 	} from '$lib/apis';
 	import { getTools } from '$lib/apis/tools';
 	import { uploadFile } from '$lib/apis/files';
-	import { executeFlow } from '$lib/apis/flows';
+	import { getFlowById } from '$lib/apis/flows';
+	import { FlowExecutor } from '$lib/components/flows/execution/FlowExecutor';
 	import { createOpenAITextStream } from '$lib/apis/streaming';
 	import { getFunctions } from '$lib/apis/functions';
 	import { updateFolderById } from '$lib/apis/folders';
@@ -1716,21 +1717,57 @@
 		generating = true;
 
 		try {
-			// Execute the flow
-			const result = await executeFlow(localStorage.token, flowId, {
-				input: userPrompt,
-				files: _files
+			// Fetch the full flow data with nodes and edges
+			const fullFlow = await getFlowById(localStorage.token, flowId);
+			if (!fullFlow || !fullFlow.nodes || !fullFlow.edges) {
+				throw new Error('Flow data not found or invalid');
+			}
+
+			// Inject user prompt into input nodes
+			const nodesWithInput = fullFlow.nodes.map((node: any) => {
+				if (node.type === 'input') {
+					return {
+						...node,
+						data: {
+							...node.data,
+							value: userPrompt
+						}
+					};
+				}
+				return node;
 			});
 
-			// Extract output from flow result - look for output node result or use full result
+			// Create FlowExecutor with status callback to update UI
+			const executor = new FlowExecutor(
+				nodesWithInput,
+				fullFlow.edges,
+				(nodeId: string, status: string, result?: any) => {
+					// Update status in real-time
+					const currentStatus = history.messages[responseMessageId].statusHistory || [];
+					history.messages[responseMessageId] = {
+						...history.messages[responseMessageId],
+						statusHistory: [
+							...currentStatus,
+							{ action: status, description: `Node ${nodeId}: ${status}`, done: status === 'success' || status === 'error' }
+						]
+					};
+					history = history; // Trigger reactivity
+				}
+			);
+
+			// Execute the flow client-side
+			const result = await executor.execute();
+
+			// Extract output from flow result - look for output node result
 			let outputContent = '';
 			if (result.nodeResults) {
-				// Find output node result
+				// Find output node result by looking for nodes with 'output' in the ID
 				const outputNodeResult = Object.entries(result.nodeResults).find(
-					([key, value]) => key.includes('output') || (value as any)?.type === 'output'
+					([key]) => key.includes('output')
 				);
 				if (outputNodeResult) {
-					outputContent = (outputNodeResult[1] as any)?.content || (outputNodeResult[1] as any)?.output || JSON.stringify(outputNodeResult[1]);
+					const outputValue = outputNodeResult[1];
+					outputContent = typeof outputValue === 'string' ? outputValue : JSON.stringify(outputValue, null, 2);
 				} else {
 					// Use last node result or full results
 					const nodeValues = Object.values(result.nodeResults);
@@ -1741,13 +1778,21 @@
 				outputContent = JSON.stringify(result, null, 2);
 			}
 
+			// Check for errors
+			if (result.status === 'error' && result.errors) {
+				const errorMessages = Object.entries(result.errors)
+					.map(([nodeId, error]) => `${nodeId}: ${error}`)
+					.join('\n');
+				throw new Error(errorMessages || 'Flow execution failed');
+			}
+
 			// Update response message with flow result
 			history.messages[responseMessageId] = {
 				...history.messages[responseMessageId],
 				content: outputContent,
 				done: true,
 				statusHistory: [
-					...history.messages[responseMessageId].statusHistory,
+					...(history.messages[responseMessageId].statusHistory || []),
 					{ action: 'complete', description: $i18n.t('Flow completed'), done: true }
 				]
 			};
@@ -1761,7 +1806,7 @@
 				error: { content: error?.message || $i18n.t('Flow execution failed') },
 				done: true,
 				statusHistory: [
-					...history.messages[responseMessageId].statusHistory,
+					...(history.messages[responseMessageId].statusHistory || []),
 					{ action: 'error', description: error?.message || $i18n.t('Flow execution failed'), done: true }
 				]
 			};
