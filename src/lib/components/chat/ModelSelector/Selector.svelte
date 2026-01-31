@@ -674,7 +674,7 @@
 
 					{#if selectedCategory === 'agents'}
 						<a
-							href="/workspace/models"
+							href="/workspace/agents"
 							class="flex w-full items-center gap-2 px-3 py-2 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
 							on:click={() => { show = false; }}
 						>
