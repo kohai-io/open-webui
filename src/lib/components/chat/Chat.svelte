@@ -1665,6 +1665,17 @@
 		const _files = JSON.parse(JSON.stringify(files));
 		files = [];
 
+		// Also collect files from previous messages in the conversation
+		// This allows flows to access images/files from earlier in the chat
+		const previousFiles: any[] = [];
+		for (const msg of messages) {
+			if (msg.files && Array.isArray(msg.files)) {
+				previousFiles.push(...msg.files);
+			}
+		}
+		console.log('Previous message files:', previousFiles);
+		console.log('Current input files:', _files);
+
 		// Create user message
 		const userMessageId = uuidv4();
 		const userMessage = {
@@ -1743,9 +1754,12 @@
 				nodeNames.set(node.id, label);
 			}
 
-			// Extract file IDs from attached files - handle both id property and URL format
-			const fileIds = _files
-				.filter((f: any) => f.type === 'image' || f.type === 'file')
+			// Extract file IDs from both current input files AND previous message files
+			const allFiles = [..._files, ...previousFiles];
+			console.log('All files to process:', allFiles);
+			
+			const fileIds = allFiles
+				.filter((f: any) => f.type === 'image' || f.type === 'file' || f.type === 'video')
 				.map((f: any) => {
 					// Try direct id property first
 					if (f.id) return f.id;
@@ -1758,6 +1772,8 @@
 					return null;
 				})
 				.filter((id: any) => id !== null);
+			
+			console.log('Extracted file IDs:', fileIds);
 
 			// Inject user prompt and files into input nodes
 			const nodesWithInput = fullFlow.nodes.map((node: any) => {
@@ -1883,12 +1899,19 @@
 
 			await saveChatHandler($chatId, history);
 
-			// Save flow execution to history
+			// Save flow execution to history - format to match API expectations
 			const executionResult = {
-				...result,
-				flowId: flowId
+				flow_id: flowId,
+				status: result.status,
+				inputs: { prompt: userPrompt, files: fileIds },
+				outputs: { content: outputContent, files: outputFiles },
+				node_results: result.nodeResults,
+				errors: result.errors,
+				execution_time: result.executionTime || 0
 			};
-			await saveFlowExecution(localStorage.token, flowId, executionResult);
+			console.log('Saving flow execution:', executionResult);
+			const savedExecution = await saveFlowExecution(localStorage.token, flowId, executionResult);
+			console.log('Saved execution result:', savedExecution);
 		} catch (error: any) {
 			console.error('Flow execution error:', error);
 			history.messages[responseMessageId] = {
