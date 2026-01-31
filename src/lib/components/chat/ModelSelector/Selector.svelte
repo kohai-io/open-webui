@@ -520,7 +520,7 @@
 							<button
 								class="min-w-fit outline-none px-1.5 py-0.5 {selectedCategory === '' || selectedCategory === 'all'
 									? ''
-									: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
+									: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize flex items-center gap-1"
 								aria-pressed={selectedCategory === '' || selectedCategory === 'all'}
 								on:click={() => {
 									selectedCategory = 'all';
@@ -528,6 +528,9 @@
 									selectedTag = '';
 								}}
 							>
+								<svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+								</svg>
 								{$i18n.t('All')}
 							</button>
 
@@ -535,7 +538,7 @@
 								<button
 									class="min-w-fit outline-none px-1.5 py-0.5 {selectedCategory === 'agents'
 										? ''
-										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
+										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize flex items-center gap-1"
 									aria-pressed={selectedCategory === 'agents'}
 									on:click={() => {
 										selectedCategory = 'agents';
@@ -543,6 +546,9 @@
 										selectedTag = '';
 									}}
 								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
+									</svg>
 									{$i18n.t('Agents')}
 								</button>
 							{/if}
@@ -570,7 +576,7 @@
 								<button
 									class="min-w-fit outline-none px-1.5 py-0.5 {selectedCategory === 'models'
 										? ''
-										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize"
+										: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition capitalize flex items-center gap-1"
 									aria-pressed={selectedCategory === 'models'}
 									on:click={() => {
 										selectedCategory = 'models';
@@ -578,6 +584,9 @@
 										selectedTag = '';
 									}}
 								>
+									<svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
+									</svg>
 									{$i18n.t('Models')}
 								</button>
 							{/if}
