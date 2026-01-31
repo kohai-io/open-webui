@@ -128,6 +128,8 @@
 	let selectedModelIds = [];
 	$: selectedModelIds = atSelectedModel !== undefined ? [atSelectedModel.id] : selectedModels;
 
+	let selectedFlow: import('$lib/types/flows').Flow | null = null;
+
 	let selectedToolIds = [];
 	let selectedFilterIds = [];
 	let imageGenerationEnabled = false;
@@ -2518,6 +2520,7 @@
 						{history}
 						title={$chatTitle}
 						bind:selectedModels
+						bind:selectedFlow
 						shareEnabled={!!history.currentId}
 						{initNewChat}
 						archiveChatHandler={() => {}}
