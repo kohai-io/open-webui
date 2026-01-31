@@ -1723,6 +1723,25 @@
 				throw new Error('Flow data not found or invalid');
 			}
 
+			// Build a map of node IDs to friendly names
+			const nodeNames = new Map<string, string>();
+			const nodeTypeLabels: Record<string, string> = {
+				input: 'Input',
+				output: 'Output', 
+				model: 'Model',
+				transform: 'Transform',
+				knowledge: 'Knowledge',
+				websearch: 'Web Search',
+				conditional: 'Condition',
+				loop: 'Loop',
+				merge: 'Merge'
+			};
+			
+			for (const node of fullFlow.nodes) {
+				const label = node.data?.label || nodeTypeLabels[node.type] || node.type;
+				nodeNames.set(node.id, label);
+			}
+
 			// Inject user prompt into input nodes
 			const nodesWithInput = fullFlow.nodes.map((node: any) => {
 				if (node.type === 'input') {
@@ -1737,18 +1756,32 @@
 				return node;
 			});
 
+			// Track which nodes we've already shown status for to avoid duplicates
+			const shownStatus = new Set<string>();
+
 			// Create FlowExecutor with status callback to update UI
 			const executor = new FlowExecutor(
 				nodesWithInput,
 				fullFlow.edges,
 				(nodeId: string, status: string, result?: any) => {
-					// Update status in real-time
+					// Only show 'running' status, skip success to reduce noise
+					if (status !== 'running' && status !== 'error') return;
+					
+					// Avoid duplicate status messages
+					const statusKey = `${nodeId}:${status}`;
+					if (shownStatus.has(statusKey)) return;
+					shownStatus.add(statusKey);
+					
+					const nodeName = nodeNames.get(nodeId) || nodeId;
+					const statusText = status === 'running' ? $i18n.t('Processing {{name}}...', { name: nodeName }) 
+						: $i18n.t('Error in {{name}}', { name: nodeName });
+					
 					const currentStatus = history.messages[responseMessageId].statusHistory || [];
 					history.messages[responseMessageId] = {
 						...history.messages[responseMessageId],
 						statusHistory: [
 							...currentStatus,
-							{ action: status, description: `Node ${nodeId}: ${status}`, done: status === 'success' || status === 'error' }
+							{ action: status, description: statusText, done: status === 'error' }
 						]
 					};
 					history = history; // Trigger reactivity
