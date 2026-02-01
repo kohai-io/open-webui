@@ -59,6 +59,7 @@ def calc_comparison(current: float, previous: float) -> dict:
 async def fetch_litellm_spend(base_url: str, master_key: str, user_ids: list) -> dict:
     """
     Fetch spend data from LiteLLM for given user IDs.
+    Tries /customer/info first (end_user_id tracking), then falls back to /user/info.
     Returns dict mapping user_id -> {spend: float, ...}
     """
     cost_data = {}
@@ -73,25 +74,51 @@ async def fetch_litellm_spend(base_url: str, master_key: str, user_ids: list) ->
     
     log.info(f"[DASHBOARD] Fetching spend for {len(user_ids)} users from {base_url}")
     
+    headers = {"Authorization": f"Bearer {master_key}"}
+    
     async with aiohttp.ClientSession() as session:
         for user_id in user_ids:
             try:
+                # Try /customer/info first (for end_user_id tracking)
+                async with session.get(
+                    f"{base_url}/customer/info",
+                    params={"end_user_id": user_id},
+                    headers=headers,
+                    timeout=aiohttp.ClientTimeout(total=5)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        spend = data.get("spend", 0.0)
+                        log.debug(f"[DASHBOARD] /customer/info for {user_id[:8]}...: spend={spend}")
+                        cost_data[user_id] = {
+                            "spend": spend,
+                            "max_budget": data.get("max_budget"),
+                        }
+                        continue
+                    elif response.status == 500:
+                        # 500 might mean user not found in customer tracking, try /user/info
+                        log.debug(f"[DASHBOARD] /customer/info returned 500 for {user_id}, trying /user/info")
+                    else:
+                        log.debug(f"[DASHBOARD] /customer/info returned {response.status} for {user_id}")
+                
+                # Fallback: Try /user/info (for user_id on keys)
                 async with session.get(
                     f"{base_url}/user/info",
                     params={"user_id": user_id},
-                    headers={"Authorization": f"Bearer {master_key}"},
+                    headers=headers,
                     timeout=aiohttp.ClientTimeout(total=5)
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
                         user_info = data.get("user_info", {})
-                        spend = user_info.get("spend", 0.0)
+                        spend = user_info.get("spend", 0.0) if isinstance(user_info, dict) else 0.0
+                        log.debug(f"[DASHBOARD] /user/info for {user_id[:8]}...: spend={spend}")
                         cost_data[user_id] = {
                             "spend": spend,
-                            "max_budget": user_info.get("max_budget"),
+                            "max_budget": user_info.get("max_budget") if isinstance(user_info, dict) else None,
                         }
                     else:
-                        log.debug(f"[DASHBOARD] LiteLLM API returned {response.status} for user {user_id}")
+                        log.debug(f"[DASHBOARD] Both LiteLLM endpoints failed for {user_id}")
             except Exception as e:
                 log.warning(f"[DASHBOARD] Failed to fetch LiteLLM spend for {user_id}: {e}")
                 continue
