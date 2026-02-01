@@ -96,6 +96,7 @@ from open_webui.routers import (
     scim,
     google_drive_oauth,
     dashboard,
+    scheduled_prompts,
 )
 
 from open_webui.routers.retrieval import (
@@ -606,6 +607,10 @@ async def lifespan(app: FastAPI):
 
     asyncio.create_task(periodic_usage_pool_cleanup())
 
+    # Start the scheduled prompts scheduler
+    from open_webui.utils.scheduler import start_scheduler
+    start_scheduler(app)
+
     if app.state.config.ENABLE_BASE_MODELS_CACHE:
         await get_all_models(
             Request(
@@ -628,6 +633,10 @@ async def lifespan(app: FastAPI):
         )
 
     yield
+
+    # Stop the scheduled prompts scheduler
+    from open_webui.utils.scheduler import stop_scheduler
+    stop_scheduler()
 
     if hasattr(app.state, "redis_task_command_listener"):
         app.state.redis_task_command_listener.cancel()
@@ -1371,6 +1380,7 @@ app.include_router(channels.router, prefix="/api/v1/channels", tags=["channels"]
 app.include_router(chats.router, prefix="/api/v1/chats", tags=["chats"])
 app.include_router(notes.router, prefix="/api/v1/notes", tags=["notes"])
 app.include_router(flows.router, prefix="/api/v1/flows", tags=["flows"])
+app.include_router(scheduled_prompts.router, prefix="/api/v1/scheduled-prompts", tags=["scheduled_prompts"])
 
 
 app.include_router(models.router, prefix="/api/v1/models", tags=["models"])

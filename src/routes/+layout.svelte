@@ -121,6 +121,32 @@
 				console.log('Additional details:', details);
 			}
 		});
+
+		_socket.on('notification', (data) => {
+			console.log('notification received', data);
+			if (data.type === 'scheduled_prompt') {
+				// Play notification sound
+				const audio = new Audio('/audio/notification.mp3');
+				audio.play().catch(() => {});
+
+				if (data.status === 'success') {
+					toast.success(data.message, {
+						description: data.chat_id ? 'Click to view chat' : undefined,
+						duration: 10000,
+						action: data.chat_id
+							? {
+									label: 'View',
+									onClick: () => goto(`/c/${data.chat_id}`)
+								}
+							: undefined
+					});
+				} else if (data.status === 'error') {
+					toast.error(data.message, {
+						duration: 10000
+					});
+				}
+			}
+		});
 	};
 
 	const executePythonAsWorker = async (id, code, cb) => {

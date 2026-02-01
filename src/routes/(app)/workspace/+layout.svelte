@@ -158,6 +158,16 @@
 						>
 							{$i18n.t('Media')}
 						</a>
+
+						<!-- Scheduled Prompts tab -->
+						<a
+							class="min-w-fit p-1.5 {$page.url.pathname.includes('/workspace/scheduled-prompts')
+								? ''
+								: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition"
+							href="/workspace/scheduled-prompts"
+						>
+							{$i18n.t('Scheduled')}
+						</a>
 					</div>
 				</div>
 
