@@ -51,9 +51,8 @@
 			}
 		}
 	} else if (tooltipInstance && content === '') {
-		if (tooltipInstance) {
-			tooltipInstance.destroy();
-		}
+		tooltipInstance.destroy();
+		tooltipInstance = null;
 	}
 
 	onDestroy(() => {
