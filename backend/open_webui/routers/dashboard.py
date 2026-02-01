@@ -1036,3 +1036,256 @@ async def get_dashboard_group_detail(
         "members": member_stats,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@router.get("/models")
+async def get_dashboard_models(
+    request: Request,
+    user=Depends(get_admin_user),
+    page: int = 1,
+    limit: int = 50,
+    sort_by: str = "messages",
+    order: str = "desc",
+) -> dict:
+    """
+    Get paginated list of models/agents with their usage stats.
+    """
+    # Get all chats to analyze model usage
+    all_chats = Chats.get_chats()
+    
+    # Build model stats from chat messages
+    model_stats = {}
+    
+    for chat in all_chats:
+        if chat.chat and "messages" in chat.chat:
+            for msg in chat.chat["messages"]:
+                if msg.get("role") == "assistant" and "model" in msg:
+                    model_id = msg["model"]
+                    
+                    if model_id not in model_stats:
+                        model_stats[model_id] = {
+                            "id": model_id,
+                            "messages": 0,
+                            "chats": set(),
+                            "users": set(),
+                            "tokens": 0,
+                            "tokens_in": 0,
+                            "tokens_out": 0,
+                        }
+                    
+                    model_stats[model_id]["messages"] += 1
+                    model_stats[model_id]["chats"].add(chat.id)
+                    model_stats[model_id]["users"].add(chat.user_id)
+                    
+                    if "usage" in msg:
+                        usage = msg["usage"]
+                        model_stats[model_id]["tokens"] += usage.get("total_tokens", 0)
+                        model_stats[model_id]["tokens_in"] += usage.get("prompt_tokens", 0)
+                        model_stats[model_id]["tokens_out"] += usage.get("completion_tokens", 0)
+    
+    # Get configured models info
+    configured_models = Models.get_models()
+    model_info = {m.id: m for m in configured_models}
+    
+    # Convert to list and add metadata
+    models_list = []
+    for model_id, stats in model_stats.items():
+        model_config = model_info.get(model_id)
+        is_agent = model_config.meta.get("profile_image_url") if model_config and model_config.meta else False
+        
+        models_list.append({
+            "id": model_id,
+            "name": model_config.name if model_config else model_id,
+            "is_agent": bool(is_agent),
+            "is_configured": model_id in model_info,
+            "messages": stats["messages"],
+            "chats": len(stats["chats"]),
+            "users": len(stats["users"]),
+            "tokens": stats["tokens"],
+            "tokens_in": stats["tokens_in"],
+            "tokens_out": stats["tokens_out"],
+        })
+    
+    # Sort
+    reverse = order == "desc"
+    if sort_by == "messages":
+        models_list.sort(key=lambda x: x["messages"], reverse=reverse)
+    elif sort_by == "chats":
+        models_list.sort(key=lambda x: x["chats"], reverse=reverse)
+    elif sort_by == "users":
+        models_list.sort(key=lambda x: x["users"], reverse=reverse)
+    elif sort_by == "tokens":
+        models_list.sort(key=lambda x: x["tokens"], reverse=reverse)
+    elif sort_by == "tokens_in":
+        models_list.sort(key=lambda x: x["tokens_in"], reverse=reverse)
+    elif sort_by == "tokens_out":
+        models_list.sort(key=lambda x: x["tokens_out"], reverse=reverse)
+    elif sort_by == "name":
+        models_list.sort(key=lambda x: x["name"].lower(), reverse=reverse)
+    
+    # Paginate
+    total = len(models_list)
+    start = (page - 1) * limit
+    end = start + limit
+    paginated = models_list[start:end]
+    
+    return {
+        "models": paginated,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "pages": (total + limit - 1) // limit,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.get("/models/{model_id:path}")
+async def get_dashboard_model_detail(
+    request: Request,
+    model_id: str,
+    user=Depends(get_admin_user),
+) -> dict:
+    """
+    Get detailed stats for a single model/agent.
+    """
+    now = int(time.time())
+    day_ago = now - 86400
+    week_ago = now - 604800
+    month_ago = now - 2592000
+    quarter_ago = now - (86400 * 90)
+    
+    # Get all chats
+    all_chats = Chats.get_chats()
+    
+    # Analyze usage for this model
+    total_messages = 0
+    total_tokens = 0
+    input_tokens = 0
+    output_tokens = 0
+    users_using = {}
+    chats_using = set()
+    recent_chats = []
+    
+    # Activity tracking
+    messages_today = 0
+    messages_week = 0
+    messages_month = 0
+    messages_quarter = 0
+    
+    for chat in all_chats:
+        chat_uses_model = False
+        chat_messages = 0
+        chat_tokens = 0
+        
+        if chat.chat and "messages" in chat.chat:
+            for msg in chat.chat["messages"]:
+                if msg.get("role") == "assistant" and msg.get("model") == model_id:
+                    chat_uses_model = True
+                    total_messages += 1
+                    chat_messages += 1
+                    
+                    # Track user
+                    if chat.user_id not in users_using:
+                        users_using[chat.user_id] = {"messages": 0, "tokens": 0}
+                    users_using[chat.user_id]["messages"] += 1
+                    
+                    # Track tokens
+                    if "usage" in msg:
+                        usage = msg["usage"]
+                        tokens = usage.get("total_tokens", 0)
+                        total_tokens += tokens
+                        chat_tokens += tokens
+                        input_tokens += usage.get("prompt_tokens", 0)
+                        output_tokens += usage.get("completion_tokens", 0)
+                        users_using[chat.user_id]["tokens"] += tokens
+                    
+                    # Activity by time
+                    if chat.created_at >= day_ago:
+                        messages_today += 1
+                    if chat.created_at >= week_ago:
+                        messages_week += 1
+                    if chat.created_at >= month_ago:
+                        messages_month += 1
+                    if chat.created_at >= quarter_ago:
+                        messages_quarter += 1
+        
+        if chat_uses_model:
+            chats_using.add(chat.id)
+            if len(recent_chats) < 20:
+                recent_chats.append({
+                    "id": chat.id,
+                    "title": chat.title or "Untitled",
+                    "user_id": chat.user_id,
+                    "created_at": chat.created_at,
+                    "updated_at": chat.updated_at,
+                    "messages": chat_messages,
+                    "tokens": chat_tokens,
+                })
+    
+    # Sort recent chats
+    recent_chats.sort(key=lambda x: x["updated_at"], reverse=True)
+    recent_chats = recent_chats[:20]
+    
+    # Get model config
+    configured_models = Models.get_models()
+    model_config = None
+    for m in configured_models:
+        if m.id == model_id:
+            model_config = m
+            break
+    
+    # Get user names
+    all_users_data = Users.get_users()
+    all_users = all_users_data.get("users", [])
+    user_names = {u.id: u.name for u in all_users}
+    
+    # Top users
+    top_users = sorted(
+        [
+            {
+                "id": uid,
+                "name": user_names.get(uid, uid),
+                "messages": stats["messages"],
+                "tokens": stats["tokens"],
+            }
+            for uid, stats in users_using.items()
+        ],
+        key=lambda x: x["messages"],
+        reverse=True
+    )[:10]
+    
+    # Add user names to recent chats
+    for chat in recent_chats:
+        chat["user_name"] = user_names.get(chat["user_id"], "Unknown")
+    
+    is_agent = model_config.meta.get("profile_image_url") if model_config and model_config.meta else False
+    
+    return {
+        "model": {
+            "id": model_id,
+            "name": model_config.name if model_config else model_id,
+            "description": model_config.meta.get("description", "") if model_config and model_config.meta else "",
+            "is_agent": bool(is_agent),
+            "is_configured": model_config is not None,
+            "profile_image_url": model_config.meta.get("profile_image_url") if model_config and model_config.meta else None,
+        },
+        "stats": {
+            "messages": total_messages,
+            "chats": len(chats_using),
+            "users": len(users_using),
+            "tokens": {
+                "total": total_tokens,
+                "input": input_tokens,
+                "output": output_tokens,
+            },
+        },
+        "activity": {
+            "today": messages_today,
+            "week": messages_week,
+            "month": messages_month,
+            "quarter": messages_quarter,
+        },
+        "top_users": top_users,
+        "recent_chats": recent_chats,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }

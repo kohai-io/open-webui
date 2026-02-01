@@ -220,6 +220,7 @@
 				subtitle="{stats.models.config?.visible_models || 0} {$i18n.t('visible')}"
 				icon="cpu"
 				color="cyan"
+				href="/admin/dashboard/models"
 			/>
 		</div>
 
