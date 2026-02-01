@@ -760,8 +760,7 @@ async def get_dashboard_user_detail(
     total_file_size = sum(f.meta.get("size", 0) if f.meta else 0 for f in user_files)
     
     # Get user's feedbacks
-    all_feedbacks = Feedbacks.get_feedbacks()
-    user_feedbacks = [f for f in all_feedbacks if f.user_id == user_id]
+    user_feedbacks = Feedbacks.get_feedbacks_by_user_id(user_id)
     
     # LiteLLM spend
     spend = 0.0
