@@ -8,13 +8,15 @@
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import { toast } from 'svelte-sonner';
-	import Clip from '$lib/components/icons/Clip.svelte';
-	import Camera from '$lib/components/icons/Camera.svelte';
 	import Voice from '$lib/components/icons/Voice.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import VoiceRecording from '$lib/components/chat/MessageInput/VoiceRecording.svelte';
 	import Sidebar from '$lib/components/icons/Sidebar.svelte';
 	import UserMenu from '$lib/components/layout/Sidebar/UserMenu.svelte';
+	import InputMenu from '$lib/components/chat/MessageInput/InputMenu.svelte';
+	import IntegrationsMenu from '$lib/components/chat/MessageInput/IntegrationsMenu.svelte';
+	import PlusAlt from '$lib/components/icons/PlusAlt.svelte';
+	import Component from '$lib/components/icons/Component.svelte';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -24,8 +26,12 @@
 	let filesInputElement: HTMLInputElement;
 	let cameraInputElement: HTMLInputElement;
 	let webSearchEnabled = false;
+	let imageGenerationEnabled = false;
+	let codeInterpreterEnabled = false;
+	let selectedToolIds: string[] = [];
 	let recording = false;
 	let inputElement: HTMLInputElement;
+	let mobileInputElement: HTMLInputElement;
 
 	const detectMobile = () => {
 		const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
@@ -65,6 +71,14 @@
 		} finally {
 			loading = false;
 		}
+
+		// Focus chat input to show keyboard on mobile/tablet
+		await tick();
+		if ($mobile) {
+			mobileInputElement?.focus();
+		} else {
+			inputElement?.focus();
+		}
 	});
 
 	const selectAgent = (agentId: string) => {
@@ -102,43 +116,51 @@
 		}
 	};
 
-	const handleFileUpload = () => {
+	const uploadFilesHandler = () => {
 		filesInputElement?.click();
 	};
 
-	const handleCameraCapture = async () => {
-		if (!detectMobile()) {
-			// Desktop: Use screen capture
-			try {
-				const stream = await navigator.mediaDevices.getDisplayMedia({
-					video: { displaySurface: 'monitor' } as any
-				});
-				const video = document.createElement('video');
-				video.srcObject = stream;
-				video.play();
+	const screenCaptureHandler = async () => {
+		try {
+			const stream = await navigator.mediaDevices.getDisplayMedia({
+				video: { displaySurface: 'monitor' } as any
+			});
+			const video = document.createElement('video');
+			video.srcObject = stream;
+			video.play();
 
-				await new Promise((resolve) => {
-					video.onloadedmetadata = resolve;
-				});
+			await new Promise((resolve) => {
+				video.onloadedmetadata = resolve;
+			});
 
-				const canvas = document.createElement('canvas');
-				canvas.width = video.videoWidth;
-				canvas.height = video.videoHeight;
-				const context = canvas.getContext('2d');
-				context?.drawImage(video, 0, 0);
+			const canvas = document.createElement('canvas');
+			canvas.width = video.videoWidth;
+			canvas.height = video.videoHeight;
+			const context = canvas.getContext('2d');
+			context?.drawImage(video, 0, 0);
 
-				stream.getTracks().forEach((track) => track.stop());
+			stream.getTracks().forEach((track) => track.stop());
 
-				const imageUrl = canvas.toDataURL('image/png');
-				files = [...files, { type: 'image', url: imageUrl }];
-				video.srcObject = null;
-			} catch (error) {
-				console.error('Screen capture error:', error);
-				toast.error($i18n.t('Screen capture failed'));
+			const imageUrl = canvas.toDataURL('image/png');
+			files = [...files, { type: 'image', url: imageUrl }];
+			video.srcObject = null;
+		} catch (error) {
+			console.error('Screen capture error:', error);
+			toast.error($i18n.t('Screen capture failed'));
+		}
+	};
+
+	const inputFilesHandler = async (inputFiles: File[]) => {
+		for (const file of inputFiles) {
+			if (file.type.startsWith('image/')) {
+				const reader = new FileReader();
+				reader.onload = (e) => {
+					files = [...files, { type: 'image', url: e.target?.result as string, name: file.name }];
+				};
+				reader.readAsDataURL(file);
+			} else {
+				files = [...files, { type: 'file', file: file, name: file.name }];
 			}
-		} else {
-			// Mobile: Use camera input
-			cameraInputElement?.click();
 		}
 	};
 
@@ -199,7 +221,7 @@
 	};
 </script>
 
-<div class="h-screen max-h-[100dvh] w-full max-w-full flex flex-col overflow-y-auto {$showSidebar
+<div class="h-screen max-h-[100dvh] w-full max-w-full flex flex-col {$showSidebar
 	? 'md:max-w-[calc(100%-260px)]'
 	: ''}"
 >
@@ -256,18 +278,19 @@
 		</div>
 	</nav>
 
-	<div class="px-6 py-8 md:px-12 lg:px-20">
+	<!-- Mobile/Tablet: Scrollable content area -->
+	<div class="flex-1 overflow-y-auto md:overflow-visible px-6 py-4 md:py-8 md:px-12 lg:px-20 pb-48 md:pb-8">
 		<div class="max-w-6xl mx-auto w-full">
 			<!-- Greeting -->
-			<div class="mb-8 mt-6">
+			<div class="mb-6 md:mb-8 mt-2 md:mt-6">
 				<h1 style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;" class="font-semibold mb-1 text-gray-900 dark:text-white">
 					<span class="text-blue-600 dark:text-blue-400">{$i18n.t('Hello, {{name}}.', { name: $user?.name || $i18n.t('there') })}</span>
 				</h1>
 				<p style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;" class="font-semibold text-gray-600 dark:text-gray-400">{$i18n.t('how can I help?')}</p>
 			</div>
 
-			<!-- Chat Input -->
-			<div class="mb-12 w-full">
+			<!-- Chat Input - Desktop only (inline) -->
+			<div class="hidden md:block mb-12 w-full">
 				<!-- Voice Recording Overlay -->
 				{#if recording}
 					<div class="mb-4">
@@ -347,41 +370,54 @@
 				<form on:submit|preventDefault={handleSearch} class={recording ? 'hidden' : ''}>
 					<div class="relative">
 						<div class="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-							<button
-								type="button"
-								on:click={handleFileUpload}
-								class="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-								title={$i18n.t('Upload Files')}
+							<InputMenu
+								bind:files
+								selectedModels={[]}
+								fileUploadCapableModels={[]}
+								{screenCaptureHandler}
+								{inputFilesHandler}
+								{uploadFilesHandler}
+								uploadGoogleDriveHandler={() => {}}
+								uploadOneDriveHandler={() => {}}
+								onUpload={() => {}}
+								onClose={async () => {
+									await tick();
+									inputElement?.focus();
+								}}
 							>
-								<Clip className="w-5 h-5" />
-							</button>
-							<button
-								type="button"
-								on:click={handleCameraCapture}
-								class="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
-								title={$i18n.t('Capture')}
+								<div class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-8 flex justify-center items-center">
+									<PlusAlt className="size-5.5" />
+								</div>
+							</InputMenu>
+							<IntegrationsMenu
+								bind:selectedToolIds
+								selectedModels={[]}
+								fileUploadCapableModels={[]}
+								toggleFilters={[]}
+								selectedFilterIds={[]}
+								showWebSearchButton={$config?.features?.enable_web_search ?? false}
+								bind:webSearchEnabled
+								showImageGenerationButton={$config?.features?.enable_image_generation ?? false}
+								bind:imageGenerationEnabled
+								showCodeInterpreterButton={($config?.features as any)?.enable_code_interpreter ?? false}
+								bind:codeInterpreterEnabled
+								onShowValves={() => {}}
+								onClose={async () => {
+									await tick();
+									inputElement?.focus();
+								}}
 							>
-								<Camera className="w-5 h-5" />
-							</button>
-							<button
-								type="button"
-								on:click={() => webSearchEnabled = !webSearchEnabled}
-								class="p-2 rounded-lg transition {webSearchEnabled 
-									? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30' 
-									: 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800'}"
-								title={$i18n.t('Web search')}
-							>
-								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-								</svg>
-							</button>
+								<div class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-8 flex justify-center items-center {webSearchEnabled || imageGenerationEnabled || codeInterpreterEnabled || selectedToolIds.length > 0 ? 'text-blue-600 dark:text-blue-400' : ''}">
+									<Component className="size-4.5" strokeWidth="1.5" />
+								</div>
+							</IntegrationsMenu>
 						</div>
 						<input
 							bind:this={inputElement}
 							type="text"
 							name="message"
-							placeholder={$i18n.t('Ask me anything...')}
-							class="w-full px-6 py-4 pl-36 pr-32 text-lg rounded-2xl bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
+							placeholder={$i18n.t('Ask anything...')}
+							class="w-full px-6 py-4 pl-24 pr-32 text-lg rounded-2xl bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
 						/>
 						<div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
 							<Tooltip content={$i18n.t('Dictate')}>
@@ -429,7 +465,7 @@
 			</form>
 		</div>
 
-			<!-- Agents Section -->
+			<!-- Agents Section (scrollable on mobile) -->
 			<div class="w-full">
 			<div class="flex items-center justify-between mb-6">
 			<h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200">{$i18n.t('Agents')}</h2>
@@ -540,5 +576,145 @@
 			</div>
 		</div>
 		</div>
+	</div>
+
+	<!-- Mobile/Tablet: Fixed bottom chat input -->
+	<div class="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-4 py-3 z-40">
+		<!-- Voice Recording Overlay -->
+		{#if recording}
+			<div class="mb-3">
+				<VoiceRecording
+					bind:recording
+					onCancel={async () => {
+						recording = false;
+						await tick();
+						inputElement?.focus();
+					}}
+					onConfirm={async (data) => {
+						const { text } = data;
+						recording = false;
+						await tick();
+						if (text && inputElement) {
+							inputElement.value = text;
+							inputElement.focus();
+						}
+					}}
+				/>
+			</div>
+		{/if}
+
+		<!-- File previews -->
+		{#if files.length > 0}
+			<div class="flex flex-wrap gap-2 mb-3">
+				{#each files as file, index}
+					<div class="relative group">
+						{#if file.type === 'image'}
+							<img
+								src={file.url}
+								alt={file.name || 'Uploaded image'}
+								class="w-16 h-16 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700"
+							/>
+						{:else}
+							<div class="w-16 h-16 flex items-center justify-center rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+								<div class="text-center px-1">
+									<svg class="w-5 h-5 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+									</svg>
+									<span class="text-xs text-gray-600 dark:text-gray-400 block truncate w-full">{file.name}</span>
+								</div>
+							</div>
+						{/if}
+						<button
+							type="button"
+							on:click={() => removeFile(index)}
+							class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
+						>
+							<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+							</svg>
+						</button>
+					</div>
+				{/each}
+			</div>
+		{/if}
+
+		<form on:submit|preventDefault={handleSearch} class={recording ? 'hidden' : ''}>
+			<div class="relative flex items-center gap-2">
+				<InputMenu
+					bind:files
+					selectedModels={[]}
+					fileUploadCapableModels={[]}
+					{screenCaptureHandler}
+					{inputFilesHandler}
+					{uploadFilesHandler}
+					uploadGoogleDriveHandler={() => {}}
+					uploadOneDriveHandler={() => {}}
+					onUpload={() => {}}
+					onClose={async () => {
+						await tick();
+					}}
+				>
+					<div class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-9 flex justify-center items-center">
+						<PlusAlt className="size-5.5" />
+					</div>
+				</InputMenu>
+				<IntegrationsMenu
+					bind:selectedToolIds
+					selectedModels={[]}
+					fileUploadCapableModels={[]}
+					toggleFilters={[]}
+					selectedFilterIds={[]}
+					showWebSearchButton={$config?.features?.enable_web_search ?? false}
+					bind:webSearchEnabled
+					showImageGenerationButton={$config?.features?.enable_image_generation ?? false}
+					bind:imageGenerationEnabled
+					showCodeInterpreterButton={($config?.features as any)?.enable_code_interpreter ?? false}
+					bind:codeInterpreterEnabled
+					onShowValves={() => {}}
+					onClose={async () => {
+						await tick();
+					}}
+				>
+					<div class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-9 flex justify-center items-center {webSearchEnabled || imageGenerationEnabled || codeInterpreterEnabled || selectedToolIds.length > 0 ? 'text-blue-600 dark:text-blue-400' : ''}">
+						<Component className="size-4.5" strokeWidth="1.5" />
+					</div>
+				</IntegrationsMenu>
+				<input
+					bind:this={mobileInputElement}
+					type="text"
+					name="message"
+					placeholder={$i18n.t('Ask anything...')}
+					class="flex-1 px-4 py-3 text-base rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
+				/>
+				<div class="flex items-center gap-1">
+					<button
+						type="button"
+						on:click={handleDictate}
+						class="text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-2"
+						aria-label={$i18n.t('Dictate')}
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 20 20"
+							fill="currentColor"
+							class="size-5"
+						>
+							<path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
+							<path
+								d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-1.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z"
+							/>
+						</svg>
+					</button>
+					<button
+						type="submit"
+						class="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition"
+					>
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+						</svg>
+					</button>
+				</div>
+			</div>
+		</form>
 	</div>
 </div>
