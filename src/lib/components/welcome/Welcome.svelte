@@ -646,10 +646,6 @@
 					name="message"
 					placeholder={$i18n.t('Ask anything...')}
 					class="flex-1 min-w-0 px-3 py-3 text-base rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
-					on:focus={() => {
-						// Prevent scroll to input when keyboard opens
-						setTimeout(() => window.scrollTo(0, 0), 0);
-					}}
 				/>
 				<div class="flex items-center gap-0.5 shrink-0">
 					<button

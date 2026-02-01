@@ -100,7 +100,7 @@
 		}
 	}}
 >
-	<Tooltip content={$i18n.t('Integrations')} placement="top">
+	<Tooltip content={show ? '' : $i18n.t('Integrations')} placement="top">
 		<slot />
 	</Tooltip>
 	<div slot="content">

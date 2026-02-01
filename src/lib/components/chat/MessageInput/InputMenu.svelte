@@ -124,7 +124,7 @@
 		}
 	}}
 >
-	<Tooltip content={$i18n.t('More')}>
+	<Tooltip content={show ? '' : $i18n.t('More')}>
 		<slot />
 	</Tooltip>
 
