@@ -97,6 +97,43 @@ async def set_connections_config(
     }
 
 
+############################
+# LiteLLM Config
+############################
+
+
+class LiteLLMConfigForm(BaseModel):
+    ENABLE_LITELLM_SPEND: bool
+    LITELLM_BASE_URL: str
+    LITELLM_MASTER_KEY: str
+
+
+@router.get("/litellm")
+async def get_litellm_config(request: Request, user=Depends(get_admin_user)):
+    return {
+        "ENABLE_LITELLM_SPEND": request.app.state.config.ENABLE_LITELLM_SPEND,
+        "LITELLM_BASE_URL": request.app.state.config.LITELLM_BASE_URL,
+        "LITELLM_MASTER_KEY": request.app.state.config.LITELLM_MASTER_KEY,
+    }
+
+
+@router.post("/litellm")
+async def set_litellm_config(
+    request: Request,
+    form_data: LiteLLMConfigForm,
+    user=Depends(get_admin_user),
+):
+    request.app.state.config.ENABLE_LITELLM_SPEND = form_data.ENABLE_LITELLM_SPEND
+    request.app.state.config.LITELLM_BASE_URL = form_data.LITELLM_BASE_URL
+    request.app.state.config.LITELLM_MASTER_KEY = form_data.LITELLM_MASTER_KEY
+
+    return {
+        "ENABLE_LITELLM_SPEND": request.app.state.config.ENABLE_LITELLM_SPEND,
+        "LITELLM_BASE_URL": request.app.state.config.LITELLM_BASE_URL,
+        "LITELLM_MASTER_KEY": request.app.state.config.LITELLM_MASTER_KEY,
+    }
+
+
 class OAuthClientRegistrationForm(BaseModel):
     url: str
     client_id: str

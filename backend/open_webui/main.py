@@ -126,6 +126,10 @@ from open_webui.config import (
     ENABLE_DIRECT_CONNECTIONS,
     # Model list
     ENABLE_BASE_MODELS_CACHE,
+    # LiteLLM
+    ENABLE_LITELLM_SPEND,
+    LITELLM_BASE_URL,
+    LITELLM_MASTER_KEY,
     # Thread pool size for FastAPI/AnyIO
     THREAD_POOL_SIZE,
     # Tool Server Configs
@@ -745,6 +749,16 @@ app.state.SCIM_TOKEN = SCIM_TOKEN
 
 app.state.config.ENABLE_BASE_MODELS_CACHE = ENABLE_BASE_MODELS_CACHE
 app.state.BASE_MODELS = []
+
+########################################
+#
+# LITELLM
+#
+########################################
+
+app.state.config.ENABLE_LITELLM_SPEND = ENABLE_LITELLM_SPEND
+app.state.config.LITELLM_BASE_URL = LITELLM_BASE_URL
+app.state.config.LITELLM_MASTER_KEY = LITELLM_MASTER_KEY
 
 ########################################
 #

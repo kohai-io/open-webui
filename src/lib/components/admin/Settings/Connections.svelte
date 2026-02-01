@@ -7,7 +7,7 @@
 	import { getOllamaConfig, updateOllamaConfig } from '$lib/apis/ollama';
 	import { getOpenAIConfig, updateOpenAIConfig, getOpenAIModels } from '$lib/apis/openai';
 	import { getModels as _getModels, getBackendConfig } from '$lib/apis';
-	import { getConnectionsConfig, setConnectionsConfig } from '$lib/apis/configs';
+	import { getConnectionsConfig, setConnectionsConfig, getLiteLLMConfig, setLiteLLMConfig } from '$lib/apis/configs';
 
 	import { config, models, settings, user } from '$lib/stores';
 
@@ -48,6 +48,11 @@
 	let pipelineUrls = {};
 	let showAddOpenAIConnectionModal = false;
 	let showAddOllamaConnectionModal = false;
+
+	// LiteLLM
+	let ENABLE_LITELLM_SPEND = false;
+	let LITELLM_BASE_URL = 'http://localhost:4000';
+	let LITELLM_MASTER_KEY = '';
 
 	const updateOpenAIHandler = async () => {
 		if (ENABLE_OPENAI_API !== null) {
@@ -118,6 +123,20 @@
 		}
 	};
 
+	const updateLiteLLMHandler = async () => {
+		const res = await setLiteLLMConfig(localStorage.token, {
+			ENABLE_LITELLM_SPEND,
+			LITELLM_BASE_URL: LITELLM_BASE_URL.replace(/\/$/, ''),
+			LITELLM_MASTER_KEY
+		}).catch((error) => {
+			toast.error(`${error}`);
+		});
+
+		if (res) {
+			toast.success($i18n.t('LiteLLM settings updated'));
+		}
+	};
+
 	const addOpenAIConnectionHandler = async (connection) => {
 		OPENAI_API_BASE_URLS = [...OPENAI_API_BASE_URLS, connection.url];
 		OPENAI_API_KEYS = [...OPENAI_API_KEYS, connection.key];
@@ -150,6 +169,14 @@
 				})(),
 				(async () => {
 					connectionsConfig = await getConnectionsConfig(localStorage.token);
+				})(),
+				(async () => {
+					const litellmConfig = await getLiteLLMConfig(localStorage.token);
+					if (litellmConfig) {
+						ENABLE_LITELLM_SPEND = litellmConfig.ENABLE_LITELLM_SPEND;
+						LITELLM_BASE_URL = litellmConfig.LITELLM_BASE_URL;
+						LITELLM_MASTER_KEY = litellmConfig.LITELLM_MASTER_KEY;
+					}
 				})()
 			]);
 
@@ -197,6 +224,7 @@
 	const submitHandler = async () => {
 		updateOpenAIHandler();
 		updateOllamaHandler();
+		updateLiteLLMHandler();
 
 		dispatch('save');
 
@@ -408,6 +436,57 @@
 						)}
 					</div>
 				</div>
+
+				<hr class=" border-gray-100 dark:border-gray-850 my-2" />
+
+				<div class=" mt-0.5 mb-2.5 text-base font-medium">{$i18n.t('LiteLLM Spend Tracking')}</div>
+
+				<div class="my-2">
+					<div class="flex justify-between items-center text-sm">
+						<div class="font-medium">{$i18n.t('Enable LiteLLM Spend Tracking')}</div>
+
+						<div class="flex items-center">
+							<Switch
+								bind:state={ENABLE_LITELLM_SPEND}
+								on:change={async () => {
+									updateLiteLLMHandler();
+								}}
+							/>
+						</div>
+					</div>
+
+					<div class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+						{$i18n.t('Enable to show user spend data in the admin dashboard from LiteLLM.')}
+					</div>
+				</div>
+
+				{#if ENABLE_LITELLM_SPEND}
+					<div class="my-2">
+						<div class="text-sm font-medium mb-1">{$i18n.t('LiteLLM Base URL')}</div>
+						<input
+							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+							type="text"
+							placeholder="http://localhost:4000"
+							bind:value={LITELLM_BASE_URL}
+						/>
+						<div class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+							{$i18n.t('The base URL of your LiteLLM proxy server.')}
+						</div>
+					</div>
+
+					<div class="my-2">
+						<div class="text-sm font-medium mb-1">{$i18n.t('LiteLLM Master Key')}</div>
+						<input
+							class="w-full rounded-lg py-2 px-4 text-sm bg-gray-50 dark:text-gray-300 dark:bg-gray-850 outline-hidden"
+							type="password"
+							placeholder="sk-..."
+							bind:value={LITELLM_MASTER_KEY}
+						/>
+						<div class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+							{$i18n.t('The master key for accessing LiteLLM spend data. Required for /user/info endpoint.')}
+						</div>
+					</div>
+				{/if}
 			</div>
 		{:else}
 			<div class="flex h-full justify-center">

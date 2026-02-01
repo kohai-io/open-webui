@@ -7,7 +7,8 @@ import logging
 import time
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+import aiohttp
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from open_webui.models.users import Users
@@ -55,8 +56,54 @@ def calc_comparison(current: float, previous: float) -> dict:
     }
 
 
+async def fetch_litellm_spend(base_url: str, master_key: str, user_ids: list) -> dict:
+    """
+    Fetch spend data from LiteLLM for given user IDs.
+    Returns dict mapping user_id -> {spend: float, ...}
+    """
+    cost_data = {}
+    
+    if not base_url or not master_key:
+        return cost_data
+    
+    # Strip trailing slash and /v1 suffix (management API is at root, not /v1)
+    base_url = base_url.rstrip('/')
+    if base_url.endswith('/v1'):
+        base_url = base_url[:-3]
+    
+    log.info(f"[DASHBOARD] Fetching spend for {len(user_ids)} users from {base_url}")
+    
+    async with aiohttp.ClientSession() as session:
+        for user_id in user_ids:
+            try:
+                async with session.get(
+                    f"{base_url}/user/info",
+                    params={"user_id": user_id},
+                    headers={"Authorization": f"Bearer {master_key}"},
+                    timeout=aiohttp.ClientTimeout(total=5)
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        user_info = data.get("user_info", {})
+                        spend = user_info.get("spend", 0.0)
+                        cost_data[user_id] = {
+                            "spend": spend,
+                            "max_budget": user_info.get("max_budget"),
+                        }
+                    else:
+                        log.debug(f"[DASHBOARD] LiteLLM API returned {response.status} for user {user_id}")
+            except Exception as e:
+                log.warning(f"[DASHBOARD] Failed to fetch LiteLLM spend for {user_id}: {e}")
+                continue
+    
+    log.info(f"[DASHBOARD] Retrieved spend data for {len(cost_data)} users")
+    
+    return cost_data
+
+
 @router.get("/stats")
 async def get_dashboard_stats(
+    request: Request,
     user=Depends(get_admin_user),
 ) -> dict:
     """
@@ -324,6 +371,49 @@ async def get_dashboard_stats(
             if isinstance(file_ids, list):
                 total_kb_documents += len(file_ids)
     
+    # ===== LITELLM SPEND DATA =====
+    spend_data = {}
+    total_platform_spend = 0.0
+    users_with_spend = 0
+    top_users_by_spend = []
+    litellm_enabled = request.app.state.config.ENABLE_LITELLM_SPEND
+    
+    log.info(f"[DASHBOARD] LiteLLM enabled: {litellm_enabled}")
+    
+    if litellm_enabled:
+        litellm_base_url = request.app.state.config.LITELLM_BASE_URL
+        litellm_master_key = request.app.state.config.LITELLM_MASTER_KEY
+        
+        log.info(f"[DASHBOARD] LiteLLM URL: {litellm_base_url}, Key set: {bool(litellm_master_key)}")
+        
+        if litellm_base_url and litellm_master_key:
+            all_user_ids = [u.id for u in all_users]
+            spend_data = await fetch_litellm_spend(litellm_base_url, litellm_master_key, all_user_ids)
+            
+            for user_id, cost_info in spend_data.items():
+                spend = cost_info.get('spend', 0.0)
+                total_platform_spend += spend
+                if spend > 0:
+                    users_with_spend += 1
+            
+            # Build top users by spend
+            users_with_spend_data = []
+            for u in user_chat_data:
+                user_spend = spend_data.get(u['user_id'], {}).get('spend', 0.0)
+                if user_spend > 0:
+                    users_with_spend_data.append({
+                        'name': u['name'],
+                        'user_id': u['user_id'],
+                        'spend': round(user_spend, 2),
+                        'chats': u['chats'],
+                    })
+            
+            top_users_by_spend = sorted(
+                users_with_spend_data,
+                key=lambda x: x['spend'],
+                reverse=True
+            )[:10]
+    
     # ===== BUILD RESPONSE =====
     return {
         "users": {
@@ -416,5 +506,11 @@ async def get_dashboard_stats(
             "total_documents": total_kb_documents,
             "today": knowledge_today,
             "week": knowledge_this_week,
+        },
+        "spend": {
+            "enabled": request.app.state.config.ENABLE_LITELLM_SPEND,
+            "total": round(total_platform_spend, 2),
+            "users_with_spend": users_with_spend,
+            "top_users": top_users_by_spend,
         },
     }

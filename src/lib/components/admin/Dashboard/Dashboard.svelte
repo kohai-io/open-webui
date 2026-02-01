@@ -276,6 +276,37 @@
 			/>
 		</div>
 
+		<!-- Spend Data (if enabled) -->
+		{#if stats.spend?.enabled}
+			<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+				<ChartCard title={$i18n.t('Platform Spend (LiteLLM)')}>
+					<div class="flex items-center justify-around py-4">
+						<div class="text-center">
+							<div class="text-3xl font-bold text-green-600 dark:text-green-400">${stats.spend.total.toFixed(2)}</div>
+							<div class="text-sm text-gray-500 dark:text-gray-400">{$i18n.t('Total Spend')}</div>
+						</div>
+						<div class="text-center">
+							<div class="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.spend.users_with_spend}</div>
+							<div class="text-sm text-gray-500 dark:text-gray-400">{$i18n.t('Users with Spend')}</div>
+						</div>
+					</div>
+				</ChartCard>
+				{#if stats.spend.top_users && stats.spend.top_users.length > 0}
+					<TopList
+						title={$i18n.t('Top Users by Spend')}
+						items={stats.spend.top_users.map(u => ({ name: u.name, value: u.spend, subtitle: `${u.chats} chats` }))}
+						valueLabel="$"
+					/>
+				{:else}
+					<ChartCard title={$i18n.t('Top Users by Spend')}>
+						<div class="text-center py-4 text-gray-500 dark:text-gray-400">
+							{$i18n.t('No spend data available. Check LiteLLM connection settings.')}
+						</div>
+					</ChartCard>
+				{/if}
+			</div>
+		{/if}
+
 		<!-- File Types -->
 		{#if stats.files.top_types && stats.files.top_types.length > 0}
 			<ChartCard title={$i18n.t('Top File Types')}>

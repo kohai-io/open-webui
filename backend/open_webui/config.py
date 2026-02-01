@@ -1071,6 +1071,29 @@ OPENAI_API_BASE_URL = "https://api.openai.com/v1"
 
 
 ####################################
+# LITELLM (for spend tracking)
+####################################
+
+ENABLE_LITELLM_SPEND = PersistentConfig(
+    "ENABLE_LITELLM_SPEND",
+    "litellm.enable_spend",
+    os.environ.get("ENABLE_LITELLM_SPEND", "False").lower() == "true",
+)
+
+LITELLM_BASE_URL = PersistentConfig(
+    "LITELLM_BASE_URL",
+    "litellm.base_url",
+    os.environ.get("LITELLM_BASE_URL", "http://localhost:4000"),
+)
+
+LITELLM_MASTER_KEY = PersistentConfig(
+    "LITELLM_MASTER_KEY",
+    "litellm.master_key",
+    os.environ.get("LITELLM_MASTER_KEY", ""),
+)
+
+
+####################################
 # MODELS
 ####################################
 
