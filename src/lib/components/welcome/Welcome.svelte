@@ -245,8 +245,8 @@
 		</div>
 	</nav>
 
-	<!-- Mobile/Tablet: Scrollable content area -->
-	<div class="flex-1 overflow-y-auto md:overflow-visible px-6 py-4 md:py-8 md:px-12 lg:px-20 pb-48 md:pb-8">
+	<!-- Mobile/Tablet: Fixed content area (no page scroll) -->
+	<div class="flex-1 overflow-hidden md:overflow-y-auto px-6 py-4 md:py-8 md:px-12 lg:px-20 pb-24 md:pb-8">
 		<div class="max-w-6xl mx-auto w-full">
 			<!-- Greeting -->
 			<div class="mb-6 md:mb-8 mt-2 md:mt-6">
@@ -452,7 +452,52 @@
 					</a>
 				</div>
 			{:else}
-				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+				<!-- Mobile: Constrained vertical scroll area -->
+				<div class="md:hidden flex flex-col">
+					<div class="text-xs text-gray-500 dark:text-gray-400 mb-2 text-right">
+						{agents.length} {$i18n.t('agents')}
+					</div>
+					<div class="overflow-y-auto max-h-[calc(100vh-320px)] space-y-2 scrollbar-none">
+						{#each agents.slice(0, 12) as agent}
+							<button
+								on:click={() => selectAgent(agent.id)}
+								class="w-full flex items-center gap-3 p-3 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 active:scale-[0.98] transition text-left"
+							>
+								<img
+									src={agent?.meta?.profile_image_url ?? agent?.info?.meta?.profile_image_url ?? '/static/favicon.png'}
+									alt={agent.name}
+									class="w-11 h-11 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700 flex-shrink-0"
+								/>
+								<div class="min-w-0 flex-1">
+									<h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+										{agent.name}
+									</h3>
+									<p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+										{agent?.meta?.description ?? agent?.info?.meta?.description ?? ''}
+									</p>
+								</div>
+								<svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+								</svg>
+							</button>
+						{/each}
+						<!-- Create Agent Card - Mobile -->
+						<a
+							href="/workspace/models/create"
+							class="w-full flex items-center justify-center gap-2 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 active:scale-[0.98] transition"
+						>
+							<div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+								<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+								</svg>
+							</div>
+							<span class="text-sm font-medium text-blue-600 dark:text-blue-400">{$i18n.t('Create Agent')}</span>
+						</a>
+					</div>
+				</div>
+
+				<!-- Desktop/Tablet: Grid layout -->
+				<div class="hidden md:grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 					{#each agents.slice(0, 11) as agent}
 						<button
 							on:click={() => selectAgent(agent.id)}
@@ -474,7 +519,7 @@
 						</button>
 					{/each}
 
-					<!-- Create Agent Card -->
+					<!-- Create Agent Card - Desktop -->
 					<a
 						href="/workspace/models/create"
 						class="flex flex-col items-center justify-center gap-3 p-5 bg-gray-50 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 transition"
@@ -490,8 +535,8 @@
 			{/if}
 	</div>
 
-		<!-- Quick Actions (optional) -->
-		<div class="mt-16 w-full">
+		<!-- Quick Actions (hidden on mobile to save space) -->
+		<div class="hidden md:block mt-16 w-full">
 			<h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">{$i18n.t('Quick Actions')}</h2>
 			<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 				<a
