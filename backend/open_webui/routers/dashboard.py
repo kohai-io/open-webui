@@ -10,6 +10,7 @@ from typing import Optional
 import aiohttp
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
+from datetime import datetime, timezone
 
 from open_webui.models.users import Users
 from open_webui.models.chats import Chats
@@ -540,4 +541,5 @@ async def get_dashboard_stats(
             "users_with_spend": users_with_spend,
             "top_users": top_users_by_spend,
         },
+        "generated_at": datetime.now(timezone.utc).isoformat(),
     }

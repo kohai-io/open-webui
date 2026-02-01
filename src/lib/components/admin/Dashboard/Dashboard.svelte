@@ -53,6 +53,10 @@
 			</h1>
 			<p class="text-sm text-gray-500 dark:text-gray-400">
 				{$i18n.t('Platform analytics and statistics')}
+				{#if stats?.generated_at}
+					<span class="ml-2">•</span>
+					<span class="ml-2">{$i18n.t('Generated')}: {new Date(stats.generated_at).toLocaleString()}</span>
+				{/if}
 			</p>
 		</div>
 		<button
