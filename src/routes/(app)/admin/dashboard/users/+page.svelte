@@ -133,15 +133,36 @@
 								</button>
 							</th>
 							<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+								<button class="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200" on:click={() => handleSort('tokens_in')}>
+									{$i18n.t('Tokens In')}
+									{#if sortBy === 'tokens_in'}
+										<span>{order === 'desc' ? '↓' : '↑'}</span>
+									{/if}
+								</button>
+							</th>
+							<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+								<button class="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200" on:click={() => handleSort('tokens_out')}>
+									{$i18n.t('Tokens Out')}
+									{#if sortBy === 'tokens_out'}
+										<span>{order === 'desc' ? '↓' : '↑'}</span>
+									{/if}
+								</button>
+							</th>
+							<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
 								<button class="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200" on:click={() => handleSort('tokens')}>
-									{$i18n.t('Tokens')}
+									{$i18n.t('Total Tokens')}
 									{#if sortBy === 'tokens'}
 										<span>{order === 'desc' ? '↓' : '↑'}</span>
 									{/if}
 								</button>
 							</th>
 							<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-								{$i18n.t('Models')}
+								<button class="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200" on:click={() => handleSort('spend')}>
+									{$i18n.t('Spend')}
+									{#if sortBy === 'spend'}
+										<span>{order === 'desc' ? '↓' : '↑'}</span>
+									{/if}
+								</button>
 							</th>
 							<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
 								<button class="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200" on:click={() => handleSort('last_active')}>
@@ -182,10 +203,16 @@
 									{formatNumber(user.messages)}
 								</td>
 								<td class="px-4 py-3 text-gray-700 dark:text-gray-300">
+									{formatNumber(user.tokens_in)}
+								</td>
+								<td class="px-4 py-3 text-gray-700 dark:text-gray-300">
+									{formatNumber(user.tokens_out)}
+								</td>
+								<td class="px-4 py-3 text-gray-700 dark:text-gray-300">
 									{formatNumber(user.tokens)}
 								</td>
 								<td class="px-4 py-3 text-gray-700 dark:text-gray-300">
-									{user.models_count}
+									{user.spend > 0 ? '$' + user.spend.toFixed(2) : '-'}
 								</td>
 								<td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">
 									{formatDate(user.last_active_at)}

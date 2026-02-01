@@ -569,6 +569,16 @@ async def get_dashboard_users(
     # Get all chats for stats
     all_chats = Chats.get_chats()
     
+    # Fetch LiteLLM spend data if enabled
+    spend_data = {}
+    litellm_enabled = request.app.state.config.ENABLE_LITELLM_SPEND
+    if litellm_enabled:
+        litellm_base_url = request.app.state.config.LITELLM_BASE_URL
+        litellm_master_key = request.app.state.config.LITELLM_MASTER_KEY
+        if litellm_base_url and litellm_master_key:
+            all_user_ids = [u.id for u in all_users]
+            spend_data = await fetch_litellm_spend(litellm_base_url, litellm_master_key, all_user_ids)
+    
     # Build user stats
     user_stats = []
     for u in all_users:
@@ -578,6 +588,8 @@ async def get_dashboard_users(
         # Count messages and tokens
         total_messages = 0
         total_tokens = 0
+        input_tokens = 0
+        output_tokens = 0
         models_used = {}
         
         for chat in user_chats:
@@ -586,7 +598,10 @@ async def get_dashboard_users(
                 total_messages += len(messages)
                 for msg in messages:
                     if "usage" in msg:
-                        total_tokens += msg["usage"].get("total_tokens", 0)
+                        usage = msg["usage"]
+                        total_tokens += usage.get("total_tokens", 0)
+                        input_tokens += usage.get("prompt_tokens", 0)
+                        output_tokens += usage.get("completion_tokens", 0)
                     if msg.get("role") == "assistant" and "model" in msg:
                         model = msg["model"]
                         models_used[model] = models_used.get(model, 0) + 1
@@ -606,7 +621,10 @@ async def get_dashboard_users(
             "chats": total_chats,
             "messages": total_messages,
             "tokens": total_tokens,
+            "tokens_in": input_tokens,
+            "tokens_out": output_tokens,
             "models_count": len(models_used),
+            "spend": round(spend_data.get(u.id, {}).get("spend", 0.0), 2),
             "activity": {
                 "today": chats_today,
                 "week": chats_week,
@@ -628,6 +646,12 @@ async def get_dashboard_users(
         user_stats.sort(key=lambda x: x["last_active_at"], reverse=reverse)
     elif sort_by == "created":
         user_stats.sort(key=lambda x: x["created_at"], reverse=reverse)
+    elif sort_by == "tokens_in":
+        user_stats.sort(key=lambda x: x["tokens_in"], reverse=reverse)
+    elif sort_by == "tokens_out":
+        user_stats.sort(key=lambda x: x["tokens_out"], reverse=reverse)
+    elif sort_by == "spend":
+        user_stats.sort(key=lambda x: x["spend"], reverse=reverse)
     
     # Paginate
     total = len(user_stats)
@@ -803,6 +827,20 @@ async def get_dashboard_groups(
     all_groups = Groups.get_groups()
     all_chats = Chats.get_chats()
     
+    # Fetch LiteLLM spend data if enabled
+    spend_data = {}
+    litellm_enabled = request.app.state.config.ENABLE_LITELLM_SPEND
+    if litellm_enabled:
+        litellm_base_url = request.app.state.config.LITELLM_BASE_URL
+        litellm_master_key = request.app.state.config.LITELLM_MASTER_KEY
+        if litellm_base_url and litellm_master_key:
+            # Get all unique member IDs across all groups
+            all_member_ids = set()
+            for g in all_groups:
+                all_member_ids.update(g.user_ids or [])
+            if all_member_ids:
+                spend_data = await fetch_litellm_spend(litellm_base_url, litellm_master_key, list(all_member_ids))
+    
     # Build group stats
     group_stats = []
     for g in all_groups:
@@ -816,6 +854,8 @@ async def get_dashboard_groups(
         # Count messages and tokens
         total_messages = 0
         total_tokens = 0
+        input_tokens = 0
+        output_tokens = 0
         
         for chat in group_chats:
             if chat.chat and "messages" in chat.chat:
@@ -823,7 +863,13 @@ async def get_dashboard_groups(
                 total_messages += len(messages)
                 for msg in messages:
                     if "usage" in msg:
-                        total_tokens += msg["usage"].get("total_tokens", 0)
+                        usage = msg["usage"]
+                        total_tokens += usage.get("total_tokens", 0)
+                        input_tokens += usage.get("prompt_tokens", 0)
+                        output_tokens += usage.get("completion_tokens", 0)
+        
+        # Calculate group spend
+        group_spend = sum(spend_data.get(uid, {}).get("spend", 0.0) for uid in member_ids)
         
         group_stats.append({
             "id": g.id,
@@ -833,6 +879,9 @@ async def get_dashboard_groups(
             "chats": total_chats,
             "messages": total_messages,
             "tokens": total_tokens,
+            "tokens_in": input_tokens,
+            "tokens_out": output_tokens,
+            "spend": round(group_spend, 2),
             "created_at": g.created_at,
             "updated_at": g.updated_at,
         })
@@ -849,6 +898,12 @@ async def get_dashboard_groups(
         group_stats.sort(key=lambda x: x["tokens"], reverse=reverse)
     elif sort_by == "name":
         group_stats.sort(key=lambda x: x["name"].lower(), reverse=reverse)
+    elif sort_by == "tokens_in":
+        group_stats.sort(key=lambda x: x["tokens_in"], reverse=reverse)
+    elif sort_by == "tokens_out":
+        group_stats.sort(key=lambda x: x["tokens_out"], reverse=reverse)
+    elif sort_by == "spend":
+        group_stats.sort(key=lambda x: x["spend"], reverse=reverse)
     
     # Paginate
     total = len(group_stats)
