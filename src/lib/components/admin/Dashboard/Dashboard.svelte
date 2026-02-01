@@ -162,7 +162,7 @@
 
 		<!-- Top Users & Models -->
 		<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-			<ChartCard title={$i18n.t('Top Users by Chats')}>
+			<ChartCard title={$i18n.t('Top Users by Chats')} href="/admin/dashboard/users">
 				{#if stats.users.top_by_chats && stats.users.top_by_chats.length > 0}
 					<BarChart
 						labels={stats.users.top_by_chats.map(u => u.name)}
@@ -205,6 +205,7 @@
 				subtitle="{stats.groups.total_members} {$i18n.t('total members')}"
 				icon="group"
 				color="teal"
+				href="/admin/dashboard/groups"
 			/>
 			<StatCard
 				title={$i18n.t('Feedback')}

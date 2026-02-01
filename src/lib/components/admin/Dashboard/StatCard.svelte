@@ -4,6 +4,7 @@
 	export let subtitle: string = '';
 	export let icon: string = 'chart';
 	export let color: string = 'blue';
+	export let href: string = '';
 
 	const colorClasses = {
 		blue: 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
@@ -31,19 +32,38 @@
 	};
 </script>
 
-<div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 hover:shadow-lg transition-shadow">
-	<div class="flex items-start justify-between">
-		<div class="flex-1">
-			<p class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{title}</p>
-			<p class="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{value}</p>
-			{#if subtitle}
-				<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>
-			{/if}
+{#if href}
+	<a {href} class="block bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-700 transition-all cursor-pointer">
+		<div class="flex items-start justify-between">
+			<div class="flex-1">
+				<p class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{title}</p>
+				<p class="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{value}</p>
+				{#if subtitle}
+					<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>
+				{/if}
+			</div>
+			<div class="p-3 rounded-lg {colorClasses[color] || colorClasses.blue}">
+				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+					<path stroke-linecap="round" stroke-linejoin="round" d={iconPaths[icon] || iconPaths.chart} />
+				</svg>
+			</div>
 		</div>
-		<div class="p-3 rounded-lg {colorClasses[color] || colorClasses.blue}">
-			<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-				<path stroke-linecap="round" stroke-linejoin="round" d={iconPaths[icon] || iconPaths.chart} />
-			</svg>
+	</a>
+{:else}
+	<div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4 hover:shadow-lg transition-shadow">
+		<div class="flex items-start justify-between">
+			<div class="flex-1">
+				<p class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">{title}</p>
+				<p class="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{value}</p>
+				{#if subtitle}
+					<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{subtitle}</p>
+				{/if}
+			</div>
+			<div class="p-3 rounded-lg {colorClasses[color] || colorClasses.blue}">
+				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+					<path stroke-linecap="round" stroke-linejoin="round" d={iconPaths[icon] || iconPaths.chart} />
+				</svg>
+			</div>
 		</div>
 	</div>
-</div>
+{/if}

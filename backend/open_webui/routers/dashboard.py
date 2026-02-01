@@ -543,3 +543,442 @@ async def get_dashboard_stats(
         },
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+@router.get("/users")
+async def get_dashboard_users(
+    request: Request,
+    user=Depends(get_admin_user),
+    page: int = 1,
+    limit: int = 50,
+    sort_by: str = "chats",
+    order: str = "desc",
+) -> dict:
+    """
+    Get paginated list of users with their stats for drill-down view.
+    """
+    now = int(time.time())
+    day_ago = now - 86400
+    week_ago = now - 604800
+    month_ago = now - 2592000
+    
+    # Get all users
+    all_users_data = Users.get_users()
+    all_users = all_users_data.get("users", [])
+    
+    # Get all chats for stats
+    all_chats = Chats.get_chats()
+    
+    # Build user stats
+    user_stats = []
+    for u in all_users:
+        user_chats = [c for c in all_chats if c.user_id == u.id]
+        total_chats = len(user_chats)
+        
+        # Count messages and tokens
+        total_messages = 0
+        total_tokens = 0
+        models_used = {}
+        
+        for chat in user_chats:
+            if chat.chat and "messages" in chat.chat:
+                messages = chat.chat["messages"]
+                total_messages += len(messages)
+                for msg in messages:
+                    if "usage" in msg:
+                        total_tokens += msg["usage"].get("total_tokens", 0)
+                    if msg.get("role") == "assistant" and "model" in msg:
+                        model = msg["model"]
+                        models_used[model] = models_used.get(model, 0) + 1
+        
+        # Recent activity
+        chats_today = sum(1 for c in user_chats if c.created_at >= day_ago)
+        chats_week = sum(1 for c in user_chats if c.created_at >= week_ago)
+        chats_month = sum(1 for c in user_chats if c.created_at >= month_ago)
+        
+        user_stats.append({
+            "id": u.id,
+            "name": u.name,
+            "email": u.email,
+            "role": u.role,
+            "created_at": u.created_at,
+            "last_active_at": u.last_active_at,
+            "chats": total_chats,
+            "messages": total_messages,
+            "tokens": total_tokens,
+            "models_count": len(models_used),
+            "activity": {
+                "today": chats_today,
+                "week": chats_week,
+                "month": chats_month,
+            },
+        })
+    
+    # Sort
+    reverse = order == "desc"
+    if sort_by == "chats":
+        user_stats.sort(key=lambda x: x["chats"], reverse=reverse)
+    elif sort_by == "messages":
+        user_stats.sort(key=lambda x: x["messages"], reverse=reverse)
+    elif sort_by == "tokens":
+        user_stats.sort(key=lambda x: x["tokens"], reverse=reverse)
+    elif sort_by == "name":
+        user_stats.sort(key=lambda x: x["name"].lower(), reverse=reverse)
+    elif sort_by == "last_active":
+        user_stats.sort(key=lambda x: x["last_active_at"], reverse=reverse)
+    elif sort_by == "created":
+        user_stats.sort(key=lambda x: x["created_at"], reverse=reverse)
+    
+    # Paginate
+    total = len(user_stats)
+    start = (page - 1) * limit
+    end = start + limit
+    paginated = user_stats[start:end]
+    
+    return {
+        "users": paginated,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "pages": (total + limit - 1) // limit,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.get("/users/{user_id}")
+async def get_dashboard_user_detail(
+    request: Request,
+    user_id: str,
+    user=Depends(get_admin_user),
+) -> dict:
+    """
+    Get detailed stats for a single user.
+    """
+    now = int(time.time())
+    day_ago = now - 86400
+    week_ago = now - 604800
+    month_ago = now - 2592000
+    quarter_ago = now - (86400 * 90)
+    
+    # Get user
+    target_user = Users.get_user_by_id(user_id)
+    if not target_user:
+        return {"error": "User not found"}
+    
+    # Get user's chats
+    user_chats = Chats.get_chats_by_user_id(user_id)
+    total_chats = len(user_chats)
+    
+    # Analyze chats
+    total_messages = 0
+    total_tokens = 0
+    input_tokens = 0
+    output_tokens = 0
+    models_used = {}
+    recent_chats = []
+    
+    for chat in user_chats:
+        chat_messages = 0
+        chat_tokens = 0
+        chat_models = set()
+        
+        if chat.chat and "messages" in chat.chat:
+            messages = chat.chat["messages"]
+            chat_messages = len(messages)
+            total_messages += chat_messages
+            
+            for msg in messages:
+                if "usage" in msg:
+                    usage = msg["usage"]
+                    tokens = usage.get("total_tokens", 0)
+                    total_tokens += tokens
+                    chat_tokens += tokens
+                    input_tokens += usage.get("prompt_tokens", 0)
+                    output_tokens += usage.get("completion_tokens", 0)
+                
+                if msg.get("role") == "assistant" and "model" in msg:
+                    model = msg["model"]
+                    chat_models.add(model)
+                    models_used[model] = models_used.get(model, 0) + 1
+        
+        # Add to recent chats (last 20)
+        if len(recent_chats) < 20:
+            recent_chats.append({
+                "id": chat.id,
+                "title": chat.title or "Untitled",
+                "created_at": chat.created_at,
+                "updated_at": chat.updated_at,
+                "messages": chat_messages,
+                "tokens": chat_tokens,
+                "models": list(chat_models),
+                "archived": chat.archived,
+                "pinned": chat.pinned,
+            })
+    
+    # Sort recent chats by updated_at
+    recent_chats.sort(key=lambda x: x["updated_at"], reverse=True)
+    
+    # Activity breakdown
+    chats_today = sum(1 for c in user_chats if c.created_at >= day_ago)
+    chats_week = sum(1 for c in user_chats if c.created_at >= week_ago)
+    chats_month = sum(1 for c in user_chats if c.created_at >= month_ago)
+    chats_quarter = sum(1 for c in user_chats if c.created_at >= quarter_ago)
+    
+    # Top models
+    top_models = sorted(
+        [{"name": k, "messages": v} for k, v in models_used.items()],
+        key=lambda x: x["messages"],
+        reverse=True
+    )[:10]
+    
+    # Get user's files
+    user_files = Files.get_files_by_user_id(user_id)
+    total_file_size = sum(f.meta.get("size", 0) if f.meta else 0 for f in user_files)
+    
+    # Get user's feedbacks
+    all_feedbacks = Feedbacks.get_feedbacks()
+    user_feedbacks = [f for f in all_feedbacks if f.user_id == user_id]
+    
+    # LiteLLM spend
+    spend = 0.0
+    if request.app.state.config.ENABLE_LITELLM_SPEND:
+        litellm_base_url = request.app.state.config.LITELLM_BASE_URL
+        litellm_master_key = request.app.state.config.LITELLM_MASTER_KEY
+        if litellm_base_url and litellm_master_key:
+            spend_data = await fetch_litellm_spend(litellm_base_url, litellm_master_key, [user_id])
+            spend = spend_data.get(user_id, {}).get("spend", 0.0)
+    
+    # Get user's groups
+    all_groups = Groups.get_groups()
+    user_groups = [g for g in all_groups if user_id in (g.user_ids or [])]
+    
+    return {
+        "user": {
+            "id": target_user.id,
+            "name": target_user.name,
+            "email": target_user.email,
+            "role": target_user.role,
+            "profile_image_url": target_user.profile_image_url,
+            "created_at": target_user.created_at,
+            "last_active_at": target_user.last_active_at,
+        },
+        "stats": {
+            "chats": total_chats,
+            "messages": total_messages,
+            "tokens": {
+                "total": total_tokens,
+                "input": input_tokens,
+                "output": output_tokens,
+            },
+            "files": len(user_files),
+            "file_size": total_file_size,
+            "feedbacks": len(user_feedbacks),
+            "spend": round(spend, 2),
+        },
+        "activity": {
+            "today": chats_today,
+            "week": chats_week,
+            "month": chats_month,
+            "quarter": chats_quarter,
+        },
+        "models": top_models,
+        "recent_chats": recent_chats,
+        "groups": [{"id": g.id, "name": g.name} for g in user_groups],
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.get("/groups")
+async def get_dashboard_groups(
+    request: Request,
+    user=Depends(get_admin_user),
+    page: int = 1,
+    limit: int = 50,
+    sort_by: str = "members",
+    order: str = "desc",
+) -> dict:
+    """
+    Get paginated list of groups with their stats for drill-down view.
+    """
+    all_groups = Groups.get_groups()
+    all_chats = Chats.get_chats()
+    
+    # Build group stats
+    group_stats = []
+    for g in all_groups:
+        member_ids = g.user_ids or []
+        member_count = len(member_ids)
+        
+        # Get chats for all members
+        group_chats = [c for c in all_chats if c.user_id in member_ids]
+        total_chats = len(group_chats)
+        
+        # Count messages and tokens
+        total_messages = 0
+        total_tokens = 0
+        
+        for chat in group_chats:
+            if chat.chat and "messages" in chat.chat:
+                messages = chat.chat["messages"]
+                total_messages += len(messages)
+                for msg in messages:
+                    if "usage" in msg:
+                        total_tokens += msg["usage"].get("total_tokens", 0)
+        
+        group_stats.append({
+            "id": g.id,
+            "name": g.name,
+            "description": g.description,
+            "members": member_count,
+            "chats": total_chats,
+            "messages": total_messages,
+            "tokens": total_tokens,
+            "created_at": g.created_at,
+            "updated_at": g.updated_at,
+        })
+    
+    # Sort
+    reverse = order == "desc"
+    if sort_by == "members":
+        group_stats.sort(key=lambda x: x["members"], reverse=reverse)
+    elif sort_by == "chats":
+        group_stats.sort(key=lambda x: x["chats"], reverse=reverse)
+    elif sort_by == "messages":
+        group_stats.sort(key=lambda x: x["messages"], reverse=reverse)
+    elif sort_by == "tokens":
+        group_stats.sort(key=lambda x: x["tokens"], reverse=reverse)
+    elif sort_by == "name":
+        group_stats.sort(key=lambda x: x["name"].lower(), reverse=reverse)
+    
+    # Paginate
+    total = len(group_stats)
+    start = (page - 1) * limit
+    end = start + limit
+    paginated = group_stats[start:end]
+    
+    return {
+        "groups": paginated,
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "pages": (total + limit - 1) // limit,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.get("/groups/{group_id}")
+async def get_dashboard_group_detail(
+    request: Request,
+    group_id: str,
+    user=Depends(get_admin_user),
+) -> dict:
+    """
+    Get detailed stats for a single group.
+    """
+    # Get group
+    target_group = Groups.get_group_by_id(group_id)
+    if not target_group:
+        return {"error": "Group not found"}
+    
+    member_ids = target_group.user_ids or []
+    
+    # Get all members
+    all_users_data = Users.get_users()
+    all_users = all_users_data.get("users", [])
+    members = [u for u in all_users if u.id in member_ids]
+    
+    # Get all chats
+    all_chats = Chats.get_chats()
+    group_chats = [c for c in all_chats if c.user_id in member_ids]
+    
+    # Aggregate stats
+    total_messages = 0
+    total_tokens = 0
+    input_tokens = 0
+    output_tokens = 0
+    models_used = {}
+    
+    for chat in group_chats:
+        if chat.chat and "messages" in chat.chat:
+            messages = chat.chat["messages"]
+            total_messages += len(messages)
+            for msg in messages:
+                if "usage" in msg:
+                    usage = msg["usage"]
+                    total_tokens += usage.get("total_tokens", 0)
+                    input_tokens += usage.get("prompt_tokens", 0)
+                    output_tokens += usage.get("completion_tokens", 0)
+                if msg.get("role") == "assistant" and "model" in msg:
+                    model = msg["model"]
+                    models_used[model] = models_used.get(model, 0) + 1
+    
+    # Top models
+    top_models = sorted(
+        [{"name": k, "messages": v} for k, v in models_used.items()],
+        key=lambda x: x["messages"],
+        reverse=True
+    )[:10]
+    
+    # Member stats
+    member_stats = []
+    for m in members:
+        member_chats = [c for c in group_chats if c.user_id == m.id]
+        m_messages = 0
+        m_tokens = 0
+        for chat in member_chats:
+            if chat.chat and "messages" in chat.chat:
+                m_messages += len(chat.chat["messages"])
+                for msg in chat.chat["messages"]:
+                    if "usage" in msg:
+                        m_tokens += msg["usage"].get("total_tokens", 0)
+        
+        member_stats.append({
+            "id": m.id,
+            "name": m.name,
+            "email": m.email,
+            "role": m.role,
+            "chats": len(member_chats),
+            "messages": m_messages,
+            "tokens": m_tokens,
+            "last_active_at": m.last_active_at,
+        })
+    
+    # Sort members by chats
+    member_stats.sort(key=lambda x: x["chats"], reverse=True)
+    
+    # LiteLLM spend for group
+    total_spend = 0.0
+    if request.app.state.config.ENABLE_LITELLM_SPEND and member_ids:
+        litellm_base_url = request.app.state.config.LITELLM_BASE_URL
+        litellm_master_key = request.app.state.config.LITELLM_MASTER_KEY
+        if litellm_base_url and litellm_master_key:
+            spend_data = await fetch_litellm_spend(litellm_base_url, litellm_master_key, member_ids)
+            for uid in member_ids:
+                total_spend += spend_data.get(uid, {}).get("spend", 0.0)
+            # Add spend to member stats
+            for ms in member_stats:
+                ms["spend"] = round(spend_data.get(ms["id"], {}).get("spend", 0.0), 2)
+    
+    return {
+        "group": {
+            "id": target_group.id,
+            "name": target_group.name,
+            "description": target_group.description,
+            "created_at": target_group.created_at,
+            "updated_at": target_group.updated_at,
+        },
+        "stats": {
+            "members": len(members),
+            "chats": len(group_chats),
+            "messages": total_messages,
+            "tokens": {
+                "total": total_tokens,
+                "input": input_tokens,
+                "output": output_tokens,
+            },
+            "spend": round(total_spend, 2),
+        },
+        "models": top_models,
+        "members": member_stats,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
