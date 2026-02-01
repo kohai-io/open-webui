@@ -454,19 +454,16 @@
 			{:else}
 				<!-- Mobile: Constrained vertical scroll area -->
 				<div class="md:hidden flex flex-col">
-					<div class="text-xs text-gray-500 dark:text-gray-400 mb-2 text-right">
-						{agents.length} {$i18n.t('agents')}
-					</div>
-					<div class="overflow-y-auto max-h-[calc(100vh-320px)] space-y-2 scrollbar-none">
-						{#each agents.slice(0, 12) as agent}
+					<div class="overflow-y-auto max-h-[240px] space-y-2 scrollbar-none">
+						{#each agents as agent}
 							<button
 								on:click={() => selectAgent(agent.id)}
-								class="w-full flex items-center gap-3 p-3 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 active:scale-[0.98] transition text-left"
+								class="w-full flex items-center gap-2.5 p-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 active:scale-[0.98] transition text-left"
 							>
 								<img
 									src={agent?.meta?.profile_image_url ?? agent?.info?.meta?.profile_image_url ?? '/static/favicon.png'}
 									alt={agent.name}
-									class="w-11 h-11 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700 flex-shrink-0"
+									class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700 flex-shrink-0"
 								/>
 								<div class="min-w-0 flex-1">
 									<h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
@@ -493,6 +490,9 @@
 							</div>
 							<span class="text-sm font-medium text-blue-600 dark:text-blue-400">{$i18n.t('Create Agent')}</span>
 						</a>
+					</div>
+					<div class="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
+						{agents.length} {$i18n.t('agents')}
 					</div>
 				</div>
 
