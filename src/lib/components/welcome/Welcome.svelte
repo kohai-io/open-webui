@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount, getContext, tick } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { config, settings, user, showSidebar, mobile, showArchivedChats } from '$lib/stores';
+	import { config, settings, user, showSidebar, mobile, showArchivedChats, showSearch } from '$lib/stores';
 	import { getModels } from '$lib/apis';
 	import { getModelItems as getWorkspaceModels } from '$lib/apis/models';
 	import { getFunctions } from '$lib/apis/functions';
@@ -21,7 +21,13 @@
 	const i18n: Writable<i18nType> = getContext('i18n');
 
 	let agents: any[] = [];
+	let orderedAgents: any[] = [];
 	let loading = false;
+	let draggedIndex: number | null = null;
+	let dragOverIndex: number | null = null;
+	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+	let isDragging = false;
+	let scrollContainer: HTMLDivElement;
 	let files: any[] = [];
 	let filesInputElement: HTMLInputElement;
 	let webSearchEnabled = false;
@@ -40,6 +46,132 @@
 				console.error('Failed to store files in sessionStorage:', error);
 				toast.error($i18n.t('Files are too large to transfer'));
 			}
+		}
+	};
+
+	const AGENT_ORDER_KEY = 'welcome-agent-order';
+
+	const applyStoredOrder = (agentList: any[]): any[] => {
+		try {
+			const storedOrder = localStorage.getItem(AGENT_ORDER_KEY);
+			if (storedOrder) {
+				const orderIds: string[] = JSON.parse(storedOrder);
+				const agentMap = new Map(agentList.map(a => [a.id, a]));
+				const ordered: any[] = [];
+				
+				// Add agents in stored order
+				for (const id of orderIds) {
+					const agent = agentMap.get(id);
+					if (agent) {
+						ordered.push(agent);
+						agentMap.delete(id);
+					}
+				}
+				
+				// Add any new agents not in stored order
+				for (const agent of agentMap.values()) {
+					ordered.push(agent);
+				}
+				
+				return ordered;
+			}
+		} catch (error) {
+			console.error('Failed to load agent order:', error);
+		}
+		return agentList;
+	};
+
+	const saveAgentOrder = () => {
+		try {
+			const orderIds = orderedAgents.map(a => a.id);
+			localStorage.setItem(AGENT_ORDER_KEY, JSON.stringify(orderIds));
+		} catch (error) {
+			console.error('Failed to save agent order:', error);
+		}
+	};
+
+	const handleDragStart = (index: number) => {
+		draggedIndex = index;
+		isDragging = true;
+	};
+
+	const handleDragOver = (index: number) => {
+		if (draggedIndex !== null && draggedIndex !== index) {
+			// Dynamically reorder the list as user drags
+			const newOrder = [...orderedAgents];
+			const [removed] = newOrder.splice(draggedIndex, 1);
+			newOrder.splice(index, 0, removed);
+			orderedAgents = newOrder;
+			draggedIndex = index; // Update dragged index to new position
+			dragOverIndex = null;
+		}
+	};
+
+	const handleDragEnd = () => {
+		if (isDragging) {
+			// Save the new order (reordering already happened dynamically)
+			saveAgentOrder();
+		}
+		draggedIndex = null;
+		dragOverIndex = null;
+		isDragging = false;
+	};
+
+	const handleTouchStart = (index: number, event: TouchEvent) => {
+		longPressTimer = setTimeout(() => {
+			handleDragStart(index);
+			// Vibrate for haptic feedback if supported
+			if (navigator.vibrate) {
+				navigator.vibrate(50);
+			}
+		}, 500); // 500ms long press
+	};
+
+	const handleTouchMove = (event: TouchEvent) => {
+		if (!isDragging) {
+			// Cancel long press if user moves before drag starts
+			if (longPressTimer) {
+				clearTimeout(longPressTimer);
+				longPressTimer = null;
+			}
+			return;
+		}
+		
+		event.preventDefault();
+		const touch = event.touches[0];
+		
+		// Auto-scroll when near edges of scroll container
+		if (scrollContainer) {
+			const rect = scrollContainer.getBoundingClientRect();
+			const scrollThreshold = 50; // pixels from edge to trigger scroll
+			const scrollSpeed = 8; // pixels per frame
+			
+			if (touch.clientY < rect.top + scrollThreshold) {
+				// Near top - scroll up
+				scrollContainer.scrollTop -= scrollSpeed;
+			} else if (touch.clientY > rect.bottom - scrollThreshold) {
+				// Near bottom - scroll down
+				scrollContainer.scrollTop += scrollSpeed;
+			}
+		}
+		
+		const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
+		const agentButton = elements.find(el => el.hasAttribute('data-agent-index'));
+		if (agentButton) {
+			const index = parseInt(agentButton.getAttribute('data-agent-index') || '-1');
+			if (index >= 0) {
+				handleDragOver(index);
+			}
+		}
+	};
+
+	const handleTouchEnd = () => {
+		if (longPressTimer) {
+			clearTimeout(longPressTimer);
+			longPressTimer = null;
+		}
+		if (isDragging) {
+			handleDragEnd();
 		}
 	};
 
@@ -71,6 +203,9 @@
 				m.is_active !== false && 
 				agentIds.has(m.id)
 			);
+			
+			// Apply stored order from localStorage
+			orderedAgents = applyStoredOrder(agents);
 		} catch (error) {
 			console.error('Error loading agents:', error);
 		} finally {
@@ -250,10 +385,10 @@
 		<div class="max-w-6xl mx-auto w-full h-full md:h-auto flex flex-col">
 			<!-- Greeting -->
 			<div class="mb-6 md:mb-8 mt-2 md:mt-6">
-				<h1 style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;" class="font-semibold mb-1 text-gray-900 dark:text-white">
+				<h1 style="font-size: clamp(2rem, 6vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;" class="font-semibold mb-1 text-gray-900 dark:text-white">
 					<span class="text-blue-600 dark:text-blue-400">{$i18n.t('Hello, {{name}}.', { name: $user?.name || $i18n.t('there') })}</span>
 				</h1>
-				<p style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;" class="font-semibold text-gray-600 dark:text-gray-400">{$i18n.t('how can I help?')}</p>
+				<p style="font-size: clamp(2rem, 6vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;" class="font-semibold text-gray-600 dark:text-gray-400">{$i18n.t('how can I help?')}</p>
 			</div>
 
 			<!-- Chat Input - Desktop only (inline) -->
@@ -425,6 +560,41 @@
 			</form>
 		</div>
 
+			<!-- Quick Actions - Mobile only -->
+			<div class="md:hidden mb-6">
+				<h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">{$i18n.t('Quick Actions')}</h2>
+				<div class="flex gap-3 overflow-x-auto scrollbar-none pb-1">
+					<a
+						href="/?new=true"
+						class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-[0.98] transition"
+					>
+						<svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+						</svg>
+						<span class="text-sm font-medium text-gray-900 dark:text-gray-100">{$i18n.t('New Chat')}</span>
+					</a>
+					<button
+						type="button"
+						on:click={() => showSearch.set(true)}
+						class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-[0.98] transition"
+					>
+						<svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+						</svg>
+						<span class="text-sm font-medium text-gray-900 dark:text-gray-100">{$i18n.t('Search')}</span>
+					</button>
+					<a
+						href="/notes"
+						class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-[0.98] transition"
+					>
+						<svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+						</svg>
+						<span class="text-sm font-medium text-gray-900 dark:text-gray-100">{$i18n.t('Notes')}</span>
+					</a>
+				</div>
+			</div>
+
 			<!-- Agents Section (scrollable on mobile, positioned at bottom for thumb reach) -->
 			<div class="w-full mt-auto md:mt-0">
 			<div class="flex items-center justify-between mb-6">
@@ -452,20 +622,29 @@
 					</a>
 				</div>
 			{:else}
-				<!-- Mobile: Constrained vertical scroll area -->
+				<!-- Mobile: Constrained vertical scroll area with drag reorder -->
 				<div class="md:hidden flex flex-col">
-					<div class="overflow-y-auto max-h-[240px] space-y-2 scrollbar-none">
-						{#each agents as agent}
+					<div 
+						bind:this={scrollContainer}
+						class="overflow-y-auto max-h-[240px] space-y-2 scrollbar-none"
+						on:touchmove={handleTouchMove}
+						on:touchend={handleTouchEnd}
+					>
+						{#each orderedAgents as agent, index (agent.id)}
 							<button
-								on:click={() => selectAgent(agent.id)}
-								class="w-full flex items-center gap-2.5 p-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 active:scale-[0.98] transition text-left"
+								data-agent-index={index}
+								on:click={() => !isDragging && selectAgent(agent.id)}
+								on:touchstart={(e) => handleTouchStart(index, e)}
+								class="w-full flex items-center gap-2.5 p-2.5 rounded-xl border transition-all duration-150 text-left touch-manipulation
+									{draggedIndex === index ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-500 border-2 shadow-lg scale-[1.02]' : 'bg-white dark:bg-gray-850 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'}
+									{!isDragging ? 'active:scale-[0.98]' : ''}"
 							>
 								<img
 									src={agent?.meta?.profile_image_url ?? agent?.info?.meta?.profile_image_url ?? '/static/favicon.png'}
 									alt={agent.name}
-									class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700 flex-shrink-0"
+									class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700 flex-shrink-0 pointer-events-none"
 								/>
-								<div class="min-w-0 flex-1">
+								<div class="min-w-0 flex-1 pointer-events-none">
 									<h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
 										{agent.name}
 									</h3>
@@ -473,7 +652,7 @@
 										{agent?.meta?.description ?? agent?.info?.meta?.description ?? ''}
 									</p>
 								</div>
-								<svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<svg class="w-4 h-4 text-gray-400 flex-shrink-0 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
 								</svg>
 							</button>
@@ -495,7 +674,7 @@
 
 				<!-- Desktop/Tablet: Grid layout -->
 				<div class="hidden md:grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-					{#each agents.slice(0, 11) as agent}
+					{#each orderedAgents.slice(0, 11) as agent}
 						<button
 							on:click={() => selectAgent(agent.id)}
 							class="flex flex-col p-5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:shadow-md transition text-left relative group"
