@@ -24,7 +24,6 @@
 	let loading = false;
 	let files: any[] = [];
 	let filesInputElement: HTMLInputElement;
-	let cameraInputElement: HTMLInputElement;
 	let webSearchEnabled = false;
 	let imageGenerationEnabled = false;
 	let codeInterpreterEnabled = false;
@@ -33,9 +32,15 @@
 	let inputElement: HTMLInputElement;
 	let mobileInputElement: HTMLInputElement;
 
-	const detectMobile = () => {
-		const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera;
-		return /android|iphone|ipad|ipod|windows phone/i.test(userAgent);
+	const storeFilesForTransfer = () => {
+		if (files.length > 0) {
+			try {
+				sessionStorage.setItem('welcome-files', JSON.stringify(files));
+			} catch (error) {
+				console.error('Failed to store files in sessionStorage:', error);
+				toast.error($i18n.t('Files are too large to transfer'));
+			}
+		}
 	};
 
 	onMount(async () => {
@@ -82,15 +87,7 @@
 	});
 
 	const selectAgent = (agentId: string) => {
-		// Store files in sessionStorage if any are attached
-		if (files.length > 0) {
-			try {
-				sessionStorage.setItem('welcome-files', JSON.stringify(files));
-			} catch (error) {
-				console.error('Failed to store files in sessionStorage:', error);
-				toast.error($i18n.t('Files are too large to transfer'));
-			}
-		}
+		storeFilesForTransfer();
 		goto(`/?models=${encodeURIComponent(agentId)}`);
 	};
 
@@ -98,16 +95,7 @@
 		const formData = new FormData(e.target as HTMLFormElement);
 		const message = formData.get('message') as string;
 		if (message && message.trim()) {
-			// Store files in sessionStorage for Chat component to pick up
-			if (files.length > 0) {
-				try {
-					sessionStorage.setItem('welcome-files', JSON.stringify(files));
-				} catch (error) {
-					console.error('Failed to store files in sessionStorage:', error);
-					toast.error($i18n.t('Files are too large to transfer'));
-				}
-			}
-			
+			storeFilesForTransfer();
 			const params = new URLSearchParams({ q: message.trim() });
 			if (webSearchEnabled) {
 				params.set('web-search', 'true');
@@ -164,23 +152,12 @@
 		}
 	};
 
-	const handleFileInputChange = async (event: Event) => {
+	const handleFileInputChange = (event: Event) => {
 		const input = event.target as HTMLInputElement;
 		const selectedFiles = Array.from(input.files || []);
-		
-		for (const file of selectedFiles) {
-			if (file.type.startsWith('image/')) {
-				const reader = new FileReader();
-				reader.onload = (e) => {
-					files = [...files, { type: 'image', url: e.target?.result as string, name: file.name }];
-				};
-				reader.readAsDataURL(file);
-			} else {
-				// For non-image files, store file object
-				files = [...files, { type: 'file', file: file, name: file.name }];
-			}
+		if (selectedFiles.length > 0) {
+			inputFilesHandler(selectedFiles);
 		}
-		
 		input.value = '';
 	};
 
@@ -189,15 +166,7 @@
 	};
 
 	const handleVoiceMode = () => {
-		// Store files in sessionStorage if any are attached
-		if (files.length > 0) {
-			try {
-				sessionStorage.setItem('welcome-files', JSON.stringify(files));
-			} catch (error) {
-				console.error('Failed to store files in sessionStorage:', error);
-				toast.error($i18n.t('Files are too large to transfer'));
-			}
-		}
+		storeFilesForTransfer();
 		goto('/?call=true');
 	};
 
@@ -323,15 +292,6 @@
 					on:change={handleFileInputChange}
 					style="display: none;"
 				/>
-				<input
-					bind:this={cameraInputElement}
-					type="file"
-					accept="image/*"
-					capture="environment"
-					on:change={handleFileInputChange}
-					style="display: none;"
-				/>
-
 				<!-- File previews -->
 				{#if files.length > 0}
 					<div class="flex flex-wrap gap-2 mb-3">
@@ -357,6 +317,7 @@
 									type="button"
 									on:click={() => removeFile(index)}
 									class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+									aria-label={$i18n.t('Remove file')}
 								>
 									<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -455,6 +416,7 @@
 							<button
 								type="submit"
 								class="p-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition"
+								aria-label={$i18n.t('Send')}
 							>
 								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
@@ -588,15 +550,15 @@
 					onCancel={async () => {
 						recording = false;
 						await tick();
-						inputElement?.focus();
+						mobileInputElement?.focus();
 					}}
 					onConfirm={async (data) => {
 						const { text } = data;
 						recording = false;
 						await tick();
-						if (text && inputElement) {
-							inputElement.value = text;
-							inputElement.focus();
+						if (text && mobileInputElement) {
+							mobileInputElement.value = text;
+							mobileInputElement.focus();
 						}
 					}}
 				/>
@@ -628,6 +590,7 @@
 							type="button"
 							on:click={() => removeFile(index)}
 							class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
+							aria-label={$i18n.t('Remove file')}
 						>
 							<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -708,6 +671,7 @@
 					<button
 						type="submit"
 						class="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition"
+						aria-label={$i18n.t('Send')}
 					>
 						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
