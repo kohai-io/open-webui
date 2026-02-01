@@ -175,7 +175,7 @@
 					<div class="text-center py-8 text-gray-500 dark:text-gray-400">{$i18n.t('No data')}</div>
 				{/if}
 			</ChartCard>
-			<ChartCard title={$i18n.t('Top Models by Usage')}>
+			<ChartCard title={$i18n.t('Top Models by Usage')} href="/admin/dashboard/models">
 				{#if stats.models.top_models && stats.models.top_models.length > 0}
 					<BarChart
 						labels={stats.models.top_models.map(m => m.name.length > 20 ? m.name.substring(0, 20) + '...' : m.name)}
