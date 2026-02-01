@@ -7,6 +7,8 @@
 	import StatCard from './StatCard.svelte';
 	import ChartCard from './ChartCard.svelte';
 	import TopList from './TopList.svelte';
+	import BarChart from './BarChart.svelte';
+	import DoughnutChart from './DoughnutChart.svelte';
 
 	const i18n = getContext('i18n');
 
@@ -111,105 +113,43 @@
 		<!-- User Activity Section -->
 		<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 			<ChartCard title={$i18n.t('User Registrations')}>
-				<div class="grid grid-cols-3 gap-4 text-center">
-					<div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-						<div class="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.users.registrations.today}</div>
-						<div class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('Today')}</div>
-						{#if stats.users.comparison.registrations.day.delta !== 0}
-							<div class="text-xs mt-1 {stats.users.comparison.registrations.day.delta > 0 ? 'text-green-500' : 'text-red-500'}">
-								{stats.users.comparison.registrations.day.delta > 0 ? '+' : ''}{stats.users.comparison.registrations.day.delta}
-							</div>
-						{/if}
-					</div>
-					<div class="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-						<div class="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.users.registrations.week}</div>
-						<div class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('This Week')}</div>
-						{#if stats.users.comparison.registrations.week.delta !== 0}
-							<div class="text-xs mt-1 {stats.users.comparison.registrations.week.delta > 0 ? 'text-green-500' : 'text-red-500'}">
-								{stats.users.comparison.registrations.week.delta > 0 ? '+' : ''}{stats.users.comparison.registrations.week.delta}
-							</div>
-						{/if}
-					</div>
-					<div class="p-3 bg-pink-50 dark:bg-pink-900/20 rounded-lg">
-						<div class="text-2xl font-bold text-pink-600 dark:text-pink-400">{stats.users.registrations.month}</div>
-						<div class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('This Month')}</div>
-						{#if stats.users.comparison.registrations.month.delta !== 0}
-							<div class="text-xs mt-1 {stats.users.comparison.registrations.month.delta > 0 ? 'text-green-500' : 'text-red-500'}">
-								{stats.users.comparison.registrations.month.delta > 0 ? '+' : ''}{stats.users.comparison.registrations.month.delta}
-							</div>
-						{/if}
-					</div>
-				</div>
+				<BarChart
+					labels={[$i18n.t('Today'), $i18n.t('Week'), $i18n.t('Month'), $i18n.t('Quarter'), $i18n.t('Year')]}
+					data={[stats.users.registrations.today, stats.users.registrations.week, stats.users.registrations.month, stats.users.registrations.quarter, stats.users.registrations.year]}
+					colors={['rgba(59, 130, 246, 0.8)', 'rgba(147, 51, 234, 0.8)', 'rgba(236, 72, 153, 0.8)', 'rgba(34, 197, 94, 0.8)', 'rgba(249, 115, 22, 0.8)']}
+					height={160}
+				/>
 			</ChartCard>
 
 			<ChartCard title={$i18n.t('Active Users')}>
-				<div class="grid grid-cols-4 gap-3 text-center">
-					<div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-						<div class="text-xl font-bold text-blue-600 dark:text-blue-400">{stats.users.active.day}</div>
-						<div class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('24h')}</div>
-					</div>
-					<div class="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-						<div class="text-xl font-bold text-purple-600 dark:text-purple-400">{stats.users.active.week}</div>
-						<div class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('Week')}</div>
-					</div>
-					<div class="p-3 bg-pink-50 dark:bg-pink-900/20 rounded-lg">
-						<div class="text-xl font-bold text-pink-600 dark:text-pink-400">{stats.users.active.month}</div>
-						<div class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('Month')}</div>
-					</div>
-					<div class="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-						<div class="text-xl font-bold text-green-600 dark:text-green-400">{stats.users.active.all_time}</div>
-						<div class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('All Time')}</div>
-					</div>
-				</div>
+				<BarChart
+					labels={[$i18n.t('24h'), $i18n.t('Week'), $i18n.t('Month'), $i18n.t('Quarter'), $i18n.t('All Time')]}
+					data={[stats.users.active.day, stats.users.active.week, stats.users.active.month, stats.users.active.quarter, stats.users.active.all_time]}
+					colors={['rgba(59, 130, 246, 0.8)', 'rgba(147, 51, 234, 0.8)', 'rgba(236, 72, 153, 0.8)', 'rgba(34, 197, 94, 0.8)', 'rgba(99, 102, 241, 0.8)']}
+					height={160}
+				/>
 			</ChartCard>
 		</div>
 
 		<!-- User Roles & Chat Activity -->
 		<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 			<ChartCard title={$i18n.t('User Roles')}>
-				<div class="flex items-center justify-around py-4">
-					<div class="text-center">
-						<div class="w-16 h-16 mx-auto mb-2 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-							<span class="text-xl font-bold text-blue-600 dark:text-blue-400">{stats.users.roles.admin}</span>
-						</div>
-						<div class="text-sm text-gray-600 dark:text-gray-400">{$i18n.t('Admins')}</div>
-					</div>
-					<div class="text-center">
-						<div class="w-16 h-16 mx-auto mb-2 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-							<span class="text-xl font-bold text-purple-600 dark:text-purple-400">{stats.users.roles.user}</span>
-						</div>
-						<div class="text-sm text-gray-600 dark:text-gray-400">{$i18n.t('Users')}</div>
-					</div>
-					<div class="text-center">
-						<div class="w-16 h-16 mx-auto mb-2 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-							<span class="text-xl font-bold text-orange-600 dark:text-orange-400">{stats.users.roles.pending}</span>
-						</div>
-						<div class="text-sm text-gray-600 dark:text-gray-400">{$i18n.t('Pending')}</div>
-					</div>
-				</div>
+				<DoughnutChart
+					labels={[$i18n.t('Admins'), $i18n.t('Users'), $i18n.t('Pending')]}
+					data={[stats.users.roles.admin, stats.users.roles.user, stats.users.roles.pending]}
+					colors={['rgba(59, 130, 246, 0.8)', 'rgba(147, 51, 234, 0.8)', 'rgba(249, 115, 22, 0.8)']}
+					height={180}
+				/>
 			</ChartCard>
 
 			<ChartCard title={$i18n.t('Chat Activity')}>
-				<div class="grid grid-cols-3 gap-4 text-center">
-					<div class="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-						<div class="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.chats.activity.today}</div>
-						<div class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('Today')}</div>
-						{#if stats.chats.comparison.day.delta !== 0}
-							<div class="text-xs mt-1 {stats.chats.comparison.day.delta > 0 ? 'text-green-500' : 'text-red-500'}">
-								{stats.chats.comparison.day.delta > 0 ? '+' : ''}{stats.chats.comparison.day.delta}
-							</div>
-						{/if}
-					</div>
-					<div class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-						<div class="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.chats.activity.week}</div>
-						<div class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('This Week')}</div>
-					</div>
-					<div class="p-3 bg-pink-50 dark:bg-pink-900/20 rounded-lg">
-						<div class="text-2xl font-bold text-pink-600 dark:text-pink-400">{stats.chats.activity.month}</div>
-						<div class="text-xs text-gray-500 dark:text-gray-400">{$i18n.t('This Month')}</div>
-					</div>
-				</div>
-				<div class="mt-4 flex justify-center gap-6 text-sm text-gray-500 dark:text-gray-400">
+				<BarChart
+					labels={[$i18n.t('Today'), $i18n.t('Week'), $i18n.t('Month')]}
+					data={[stats.chats.activity.today, stats.chats.activity.week, stats.chats.activity.month]}
+					colors={['rgba(147, 51, 234, 0.8)', 'rgba(59, 130, 246, 0.8)', 'rgba(236, 72, 153, 0.8)']}
+					height={140}
+				/>
+				<div class="mt-2 flex justify-center gap-6 text-sm text-gray-500 dark:text-gray-400">
 					<span>📌 {stats.chats.pinned} {$i18n.t('pinned')}</span>
 					<span>📦 {stats.chats.archived} {$i18n.t('archived')}</span>
 				</div>
@@ -218,16 +158,32 @@
 
 		<!-- Top Users & Models -->
 		<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-			<TopList
-				title={$i18n.t('Top Users by Chats')}
-				items={stats.users.top_by_chats.map(u => ({ name: u.name, value: u.chats, subtitle: `${formatNumber(u.total_tokens)} tokens` }))}
-				valueLabel={$i18n.t('chats')}
-			/>
-			<TopList
-				title={$i18n.t('Top Models by Usage')}
-				items={stats.models.top_models.map(m => ({ name: m.name, value: m.messages, subtitle: `${formatNumber(m.total_tokens)} tokens` }))}
-				valueLabel={$i18n.t('messages')}
-			/>
+			<ChartCard title={$i18n.t('Top Users by Chats')}>
+				{#if stats.users.top_by_chats && stats.users.top_by_chats.length > 0}
+					<BarChart
+						labels={stats.users.top_by_chats.map(u => u.name)}
+						data={stats.users.top_by_chats.map(u => u.chats)}
+						colors="rgba(59, 130, 246, 0.8)"
+						height={200}
+						horizontal={true}
+					/>
+				{:else}
+					<div class="text-center py-8 text-gray-500 dark:text-gray-400">{$i18n.t('No data')}</div>
+				{/if}
+			</ChartCard>
+			<ChartCard title={$i18n.t('Top Models by Usage')}>
+				{#if stats.models.top_models && stats.models.top_models.length > 0}
+					<BarChart
+						labels={stats.models.top_models.map(m => m.name.length > 20 ? m.name.substring(0, 20) + '...' : m.name)}
+						data={stats.models.top_models.map(m => m.messages)}
+						colors="rgba(147, 51, 234, 0.8)"
+						height={200}
+						horizontal={true}
+					/>
+				{:else}
+					<div class="text-center py-8 text-gray-500 dark:text-gray-400">{$i18n.t('No data')}</div>
+				{/if}
+			</ChartCard>
 		</div>
 
 		<!-- Additional Stats -->
@@ -310,33 +266,24 @@
 		<!-- File Types -->
 		{#if stats.files.top_types && stats.files.top_types.length > 0}
 			<ChartCard title={$i18n.t('Top File Types')}>
-				<div class="flex flex-wrap gap-2">
-					{#each stats.files.top_types as fileType}
-						<div class="px-3 py-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
-							<span class="font-medium text-gray-700 dark:text-gray-300">{fileType.type}</span>
-							<span class="ml-2 text-sm text-gray-500 dark:text-gray-400">({fileType.count})</span>
-						</div>
-					{/each}
-				</div>
+				<BarChart
+					labels={stats.files.top_types.map(t => t.type)}
+					data={stats.files.top_types.map(t => t.count)}
+					colors="rgba(99, 102, 241, 0.8)"
+					height={160}
+				/>
 			</ChartCard>
 		{/if}
 
 		<!-- Feedback Ratings -->
 		{#if stats.feedback.total > 0}
 			<ChartCard title={$i18n.t('Feedback Ratings Distribution')}>
-				<div class="flex items-end justify-around h-32 px-4">
-					{#each Object.entries(stats.feedback.ratings) as [rating, count]}
-						{@const maxCount = Math.max(...Object.values(stats.feedback.ratings))}
-						{@const height = maxCount > 0 ? (count / maxCount) * 100 : 0}
-						<div class="flex flex-col items-center gap-1">
-							<div 
-								class="w-6 rounded-t transition-all duration-300"
-								style="height: {Math.max(height, 4)}%; background-color: {parseInt(rating) <= 3 ? '#ef4444' : parseInt(rating) <= 6 ? '#f59e0b' : '#22c55e'};"
-							></div>
-							<span class="text-xs text-gray-500 dark:text-gray-400">{rating}</span>
-						</div>
-					{/each}
-				</div>
+				<BarChart
+					labels={Object.keys(stats.feedback.ratings)}
+					data={Object.values(stats.feedback.ratings)}
+					colors={Object.keys(stats.feedback.ratings).map(r => parseInt(r) <= 3 ? 'rgba(239, 68, 68, 0.8)' : parseInt(r) <= 6 ? 'rgba(245, 158, 11, 0.8)' : 'rgba(34, 197, 94, 0.8)')}
+					height={160}
+				/>
 			</ChartCard>
 		{/if}
 	{/if}
