@@ -247,7 +247,7 @@
 
 	<!-- Mobile/Tablet: Fixed content area (no page scroll) -->
 	<div class="flex-1 overflow-hidden md:overflow-y-auto px-6 py-4 md:py-8 md:px-12 lg:px-20 pb-24 md:pb-8">
-		<div class="max-w-6xl mx-auto w-full">
+		<div class="max-w-6xl mx-auto w-full h-full md:h-auto flex flex-col">
 			<!-- Greeting -->
 			<div class="mb-6 md:mb-8 mt-2 md:mt-6">
 				<h1 style="font-size: clamp(1.5rem, 4.5vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;" class="font-semibold mb-1 text-gray-900 dark:text-white">
@@ -425,13 +425,13 @@
 			</form>
 		</div>
 
-			<!-- Agents Section (scrollable on mobile) -->
-			<div class="w-full">
+			<!-- Agents Section (scrollable on mobile, positioned at bottom for thumb reach) -->
+			<div class="w-full mt-auto md:mt-0">
 			<div class="flex items-center justify-between mb-6">
 			<h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200">{$i18n.t('Agents')}</h2>
 			<a
 				href="/workspace/agents"
-				class="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+				class="hidden md:block text-sm text-blue-600 dark:text-blue-400 hover:underline"
 			>
 				{$i18n.t('View all')}
 			</a>
@@ -490,9 +490,6 @@
 							</div>
 							<span class="text-sm font-medium text-blue-600 dark:text-blue-400">{$i18n.t('Create Agent')}</span>
 						</a>
-					</div>
-					<div class="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
-						{agents.length} {$i18n.t('agents')}
 					</div>
 				</div>
 
