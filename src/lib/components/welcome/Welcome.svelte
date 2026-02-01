@@ -77,11 +77,9 @@
 			loading = false;
 		}
 
-		// Focus chat input to show keyboard on mobile/tablet
+		// Focus chat input (desktop only - mobile browsers block programmatic keyboard)
 		await tick();
-		if ($mobile) {
-			mobileInputElement?.focus();
-		} else {
+		if (!$mobile) {
 			inputElement?.focus();
 		}
 	});
@@ -541,26 +539,26 @@
 	</div>
 
 	<!-- Mobile/Tablet: Fixed bottom chat input -->
-	<div class="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-4 py-3 z-40">
+	<div class="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-3 py-3 z-40 overflow-hidden">
 		<!-- Voice Recording Overlay -->
 		{#if recording}
 			<div class="mb-3">
 				<VoiceRecording
 					bind:recording
 					onCancel={async () => {
-						recording = false;
-						await tick();
-						mobileInputElement?.focus();
-					}}
-					onConfirm={async (data) => {
-						const { text } = data;
-						recording = false;
-						await tick();
-						if (text && mobileInputElement) {
-							mobileInputElement.value = text;
-							mobileInputElement.focus();
-						}
-					}}
+							recording = false;
+							await tick();
+							mobileInputElement?.focus({ preventScroll: true });
+						}}
+						onConfirm={async (data) => {
+							const { text } = data;
+							recording = false;
+							await tick();
+							if (text && mobileInputElement) {
+								mobileInputElement.value = text;
+								mobileInputElement.focus({ preventScroll: true });
+							}
+						}}
 				/>
 			</div>
 		{/if}
@@ -647,13 +645,17 @@
 					type="text"
 					name="message"
 					placeholder={$i18n.t('Ask anything...')}
-					class="flex-1 px-4 py-3 text-base rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
+					class="flex-1 min-w-0 px-3 py-3 text-base rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
+					on:focus={() => {
+						// Prevent scroll to input when keyboard opens
+						setTimeout(() => window.scrollTo(0, 0), 0);
+					}}
 				/>
-				<div class="flex items-center gap-1">
+				<div class="flex items-center gap-0.5 shrink-0">
 					<button
 						type="button"
 						on:click={handleDictate}
-						class="text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-2"
+						class="text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-1.5"
 						aria-label={$i18n.t('Dictate')}
 					>
 						<svg
@@ -670,7 +672,7 @@
 					</button>
 					<button
 						type="submit"
-						class="p-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition"
+						class="p-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition"
 						aria-label={$i18n.t('Send')}
 					>
 						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
