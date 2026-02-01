@@ -672,9 +672,10 @@
 					</div>
 				</div>
 
-				<!-- Desktop/Tablet: Grid layout -->
-				<div class="hidden md:grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-					{#each orderedAgents.slice(0, 11) as agent, index (agent.id)}
+				<!-- Desktop/Tablet: Grid layout with scroll -->
+				<div class="hidden md:block overflow-y-auto scrollbar-none" style="max-height: calc(3 * 72px + 2 * 12px);">
+					<div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-min">
+					{#each orderedAgents as agent, index (agent.id)}
 						<button
 							data-agent-index={index}
 							draggable="true"
@@ -688,37 +689,41 @@
 								handleDragOver(index);
 							}}
 							on:dragend={handleDragEnd}
-							class="flex flex-col p-4 bg-white dark:bg-gray-850 rounded-lg border transition-all duration-150 text-left group cursor-grab active:cursor-grabbing
+							class="flex items-center gap-3 p-3 h-[72px] bg-white dark:bg-gray-850 rounded-lg border transition-all duration-150 text-left group cursor-grab active:cursor-grabbing
 								{draggedIndex === index ? 'opacity-50 scale-95 border-blue-500 border-2' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm'}"
 						>
-							<div class="flex items-start justify-between gap-3 mb-2">
-								<h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-1 flex-1">
+							<img
+								src={agent?.meta?.profile_image_url ?? agent?.info?.meta?.profile_image_url ?? '/static/favicon.png'}
+								alt={agent.name}
+								class="w-9 h-9 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700 flex-shrink-0"
+							/>
+							<div class="min-w-0 flex-1">
+								<h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-1">
 									{agent.name}
 								</h3>
-								<img
-									src={agent?.meta?.profile_image_url ?? agent?.info?.meta?.profile_image_url ?? '/static/favicon.png'}
-									alt={agent.name}
-									class="w-8 h-8 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700 flex-shrink-0"
-								/>
+								<p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
+									{agent?.meta?.description ?? agent?.info?.meta?.description ?? ''}
+								</p>
 							</div>
-							<p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
-								{agent?.meta?.description ?? agent?.info?.meta?.description ?? ''}
-							</p>
 						</button>
 					{/each}
 
 					<!-- Create Agent Card - Desktop -->
 					<a
 						href="/workspace/models/create"
-						class="flex flex-col items-center justify-center gap-2 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 transition-all duration-150"
+						class="flex items-center gap-3 p-3 h-[72px] bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 transition-all duration-150"
 					>
-						<div class="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center">
+						<div class="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
 							<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
 							</svg>
 						</div>
-						<div class="text-xs font-medium text-blue-600 dark:text-blue-400">{$i18n.t('Create Agent')}</div>
+						<div class="min-w-0 flex-1">
+							<div class="text-sm font-semibold text-blue-600 dark:text-blue-400">{$i18n.t('Create Agent')}</div>
+							<p class="text-xs text-gray-500 dark:text-gray-400">Add a new agent</p>
+						</div>
 					</a>
+					</div>
 				</div>
 			{/if}
 	</div>
