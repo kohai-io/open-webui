@@ -747,6 +747,13 @@
 					? [
 							BubbleMenu.configure({
 								element: bubbleMenuElement,
+								shouldShow: ({ editor, state }) => {
+									// Only show bubble menu when there's actual text selected
+									const { from, to } = state.selection;
+									const hasSelection = from !== to;
+									const selectedText = state.doc.textBetween(from, to, ' ').trim();
+									return hasSelection && selectedText.length > 0;
+								},
 								tippyOptions: {
 									duration: 100,
 									arrow: false,
@@ -757,6 +764,17 @@
 							}),
 							FloatingMenu.configure({
 								element: floatingMenuElement,
+								shouldShow: ({ editor, state }) => {
+									// Only show floating menu when selection is empty and on an empty line
+									const { from, to } = state.selection;
+									const hasSelection = from !== to;
+									if (hasSelection) return false;
+
+									// Check if current line/block is empty
+									const $from = state.selection.$from;
+									const isEmptyBlock = $from.parent.content.size === 0;
+									return isEmptyBlock;
+								},
 								tippyOptions: {
 									duration: 100,
 									arrow: false,
