@@ -201,14 +201,10 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
             expires_delta=timedelta(seconds=300),
         )
         
-        # Call the internal API
-        # Try WEBUI_URL from env first, fallback to localhost
+        # Call the internal API - always use localhost since scheduler runs on same server
         import os
-        webui_url = os.environ.get("WEBUI_URL", "").rstrip("/")
-        if not webui_url:
-            port = os.environ.get("PORT", "8080")
-            webui_url = f"http://127.0.0.1:{port}"
-        api_url = f"{webui_url}/api/chat/completions"
+        port = os.environ.get("PORT", "8080")
+        api_url = f"http://127.0.0.1:{port}/api/chat/completions"
         
         log.info(f"[Scheduler] Calling API: {api_url}")
         
