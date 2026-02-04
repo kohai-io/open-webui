@@ -1206,6 +1206,19 @@
 				params = chatContent?.params ?? {};
 				chatFiles = chatContent?.files ?? [];
 
+				// Restore tool_ids from chat data (e.g., from scheduled prompts)
+				if (chatContent?.tool_ids && Array.isArray(chatContent.tool_ids)) {
+					// Ensure tools are loaded before filtering
+					let availableTools = $tools;
+					if (!availableTools) {
+						availableTools = await getTools(localStorage.token);
+						tools.set(availableTools);
+					}
+					if (availableTools) {
+						selectedToolIds = chatContent.tool_ids.filter((id: string) => availableTools.find((t: any) => t.id === id));
+					}
+				}
+
 				autoScroll = true;
 				await tick();
 

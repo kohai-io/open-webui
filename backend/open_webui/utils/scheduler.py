@@ -134,10 +134,66 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
             "stream": False,
         }
         
-        # Get models from app state
+        # Get models from app state and validate/fallback model
         models = app.state.MODELS
-        if prompt.model_id not in models:
-            raise Exception(f"Model {prompt.model_id} not found")
+        model_id = prompt.model_id
+        
+        if model_id not in models:
+            # Try to use user's default model or first available model
+            log.warning(f"[Scheduler] Model {model_id} not found, looking for fallback")
+            
+            # Check user settings for default model
+            user_default_model = None
+            if user.settings:
+                # user.settings is a UserSettings Pydantic model, access via model_dump() or getattr
+                settings_dict = user.settings.model_dump() if hasattr(user.settings, 'model_dump') else {}
+                models_list = settings_dict.get("models", [])
+                if models_list:
+                    user_default_model = models_list[0]
+            
+            if user_default_model and user_default_model in models:
+                model_id = user_default_model
+                log.info(f"[Scheduler] Using user's default model: {model_id}")
+            elif models:
+                # Use first available model as last resort
+                model_id = list(models.keys())[0]
+                log.info(f"[Scheduler] Using first available model: {model_id}")
+            else:
+                raise Exception(f"Model {prompt.model_id} not found and no fallback available")
+        
+        # Update payload with resolved model
+        payload["model"] = model_id
+        
+        # Determine tool_ids: use explicit prompt.tool_ids, or inherit from model config
+        tool_ids = prompt.tool_ids
+        if not tool_ids:
+            # Check if the model has default tools configured
+            model_info = models.get(model_id, {})
+            model_tool_ids = model_info.get("info", {}).get("meta", {}).get("toolIds", [])
+            if model_tool_ids:
+                tool_ids = model_tool_ids
+                log.info(f"[Scheduler] Using model's configured tools: {tool_ids}")
+        
+        if tool_ids:
+            payload["tool_ids"] = tool_ids
+            log.info(f"[Scheduler] Prompt will use tools: {tool_ids}")
+            
+            # Build tool instruction - exclude prompt_scheduler from "use these tools" instruction
+            # since this IS a scheduled prompt execution, not a request to create one
+            action_tools = [t for t in tool_ids if 'prompt_scheduler' not in t.lower()]
+            
+            if action_tools:
+                tool_instruction = f"\n\nIMPORTANT: This is an automated scheduled reminder. You have access to these tools: {', '.join(action_tools)}. Use them to help the user with their request. For example, if this is about a todo list, use the notes_manager tool to fetch the actual current data."
+            else:
+                tool_instruction = "\n\nIMPORTANT: This is an automated scheduled reminder. Respond helpfully to the user's request."
+            
+            if messages and messages[0].get("role") == "system":
+                messages[0]["content"] += tool_instruction
+            else:
+                messages.insert(0, {
+                    "role": "system",
+                    "content": f"You are a helpful assistant.{tool_instruction}"
+                })
         
         # Create a short-lived token for this user
         token = create_token(
@@ -203,15 +259,19 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
         if prompt.create_new_chat or not chat_id:
             # Create new chat
             title = prompt.name or prompt.prompt[:50] + ("..." if len(prompt.prompt) > 50 else "")
+            chat_data = {
+                "title": f"[Scheduled] {title}",
+                "messages": chat_messages,
+                "models": [model_id],
+            }
+            # Include tool_ids in chat data so UI can restore them
+            if tool_ids:
+                chat_data["tool_ids"] = tool_ids
+                log.info(f"[Scheduler] Saving chat with tool_ids: {tool_ids}")
+            
             chat = Chats.insert_new_chat(
                 prompt.user_id,
-                ChatForm(
-                    chat={
-                        "title": f"[Scheduled] {title}",
-                        "messages": chat_messages,
-                        "models": [prompt.model_id],
-                    }
-                ),
+                ChatForm(chat=chat_data),
             )
             chat_id = chat.id if chat else None
         else:
@@ -225,40 +285,65 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
             else:
                 # Chat was deleted, create new one
                 title = prompt.name or prompt.prompt[:50]
+                chat_data = {
+                    "title": f"[Scheduled] {title}",
+                    "messages": chat_messages,
+                    "models": [model_id],
+                }
+                # Include tool_ids in chat data so UI can restore them
+                if tool_ids:
+                    chat_data["tool_ids"] = tool_ids
+                    log.info(f"[Scheduler] Saving fallback chat with tool_ids: {tool_ids}")
+                
                 chat = Chats.insert_new_chat(
                     prompt.user_id,
-                    ChatForm(
-                        chat={
-                            "title": f"[Scheduled] {title}",
-                            "messages": chat_messages,
-                            "models": [prompt.model_id],
-                        }
-                    ),
+                    ChatForm(chat=chat_data),
                 )
                 chat_id = chat.id if chat else None
         
-        # Calculate next run time
-        next_run_at = calculate_next_run(prompt.cron_expression, prompt.timezone)
-        
-        # Update execution status
-        ScheduledPrompts.update_execution_status(
-            prompt.id,
-            status="success",
-            error=None,
-            chat_id=chat_id,
-            next_run_at=next_run_at,
-        )
+        # Handle run_once: disable after successful execution, otherwise calculate next run
+        if prompt.run_once:
+            # Disable the prompt after one-off execution
+            next_run_at = None
+            ScheduledPrompts.update_execution_status(
+                prompt.id,
+                status="success",
+                error=None,
+                chat_id=chat_id,
+                next_run_at=None,
+            )
+            # Disable the prompt
+            from open_webui.models.scheduled_prompts import ScheduledPromptUpdateForm
+            ScheduledPrompts.update_scheduled_prompt_by_id(
+                prompt.id,
+                ScheduledPromptUpdateForm(enabled=False),
+            )
+            log.info(f"[Scheduler] One-off prompt {prompt.id} completed and disabled")
+        else:
+            # Calculate next run time for recurring prompts
+            next_run_at = calculate_next_run(prompt.cron_expression, prompt.timezone)
+            ScheduledPrompts.update_execution_status(
+                prompt.id,
+                status="success",
+                error=None,
+                chat_id=chat_id,
+                next_run_at=next_run_at,
+            )
         
         log.info(f"[Scheduler] Successfully executed prompt {prompt.id}, chat_id: {chat_id}")
         
         # Send notification to user via websocket
+        notification_message = f"'{prompt.name}' ran successfully"
+        if prompt.run_once:
+            notification_message += " (one-off, now disabled)"
+        
         await send_user_notification(
             prompt.user_id,
             {
                 "type": "scheduled_prompt",
                 "status": "success",
                 "title": f"Scheduled prompt completed",
-                "message": f"'{prompt.name}' ran successfully",
+                "message": notification_message,
                 "chat_id": chat_id,
                 "prompt_id": prompt.id,
             }
