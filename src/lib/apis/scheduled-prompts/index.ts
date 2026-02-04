@@ -12,6 +12,8 @@ export interface ScheduledPrompt {
 	prompt: string;
 	chat_id: string | null;
 	create_new_chat: boolean;
+	run_once: boolean;
+	tool_ids: string[] | null;
 	last_run_at: number | null;
 	next_run_at: number | null;
 	last_status: string | null;
@@ -30,6 +32,8 @@ export interface ScheduledPromptForm {
 	system_prompt?: string | null;
 	prompt: string;
 	create_new_chat?: boolean;
+	run_once?: boolean;
+	tool_ids?: string[] | null;
 }
 
 export interface ScheduledPromptUpdateForm {
@@ -41,6 +45,8 @@ export interface ScheduledPromptUpdateForm {
 	system_prompt?: string | null;
 	prompt?: string;
 	create_new_chat?: boolean;
+	run_once?: boolean;
+	tool_ids?: string[] | null;
 }
 
 export const getScheduledPrompts = async (token: string = ''): Promise<ScheduledPrompt[]> => {

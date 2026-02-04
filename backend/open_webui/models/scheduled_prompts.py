@@ -1,9 +1,9 @@
 import logging
 import time
 import uuid
-from typing import Optional
+from typing import Optional, List
 
-from open_webui.internal.db import Base, get_db
+from open_webui.internal.db import Base, get_db, JSONField
 from open_webui.env import SRC_LOG_LEVELS
 from open_webui.models.users import Users, UserResponse
 
@@ -38,6 +38,10 @@ class ScheduledPrompt(Base):
     # Chat linking
     chat_id = Column(String, nullable=True)  # Link to existing chat (updated after first run)
     create_new_chat = Column(Boolean, default=True)  # Create new chat each time vs append
+    run_once = Column(Boolean, default=False)  # If True, disable after first successful run
+    
+    # Tools
+    tool_ids = Column(JSONField, nullable=True)  # List of tool IDs to enable for this prompt
     
     # Execution tracking
     last_run_at = Column(BigInteger, nullable=True)
@@ -74,6 +78,8 @@ class ScheduledPromptModel(BaseModel):
     
     chat_id: Optional[str] = None
     create_new_chat: bool = True
+    run_once: bool = False
+    tool_ids: Optional[List[str]] = None
     
     last_run_at: Optional[int] = None
     next_run_at: Optional[int] = None
@@ -99,6 +105,8 @@ class ScheduledPromptForm(BaseModel):
     system_prompt: Optional[str] = None
     prompt: str
     create_new_chat: bool = True
+    run_once: bool = False
+    tool_ids: Optional[List[str]] = None
 
 
 class ScheduledPromptUpdateForm(BaseModel):
@@ -110,6 +118,8 @@ class ScheduledPromptUpdateForm(BaseModel):
     system_prompt: Optional[str] = None
     prompt: Optional[str] = None
     create_new_chat: Optional[bool] = None
+    run_once: Optional[bool] = None
+    tool_ids: Optional[List[str]] = None
 
 
 class ScheduledPromptResponse(BaseModel):
@@ -123,7 +133,9 @@ class ScheduledPromptResponse(BaseModel):
     system_prompt: Optional[str] = None
     prompt: str
     chat_id: Optional[str] = None
-    create_new_chat: bool
+    create_new_chat: bool = True
+    run_once: bool = False
+    tool_ids: Optional[List[str]] = None
     last_run_at: Optional[int] = None
     next_run_at: Optional[int] = None
     last_status: Optional[str] = None
@@ -162,6 +174,8 @@ class ScheduledPromptTable:
                     "system_prompt": form_data.system_prompt,
                     "prompt": form_data.prompt,
                     "create_new_chat": form_data.create_new_chat,
+                    "run_once": form_data.run_once,
+                    "tool_ids": form_data.tool_ids,
                     "next_run_at": next_run_at,
                     "created_at": int(time.time()),
                     "updated_at": int(time.time()),
@@ -275,6 +289,10 @@ class ScheduledPromptTable:
                 prompt.prompt = form_data.prompt
             if form_data.create_new_chat is not None:
                 prompt.create_new_chat = form_data.create_new_chat
+            if form_data.run_once is not None:
+                prompt.run_once = form_data.run_once
+            if form_data.tool_ids is not None:
+                prompt.tool_ids = form_data.tool_ids
             if next_run_at is not None:
                 prompt.next_run_at = next_run_at
                 

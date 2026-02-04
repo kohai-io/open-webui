@@ -8,9 +8,8 @@
 		type ScheduledPrompt,
 		type ScheduledPromptForm
 	} from '$lib/apis/scheduled-prompts';
-	import { models, tools as toolsStore } from '$lib/stores';
+	import { models } from '$lib/stores';
 	import { getModels } from '$lib/apis';
-	import { getTools } from '$lib/apis/tools';
 
 	import Modal from '$lib/components/common/Modal.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
@@ -28,11 +27,8 @@
 	let systemPrompt = '';
 	let promptText = '';
 	let createNewChat = true;
-	let runOnce = false;
 	let enabled = true;
-	let selectedToolIds: string[] = [];
 
-	let availableTools: any[] = [];
 	let loading = false;
 	let initialized = false;
 
@@ -68,16 +64,6 @@
 		if ($models.length === 0) {
 			models.set(await getModels(localStorage.token));
 		}
-		
-		// Load available tools
-		try {
-			const tools = await getTools(localStorage.token);
-			availableTools = tools || [];
-		} catch (e) {
-			console.error('Failed to load tools:', e);
-			availableTools = [];
-		}
-		
 		await tick();
 
 		if (prompt) {
@@ -89,9 +75,7 @@
 			systemPrompt = prompt.system_prompt || '';
 			promptText = prompt.prompt;
 			createNewChat = prompt.create_new_chat;
-			runOnce = prompt.run_once ?? false;
 			enabled = prompt.enabled;
-			selectedToolIds = prompt.tool_ids || [];
 		} else {
 			// Create mode - reset form
 			name = '';
@@ -101,9 +85,7 @@
 			systemPrompt = '';
 			promptText = '';
 			createNewChat = true;
-			runOnce = false;
 			enabled = true;
-			selectedToolIds = [];
 		}
 		initialized = true;
 	};
@@ -145,9 +127,7 @@
 				model_id: modelId,
 				system_prompt: systemPrompt.trim() || null,
 				prompt: promptText.trim(),
-				create_new_chat: createNewChat,
-				run_once: runOnce,
-				tool_ids: selectedToolIds.length > 0 ? selectedToolIds : null
+				create_new_chat: createNewChat
 			};
 
 			if (prompt) {
@@ -285,51 +265,11 @@
 				></textarea>
 			</div>
 
-			<!-- Tools -->
-			{#if availableTools.length > 0}
-				<div>
-					<label class="block text-sm font-medium mb-1">
-						Tools
-						<Tooltip content="Select tools to enable for this scheduled prompt">
-							<span class="text-gray-400 cursor-help">ⓘ</span>
-						</Tooltip>
-					</label>
-					<div class="flex flex-wrap gap-2 p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-850 max-h-32 overflow-y-auto">
-						{#each availableTools as tool}
-							<label class="flex items-center gap-1.5 px-2 py-1 rounded bg-gray-100 dark:bg-gray-700 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 transition text-xs">
-								<input
-									type="checkbox"
-									checked={selectedToolIds.includes(tool.id)}
-									on:change={(e) => {
-										if (e.currentTarget.checked) {
-											selectedToolIds = [...selectedToolIds, tool.id];
-										} else {
-											selectedToolIds = selectedToolIds.filter((id) => id !== tool.id);
-										}
-									}}
-									class="rounded"
-								/>
-								<span>{tool.name || tool.id}</span>
-							</label>
-						{/each}
-					</div>
-					{#if selectedToolIds.length > 0}
-						<div class="text-xs text-gray-500 mt-1">{selectedToolIds.length} tool(s) selected</div>
-					{/if}
-				</div>
-			{/if}
-
 			<!-- Options -->
-			<div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+			<div class="flex items-center gap-6">
 				<label class="flex items-center gap-2 cursor-pointer">
 					<input type="checkbox" bind:checked={createNewChat} class="rounded" />
 					<span class="text-sm">Create new chat each time</span>
-				</label>
-				<label class="flex items-center gap-2 cursor-pointer">
-					<input type="checkbox" bind:checked={runOnce} class="rounded" />
-					<Tooltip content="Run once then automatically disable">
-						<span class="text-sm">One-off (run once)</span>
-					</Tooltip>
 				</label>
 				<label class="flex items-center gap-2 cursor-pointer">
 					<input type="checkbox" bind:checked={enabled} class="rounded" />
