@@ -7,17 +7,24 @@ Checks the database every minute for due jobs and executes them.
 
 import asyncio
 import logging
+import os
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
+import aiohttp
 from croniter import croniter
 
-from open_webui.models.scheduled_prompts import ScheduledPrompts, ScheduledPromptModel
+from open_webui.models.scheduled_prompts import (
+    ScheduledPrompts,
+    ScheduledPromptModel,
+    ScheduledPromptUpdateForm,
+)
 from open_webui.models.chats import Chats, ChatForm
 from open_webui.models.users import Users
+from open_webui.utils.auth import create_token
 from open_webui.env import SRC_LOG_LEVELS
 
 log = logging.getLogger(__name__)
@@ -29,6 +36,9 @@ _scheduler_running = False
 
 # Check interval in seconds
 SCHEDULER_CHECK_INTERVAL = 60
+
+# Max concurrent prompt executions
+_execution_semaphore = asyncio.Semaphore(5)
 
 
 def validate_cron_expression(cron_expression: str) -> bool:
@@ -102,11 +112,6 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
     Returns:
         dict with execution result including chat_id
     """
-    import json
-    import aiohttp
-    from open_webui.utils.auth import create_token
-    from datetime import timedelta
-    
     log.info(f"[Scheduler] Executing scheduled prompt: {prompt.id} - {prompt.name}")
     
     try:
@@ -198,11 +203,10 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
         # Create a short-lived token for this user
         token = create_token(
             data={"id": prompt.user_id},
-            expires_delta=timedelta(seconds=300),
+            expires_delta=timedelta(seconds=600),
         )
         
         # Call the internal API - always use localhost since scheduler runs on same server
-        import os
         port = os.environ.get("PORT", "8080")
         api_url = f"http://127.0.0.1:{port}/api/chat/completions"
         
@@ -238,14 +242,14 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 "role": "user",
                 "content": prompt.prompt,
                 "timestamp": timestamp,
-                "models": [prompt.model_id],
+                "models": [model_id],
             },
             {
                 "id": str(uuid.uuid4()),
                 "role": "assistant",
                 "content": assistant_content,
                 "timestamp": timestamp,
-                "models": [prompt.model_id],
+                "models": [model_id],
             },
         ]
         
@@ -309,7 +313,6 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 next_run_at=None,
             )
             # Disable the prompt
-            from open_webui.models.scheduled_prompts import ScheduledPromptUpdateForm
             ScheduledPrompts.update_scheduled_prompt_by_id(
                 prompt.id,
                 ScheduledPromptUpdateForm(enabled=False),
@@ -354,16 +357,28 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
     except Exception as e:
         log.error(f"[Scheduler] Error executing prompt {prompt.id}: {e}")
         
-        # Calculate next run time even on failure
-        next_run_at = calculate_next_run(prompt.cron_expression, prompt.timezone)
-        
-        # Update execution status with error
-        ScheduledPrompts.update_execution_status(
-            prompt.id,
-            status="error",
-            error=str(e),
-            next_run_at=next_run_at,
-        )
+        if prompt.run_once:
+            # One-off prompts: disable on failure, don't retry forever
+            ScheduledPrompts.update_execution_status(
+                prompt.id,
+                status="error",
+                error=str(e),
+                next_run_at=None,
+            )
+            ScheduledPrompts.update_scheduled_prompt_by_id(
+                prompt.id,
+                ScheduledPromptUpdateForm(enabled=False),
+            )
+            log.warning(f"[Scheduler] One-off prompt {prompt.id} failed and disabled")
+        else:
+            # Recurring prompts: schedule next run despite failure
+            next_run_at = calculate_next_run(prompt.cron_expression, prompt.timezone)
+            ScheduledPrompts.update_execution_status(
+                prompt.id,
+                status="error",
+                error=str(e),
+                next_run_at=next_run_at,
+            )
         
         # Send error notification to user
         await send_user_notification(
@@ -371,8 +386,8 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
             {
                 "type": "scheduled_prompt",
                 "status": "error",
-                "title": f"Scheduled prompt failed",
-                "message": f"'{prompt.name}' failed: {str(e)[:100]}",
+                "title": "Scheduled prompt failed",
+                "message": f"'{prompt.name}' failed: {str(e)[:200]}",
                 "prompt_id": prompt.id,
             }
         )
@@ -399,12 +414,17 @@ async def scheduler_loop(app):
             if due_prompts:
                 log.info(f"[Scheduler] Found {len(due_prompts)} due prompt(s)")
             
-            for prompt in due_prompts:
-                try:
-                    await execute_scheduled_prompt(app, prompt)
-                except Exception as e:
-                    log.error(f"[Scheduler] Failed to execute prompt {prompt.id}: {e}")
-                    # Continue with other prompts even if one fails
+            # Execute prompts concurrently with a semaphore to limit parallelism
+            async def _run_with_semaphore(p):
+                async with _execution_semaphore:
+                    await execute_scheduled_prompt(app, p)
+            
+            tasks = [asyncio.create_task(_run_with_semaphore(p)) for p in due_prompts]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            
+            for prompt, result in zip(due_prompts, results):
+                if isinstance(result, Exception):
+                    log.error(f"[Scheduler] Failed to execute prompt {prompt.id}: {result}")
             
         except Exception as e:
             log.error(f"[Scheduler] Error in scheduler loop: {e}")
@@ -468,15 +488,15 @@ async def send_user_notification(user_id: str, data: dict):
             log.debug(f"[Scheduler] User {user_id} not online, skipping notification")
             return
         
-        # Emit notification to only the first/primary session to avoid duplicates
-        # (user may have multiple tabs open)
-        await sio.emit(
-            "notification",
-            data,
-            to=session_ids[0],
-        )
+        # Emit notification to all active sessions so every tab gets it
+        for sid in session_ids:
+            await sio.emit(
+                "notification",
+                data,
+                to=sid,
+            )
         
-        log.debug(f"[Scheduler] Sent notification to user {user_id}: {data.get('title')}")
+        log.debug(f"[Scheduler] Sent notification to user {user_id} ({len(session_ids)} session(s)): {data.get('title')}")
         
     except Exception as e:
         log.warning(f"[Scheduler] Failed to send notification: {e}")
