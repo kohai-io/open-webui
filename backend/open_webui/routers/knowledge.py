@@ -24,6 +24,7 @@ from open_webui.storage.provider import Storage
 from open_webui.constants import ERROR_MESSAGES
 from open_webui.utils.auth import get_verified_user
 from open_webui.utils.access_control import has_access, has_permission
+from open_webui.utils.skills import is_skill_file, parse_skill_md
 
 
 from open_webui.env import SRC_LOG_LEVELS
@@ -419,6 +420,23 @@ def add_file_to_knowledge_by_id(
 
             knowledge = Knowledges.update_knowledge_data_by_id(id=id, data=data)
 
+            # Detect SKILL.md files and update knowledge meta
+            if file and is_skill_file(file.filename):
+                content = file.data.get("content", "") if file.data else ""
+                if content:
+                    skill = parse_skill_md(content)
+                    if skill:
+                        meta = knowledge.meta or {}
+                        meta["type"] = "skill"
+                        meta["skill_metadata"] = skill.to_dict()
+                        meta["skill_body"] = skill.body
+                        Knowledges.update_knowledge_meta_by_id(id=id, meta=meta)
+                        knowledge = Knowledges.get_knowledge_by_id(id=id)
+                        log.info(
+                            f"Detected SKILL.md in knowledge base {id}: "
+                            f"skill_name={skill.name}"
+                        )
+
             if knowledge:
                 files = Files.get_file_metadatas_by_ids(file_ids)
 
@@ -700,6 +718,83 @@ async def reset_knowledge_by_id(id: str, user=Depends(get_verified_user)):
     knowledge = Knowledges.update_knowledge_data_by_id(id=id, data={"file_ids": []})
 
     return knowledge
+
+
+############################
+# ToggleSkillType
+############################
+
+
+class KnowledgeSkillToggleForm(BaseModel):
+    is_skill: bool
+    skill_name: Optional[str] = None
+    skill_description: Optional[str] = None
+
+
+@router.post("/{id}/skill/toggle", response_model=Optional[KnowledgeFilesResponse])
+async def toggle_knowledge_skill_type(
+    id: str,
+    form_data: KnowledgeSkillToggleForm,
+    user=Depends(get_verified_user),
+):
+    knowledge = Knowledges.get_knowledge_by_id(id=id)
+    if not knowledge:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ERROR_MESSAGES.NOT_FOUND,
+        )
+
+    if (
+        knowledge.user_id != user.id
+        and not has_access(user.id, "write", knowledge.access_control)
+        and user.role != "admin"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ERROR_MESSAGES.ACCESS_PROHIBITED,
+        )
+
+    meta = knowledge.meta or {}
+
+    if form_data.is_skill:
+        meta["type"] = "skill"
+        if not meta.get("skill_metadata"):
+            meta["skill_metadata"] = {
+                "name": form_data.skill_name or knowledge.name,
+                "description": form_data.skill_description or knowledge.description,
+            }
+        # If no skill_body yet, try to extract from the first SKILL.md file
+        if not meta.get("skill_body"):
+            file_ids = (knowledge.data or {}).get("file_ids", [])
+            for file_id in file_ids:
+                file = Files.get_file_by_id(file_id)
+                if file and is_skill_file(file.filename):
+                    content = file.data.get("content", "") if file.data else ""
+                    if content:
+                        skill = parse_skill_md(content)
+                        if skill:
+                            meta["skill_metadata"] = skill.to_dict()
+                            meta["skill_body"] = skill.body
+                            break
+    else:
+        meta.pop("type", None)
+        meta.pop("skill_metadata", None)
+        meta.pop("skill_body", None)
+
+    knowledge = Knowledges.update_knowledge_meta_by_id(id=id, meta=meta)
+
+    if knowledge:
+        file_ids = knowledge.data.get("file_ids", []) if knowledge.data else []
+        files = Files.get_file_metadatas_by_ids(file_ids)
+        return KnowledgeFilesResponse(
+            **knowledge.model_dump(),
+            files=files,
+        )
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=ERROR_MESSAGES.DEFAULT("knowledge"),
+        )
 
 
 ############################

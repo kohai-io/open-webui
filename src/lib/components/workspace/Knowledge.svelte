@@ -216,7 +216,9 @@
 									<div class="flex items-center justify-between -my-1">
 										<div class=" flex gap-2 items-center">
 											<div>
-												{#if item?.meta?.document}
+												{#if item?.meta?.type === 'skill'}
+													<Badge type="skill" content={$i18n.t('Skill')} />
+												{:else if item?.meta?.document}
 													<Badge type="muted" content={$i18n.t('Document')} />
 												{:else}
 													<Badge type="success" content={$i18n.t('Collection')} />

@@ -32,7 +32,8 @@
 		resetKnowledgeById,
 		updateFileFromKnowledgeById,
 		updateKnowledgeById,
-		syncGoogleDriveFiles
+		syncGoogleDriveFiles,
+		toggleKnowledgeSkillType
 	} from '$lib/apis/knowledge';
 	import { blobToFile } from '$lib/utils';
 	import { createPicker, getAuthToken, requestFreshAuthToken } from '$lib/utils/google-drive-picker';
@@ -917,7 +918,14 @@
 			<div class=" flex w-full">
 				<div class="flex-1">
 					<div class="flex items-center justify-between w-full px-0.5 mb-1">
-						<div class="w-full">
+						<div class="w-full flex items-center gap-2">
+							{#if knowledge?.meta?.type === 'skill'}
+								<div
+									class="bg-purple-500/20 text-purple-700 dark:text-purple-200 rounded-md uppercase text-xs font-semibold px-2 py-0.5 shrink-0"
+								>
+									Skill
+								</div>
+							{/if}
 							<input
 								type="text"
 								class="text-left w-full font-semibold text-2xl font-primary bg-transparent outline-hidden"
@@ -930,6 +938,39 @@
 						</div>
 
 						<div class="self-center shrink-0 flex gap-1">
+							<button
+								class="{knowledge?.meta?.type === 'skill' ? 'bg-purple-100 hover:bg-purple-200 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-800/40 dark:text-purple-200' : 'bg-gray-50 hover:bg-gray-100 text-black dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-white'} transition px-2 py-1 rounded-full flex gap-1 items-center"
+								type="button"
+								title={knowledge?.meta?.type === 'skill' ? $i18n.t('Remove Skill type') : $i18n.t('Mark as Skill')}
+								on:click={async () => {
+									const isCurrentlySkill = knowledge?.meta?.type === 'skill';
+									const res = await toggleKnowledgeSkillType(
+										localStorage.token,
+										id,
+										!isCurrentlySkill
+									).catch((e) => {
+										toast.error(`${e}`);
+										return null;
+									});
+									if (res) {
+										knowledge = res;
+										toast.success(
+											isCurrentlySkill
+												? $i18n.t('Skill type removed')
+												: $i18n.t('Marked as Skill')
+										);
+									}
+								}}
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="size-3.5">
+									<path fill-rule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401Z" clip-rule="evenodd" />
+								</svg>
+
+								<div class="text-sm font-medium shrink-0">
+									{knowledge?.meta?.type === 'skill' ? $i18n.t('Skill') : $i18n.t('Mark as Skill')}
+								</div>
+							</button>
+
 							{#if knowledge?.files?.some(f => f.meta?.data?.source === 'google_drive' || f.meta?.source === 'google_drive')}
 								<button
 									class="bg-gray-50 hover:bg-gray-100 text-black dark:bg-gray-850 dark:hover:bg-gray-800 dark:text-white transition px-2 py-1 rounded-full flex gap-1 items-center"

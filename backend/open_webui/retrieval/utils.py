@@ -28,6 +28,7 @@ from open_webui.models.notes import Notes
 from open_webui.retrieval.vector.main import GetResult
 from open_webui.utils.access_control import has_access
 from open_webui.utils.misc import get_message_list
+from open_webui.utils.skills import is_skill_knowledge
 
 from open_webui.retrieval.web.utils import get_web_loader
 from open_webui.retrieval.loaders.youtube import YoutubeLoader
@@ -671,6 +672,11 @@ def get_sources_from_items(
         elif item.get("type") == "collection":
             # Manual Full Mode Toggle for Collection
             knowledge_base = Knowledges.get_knowledge_by_id(item.get("id"))
+
+            # Skip RAG for skill-type KBs — content is injected via system prompt
+            if knowledge_base and is_skill_knowledge(knowledge_base):
+                log.debug(f"Skipping RAG for skill-type KB: {item.get('id')}")
+                continue
 
             if knowledge_base and (
                 user.role == "admin"

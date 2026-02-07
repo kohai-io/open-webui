@@ -217,11 +217,13 @@
 					<Tooltip
 						content={item?.legacy
 							? $i18n.t('Legacy')
-							: item?.type === 'file'
-								? $i18n.t('File')
-								: item?.type === 'collection'
-									? $i18n.t('Collection')
-									: ''}
+							: item?.meta?.type === 'skill'
+								? $i18n.t('Skill')
+								: item?.type === 'file'
+									? $i18n.t('File')
+									: item?.type === 'collection'
+										? $i18n.t('Collection')
+										: ''}
 						placement="top"
 					>
 						{#if item?.type === 'collection'}

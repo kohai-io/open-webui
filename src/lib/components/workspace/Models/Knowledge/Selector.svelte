@@ -177,7 +177,13 @@
 						>
 							<div>
 								<div class=" font-medium text-black dark:text-gray-100 flex items-center gap-1">
-									{#if item.legacy}
+									{#if item?.meta?.type === 'skill'}
+										<div
+											class="bg-purple-500/20 text-purple-700 dark:text-purple-200 rounded-sm uppercase text-xs font-semibold px-1 shrink-0"
+										>
+											Skill
+										</div>
+									{:else if item.legacy}
 										<div
 											class="bg-gray-500/20 text-gray-700 dark:text-gray-200 rounded-sm uppercase text-xs font-semibold px-1 shrink-0"
 										>

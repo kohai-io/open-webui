@@ -67,6 +67,14 @@ from open_webui.utils.files import (
 from open_webui.models.users import UserModel
 from open_webui.models.functions import Functions
 from open_webui.models.models import Models
+from open_webui.models.knowledge import Knowledges
+from open_webui.utils.skills import (
+    is_skill_knowledge,
+    build_available_skills_prompt,
+    build_active_skill_prompt,
+    build_activate_skill_tool,
+    ACTIVATE_SKILL_TOOL_ID,
+)
 
 from open_webui.retrieval.utils import get_sources_from_items
 
@@ -488,28 +496,47 @@ async def chat_completion_tools_handler(
                         else f"{tool_function_name}"
                     )
 
-                    # Citation is enabled for this tool
-                    sources.append(
-                        {
-                            "source": {
-                                "name": (f"{tool_name}"),
-                            },
-                            "document": [str(tool_result)],
-                            "metadata": [
-                                {
-                                    "source": (f"{tool_name}"),
-                                    "parameters": tool_function_params,
-                                }
-                            ],
-                            "tool_result": True,
-                        }
-                    )
+                    # Special handling for activate_skill: inject into system
+                    # prompt instead of user message context
+                    if (
+                        tool.get("metadata", {}).get("skill_tool", False)
+                        and isinstance(tool_result, str)
+                        and tool_result.startswith("__SKILL_ACTIVATION__")
+                    ):
+                        skill_content = tool_result[
+                            len("__SKILL_ACTIVATION__\n") :
+                        ]
+                        body["messages"] = add_or_update_system_message(
+                            skill_content,
+                            body["messages"],
+                            append=True,
+                        )
+                        log.info(
+                            f"activate_skill: Injected skill into system prompt"
+                        )
+                    else:
+                        # Citation is enabled for this tool
+                        sources.append(
+                            {
+                                "source": {
+                                    "name": (f"{tool_name}"),
+                                },
+                                "document": [str(tool_result)],
+                                "metadata": [
+                                    {
+                                        "source": (f"{tool_name}"),
+                                        "parameters": tool_function_params,
+                                    }
+                                ],
+                                "tool_result": True,
+                            }
+                        )
 
-                    # Citation is not enabled for this tool
-                    body["messages"] = add_or_update_user_message(
-                        f"\nTool `{tool_name}` Output: {tool_result}",
-                        body["messages"],
-                    )
+                        # Citation is not enabled for this tool
+                        body["messages"] = add_or_update_user_message(
+                            f"\nTool `{tool_name}` Output: {tool_result}",
+                            body["messages"],
+                        )
 
                     if (
                         tools[resolved_tool_function_name]
@@ -1217,6 +1244,8 @@ async def process_chat_payload(request, form_data, user, metadata, model):
             }
         )
 
+        # Separate skill-type KBs from regular knowledge
+        skill_items = []
         knowledge_files = []
         for item in model_knowledge:
             if item.get("collection_name"):
@@ -1237,7 +1266,46 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                     }
                 )
             else:
+                # Check if this is a skill-type knowledge base
+                item_id = item.get("id")
+                if item_id:
+                    kb = Knowledges.get_knowledge_by_id(item_id)
+                    if kb and is_skill_knowledge(kb):
+                        skill_items.append(kb)
+                        continue
                 knowledge_files.append(item)
+
+        # Progressive disclosure: inject lightweight discovery XML
+        # and build skill_map for the activate_skill tool
+        if skill_items:
+            skill_map = {}
+            discovery_items = []
+            for kb in skill_items:
+                skill_meta = kb.meta.get("skill_metadata", {})
+                skill_body = kb.meta.get("skill_body", "")
+                skill_name = skill_meta.get("name", kb.name)
+                skill_desc = skill_meta.get("description", kb.description or "")
+
+                if skill_body:
+                    skill_map[skill_name] = {
+                        "name": skill_name,
+                        "body": skill_body,
+                        "kb_id": kb.id,
+                    }
+                    discovery_items.append(
+                        {"name": skill_name, "description": skill_desc}
+                    )
+                    log.debug(f"Registered skill '{skill_name}' for progressive disclosure")
+
+            if discovery_items:
+                discovery_prompt = build_available_skills_prompt(discovery_items)
+                form_data["messages"] = add_or_update_system_message(
+                    discovery_prompt,
+                    form_data.get("messages", []),
+                    append=True,
+                )
+                # Store skill_map in metadata so it's available for tool registration
+                metadata["skill_map"] = skill_map
 
         files = form_data.get("files", [])
         files.extend(knowledge_files)
@@ -1320,6 +1388,48 @@ async def process_chat_payload(request, form_data, user, metadata, model):
                     if folder and folder.data and "files" in folder.data:
                         files = [f for f in files if f.get("id", None) != folder_id]
                         files = [*files, *folder.data["files"]]
+
+        # Extract skill-type KBs from chat-level file attachments (#command)
+        # and add them to the skill_map for progressive disclosure
+        chat_skill_map = {}
+        chat_discovery_items = []
+        non_skill_files = []
+        for file_item in files:
+            if file_item.get("type") == "collection" and not file_item.get("legacy"):
+                item_id = file_item.get("id")
+                if item_id:
+                    kb = Knowledges.get_knowledge_by_id(item_id)
+                    if kb and is_skill_knowledge(kb):
+                        skill_meta = kb.meta.get("skill_metadata", {})
+                        skill_body = kb.meta.get("skill_body", "")
+                        skill_name = skill_meta.get("name", kb.name)
+                        skill_desc = skill_meta.get("description", kb.description or "")
+                        if skill_body:
+                            chat_skill_map[skill_name] = {
+                                "name": skill_name,
+                                "body": skill_body,
+                                "kb_id": kb.id,
+                            }
+                            chat_discovery_items.append(
+                                {"name": skill_name, "description": skill_desc}
+                            )
+                            log.debug(
+                                f"Registered chat-attached skill '{skill_name}' for progressive disclosure"
+                            )
+                        continue
+            non_skill_files.append(file_item)
+
+        if chat_discovery_items:
+            discovery_prompt = build_available_skills_prompt(chat_discovery_items)
+            form_data["messages"] = add_or_update_system_message(
+                discovery_prompt,
+                form_data.get("messages", []),
+                append=True,
+            )
+            # Merge with any existing skill_map from model-level knowledge
+            existing_skill_map = metadata.get("skill_map", {})
+            metadata["skill_map"] = {**existing_skill_map, **chat_skill_map}
+        files = non_skill_files
 
         # files = [*files, *[{"type": "url", "url": url, "name": url} for url in urls]]
         # Remove duplicate files based on their content
@@ -1490,6 +1600,16 @@ async def process_chat_payload(request, form_data, user, metadata, model):
 
     if mcp_clients:
         metadata["mcp_clients"] = mcp_clients
+
+    # Register activate_skill built-in tool when skills are available
+    skill_map = metadata.get("skill_map", {})
+    if skill_map:
+        activate_skill_tool = build_activate_skill_tool(skill_map)
+        tools_dict["activate_skill"] = activate_skill_tool
+        log.debug(
+            f"Registered activate_skill tool with {len(skill_map)} skill(s): "
+            f"{', '.join(skill_map.keys())}"
+        )
 
     if tools_dict:
         if metadata.get("params", {}).get("function_calling") == "native":
