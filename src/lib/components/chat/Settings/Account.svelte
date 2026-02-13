@@ -20,26 +20,30 @@
 
 	const i18n = getContext('i18n');
 
-	export let saveHandler: Function;
-	export let saveSettings: Function;
+	let { saveHandler, saveSettings }: { saveHandler: Function; saveSettings: Function } = $props();
 
-	let loaded = false;
+	let loaded = $state(false);
 
-	let profileImageUrl = '';
-	let name = '';
-	let bio = '';
+	let profileImageUrl = $state('');
+	let name = $state('');
+	let bio = $state('');
 
-	let _gender = '';
-	let gender = '';
-	let dateOfBirth = '';
+	let _gender = $state('');
+	let gender = $state('');
+	let dateOfBirth = $state('');
 
-	let webhookUrl = '';
-	let showAPIKeys = false;
+	let webhookUrl = $state('');
+	let ntfyEnabled = $state(false);
+	let ntfyServerUrl = $state('https://ntfy.sh');
+	let ntfyTopic = $state('');
+	let ntfyToken = $state('');
+	let ntfyTesting = $state(false);
+	let showAPIKeys = $state(false);
 
-	let JWTTokenCopied = false;
+	let JWTTokenCopied = $state(false);
 
-	let APIKey = '';
-	let APIKeyCopied = false;
+	let APIKey = $state('');
+	let APIKeyCopied = $state(false);
 	let profileImageInputElement: HTMLInputElement;
 
 	const submitHandler = async () => {
@@ -49,11 +53,24 @@
 			}
 		}
 
-		if (webhookUrl !== $settings?.notifications?.webhook_url) {
+		const currentNtfy = $settings?.notifications?.ntfy ?? {};
+		if (
+			webhookUrl !== $settings?.notifications?.webhook_url ||
+			ntfyEnabled !== (currentNtfy?.enabled ?? false) ||
+			ntfyServerUrl !== (currentNtfy?.server_url ?? 'https://ntfy.sh') ||
+			ntfyTopic !== (currentNtfy?.topic ?? '') ||
+			ntfyToken !== (currentNtfy?.token ?? '')
+		) {
 			saveSettings({
 				notifications: {
 					...$settings.notifications,
-					webhook_url: webhookUrl
+					webhook_url: webhookUrl,
+					ntfy: {
+						enabled: ntfyEnabled,
+						server_url: ntfyServerUrl,
+						topic: ntfyTopic,
+						token: ntfyToken
+					}
 				}
 			});
 		}
@@ -90,6 +107,52 @@
 		}
 	};
 
+	const sendNtfyTestNotification = async () => {
+		const serverUrl = (ntfyServerUrl || 'https://ntfy.sh').trim().replace(/\/+$/, '');
+		const topic = (ntfyTopic || '').trim().replace(/^\/+|\/+$/g, '');
+
+		if (!topic) {
+			toast.error($i18n.t('Please enter an ntfy topic first.'));
+			return;
+		}
+
+		ntfyTesting = true;
+		try {
+			const headers: Record<string, string> = {
+				Title: 'Open WebUI test notification',
+				Tags: 'test_tube',
+				Priority: 'default',
+				'Content-Type': 'text/plain; charset=utf-8'
+			};
+
+			const token = (ntfyToken || '').trim();
+			if (token) {
+				headers.Authorization = `Bearer ${token}`;
+			}
+
+			const response = await fetch(`${serverUrl}/${topic}`, {
+				method: 'POST',
+				headers,
+				body: `Test notification from Open WebUI (${new Date().toLocaleString()})`
+			});
+
+			if (!response.ok) {
+				const errorText = await response.text();
+				toast.error(
+					$i18n.t('Failed to send test notification') +
+						`: ${response.status}${errorText ? ` - ${errorText}` : ''}`
+				);
+				return;
+			}
+
+			toast.success($i18n.t('Test ntfy notification sent.'));
+		} catch (error) {
+			toast.error(`${$i18n.t('Failed to send test notification')}: ${error}`);
+		} finally {
+			ntfyTesting = false;
+		}
+	};
+
 	onMount(async () => {
 		const user = await getSessionUser(localStorage.token).catch((error) => {
 			toast.error(`${error}`);
@@ -108,6 +171,10 @@
 		}
 
 		webhookUrl = $settings?.notifications?.webhook_url ?? '';
+		ntfyEnabled = $settings?.notifications?.ntfy?.enabled ?? false;
+		ntfyServerUrl = $settings?.notifications?.ntfy?.server_url ?? 'https://ntfy.sh';
+		ntfyTopic = $settings?.notifications?.ntfy?.topic ?? '';
+		ntfyToken = $settings?.notifications?.ntfy?.token ?? '';
 
 		APIKey = await getAPIKey(localStorage.token).catch((error) => {
 			console.log(error);
@@ -230,6 +297,61 @@
 							required
 						/>
 					</div>
+				</div>
+
+				<div class="flex items-center justify-between mt-3">
+					<div>
+						<div class="mb-0.5 text-xs font-medium">{$i18n.t('Enable ntfy notifications')}</div>
+						<div class="text-xs text-gray-500">{$i18n.t('Send scheduled prompt updates to ntfy.')}</div>
+					</div>
+					<input type="checkbox" bind:checked={ntfyEnabled} />
+				</div>
+
+				<div class="flex flex-col w-full mt-2">
+					<div class=" mb-1 text-xs font-medium">{$i18n.t('ntfy Server URL')}</div>
+					<div class="flex-1">
+						<input
+							class="w-full text-sm outline-hidden"
+							type="url"
+							placeholder="https://ntfy.sh"
+							bind:value={ntfyServerUrl}
+						/>
+					</div>
+				</div>
+
+				<div class="flex flex-col w-full mt-2">
+					<div class=" mb-1 text-xs font-medium">{$i18n.t('ntfy Topic')}</div>
+					<div class="flex-1">
+						<input
+							class="w-full text-sm outline-hidden"
+							type="text"
+							placeholder={$i18n.t('Enter topic name')}
+							bind:value={ntfyTopic}
+						/>
+					</div>
+				</div>
+
+				<div class="flex flex-col w-full mt-2">
+					<div class=" mb-1 text-xs font-medium">{$i18n.t('ntfy Access Token')}</div>
+					<div class="flex-1">
+						<input
+							class="w-full text-sm outline-hidden"
+							type="password"
+							placeholder={$i18n.t('Optional bearer token')}
+							bind:value={ntfyToken}
+						/>
+					</div>
+				</div>
+
+				<div class="mt-2 flex justify-end">
+					<button
+						class="px-3 py-1.5 text-xs font-medium rounded-full border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+						type="button"
+						on:click={sendNtfyTestNotification}
+						disabled={ntfyTesting}
+					>
+						{ntfyTesting ? $i18n.t('Sending...') : $i18n.t('Send test notification')}
+					</button>
 				</div>
 			</div>
 		{/if}

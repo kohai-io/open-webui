@@ -113,6 +113,7 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
         dict with execution result including chat_id
     """
     log.info(f"[Scheduler] Executing scheduled prompt: {prompt.id} - {prompt.name}")
+    user = None
     
     try:
         # Get the user who owns this prompt
@@ -347,6 +348,18 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 "prompt_id": prompt.id,
             }
         )
+
+        await send_ntfy_notification(
+            user,
+            {
+                "status": "success",
+                "title": "Scheduled prompt completed",
+                "message": notification_message,
+                "prompt_name": prompt.name,
+                "prompt_id": prompt.id,
+                "chat_id": chat_id,
+            },
+        )
         
         return {
             "success": True,
@@ -390,6 +403,17 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 "message": f"'{prompt.name}' failed: {str(e)[:200]}",
                 "prompt_id": prompt.id,
             }
+        )
+
+        await send_ntfy_notification(
+            user,
+            {
+                "status": "error",
+                "title": "Scheduled prompt failed",
+                "message": f"'{prompt.name}' failed: {str(e)[:200]}",
+                "prompt_name": prompt.name,
+                "prompt_id": prompt.id,
+            },
         )
         
         raise
@@ -500,3 +524,70 @@ async def send_user_notification(user_id: str, data: dict):
         
     except Exception as e:
         log.warning(f"[Scheduler] Failed to send notification: {e}")
+
+
+async def send_ntfy_notification(user, data: dict):
+    """
+    Send scheduled prompt notification to ntfy.sh (or compatible self-hosted ntfy server).
+
+    Expected user settings path:
+      user.settings.ui.notifications.ntfy = {
+          enabled: bool,
+          server_url: str,
+          topic: str,
+          token: str (optional)
+      }
+    """
+    try:
+        if not user or not getattr(user, "settings", None):
+            return
+
+        settings_dict = (
+            user.settings.model_dump() if hasattr(user.settings, "model_dump") else {}
+        )
+        notifications = settings_dict.get("ui", {}).get("notifications", {})
+        ntfy = notifications.get("ntfy", {}) or {}
+
+        if not ntfy.get("enabled"):
+            return
+
+        server_url = (ntfy.get("server_url") or "https://ntfy.sh").rstrip("/")
+        topic = (ntfy.get("topic") or "").strip().strip("/")
+        token = (ntfy.get("token") or "").strip()
+
+        if not topic:
+            log.debug("[Scheduler] ntfy enabled but topic is empty; skipping")
+            return
+
+        url = f"{server_url}/{topic}"
+        status = data.get("status", "info")
+        title = data.get("title") or "Scheduled prompt notification"
+        message = data.get("message") or "Scheduled prompt update"
+
+        headers = {
+            "Title": title,
+            "Tags": "calendar" if status == "success" else "warning",
+            "Priority": "default" if status == "success" else "high",
+        }
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                url,
+                headers=headers,
+                data=message.encode("utf-8"),
+                timeout=aiohttp.ClientTimeout(total=10),
+            ) as response:
+                if response.status >= 400:
+                    error_text = await response.text()
+                    log.warning(
+                        f"[Scheduler] ntfy notification failed ({response.status}): {error_text}"
+                    )
+                    return
+
+        log.debug(
+            f"[Scheduler] Sent ntfy notification for user {user.id}: {data.get('title')}"
+        )
+    except Exception as e:
+        log.warning(f"[Scheduler] Failed to send ntfy notification: {e}")
