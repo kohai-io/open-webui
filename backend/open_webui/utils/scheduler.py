@@ -101,34 +101,6 @@ def get_cron_description(cron_expression: str) -> str:
         return cron_expression
 
 
-def get_webui_base_url(app) -> Optional[str]:
-    """
-    Get the configured public WebUI base URL from app config.
-    Returns a normalized URL without trailing slash, or None if unavailable.
-    """
-    config = getattr(getattr(app, "state", None), "config", None)
-    raw_url = getattr(config, "WEBUI_URL", "") if config else ""
-    base_url = str(raw_url or "").strip().rstrip("/")
-
-    if not base_url:
-        log.warning(
-            "[Scheduler] WEBUI_URL is empty; skipping deep-link generation for scheduled prompt notifications"
-        )
-        return None
-
-    return base_url
-
-
-def build_webui_url(app, path: str) -> Optional[str]:
-    """Build an absolute WebUI URL for a given app-relative path."""
-    base_url = get_webui_base_url(app)
-    if not base_url:
-        return None
-
-    normalized_path = path if path.startswith("/") else f"/{path}"
-    return f"{base_url}{normalized_path}"
-
-
 async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
     """
     Execute a single scheduled prompt.
@@ -360,9 +332,6 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
         
         log.info(f"[Scheduler] Successfully executed prompt {prompt.id}, chat_id: {chat_id}")
         
-        scheduled_prompts_url = build_webui_url(app, "/workspace/scheduled-prompts")
-        chat_url = build_webui_url(app, f"/c/{chat_id}") if chat_id else None
-
         # Send notification to user via websocket
         notification_message = f"'{prompt.name}' ran successfully"
         if prompt.run_once:
@@ -376,8 +345,6 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 "title": f"Scheduled prompt completed",
                 "message": notification_message,
                 "chat_id": chat_id,
-                "chat_url": chat_url,
-                "scheduled_prompts_url": scheduled_prompts_url,
                 "prompt_id": prompt.id,
             }
         )
@@ -391,8 +358,6 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 "prompt_name": prompt.name,
                 "prompt_id": prompt.id,
                 "chat_id": chat_id,
-                "chat_url": chat_url,
-                "scheduled_prompts_url": scheduled_prompts_url,
             },
         )
         
@@ -429,8 +394,6 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
             )
         
         # Send error notification to user
-        scheduled_prompts_url = build_webui_url(app, "/workspace/scheduled-prompts")
-
         await send_user_notification(
             prompt.user_id,
             {
@@ -439,7 +402,6 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 "title": "Scheduled prompt failed",
                 "message": f"'{prompt.name}' failed: {str(e)[:200]}",
                 "prompt_id": prompt.id,
-                "scheduled_prompts_url": scheduled_prompts_url,
             }
         )
 
@@ -451,7 +413,6 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 "message": f"'{prompt.name}' failed: {str(e)[:200]}",
                 "prompt_name": prompt.name,
                 "prompt_id": prompt.id,
-                "scheduled_prompts_url": scheduled_prompts_url,
             },
         )
         
@@ -602,23 +563,12 @@ async def send_ntfy_notification(user, data: dict):
         status = data.get("status", "info")
         title = data.get("title") or "Scheduled prompt notification"
         message = data.get("message") or "Scheduled prompt update"
-        click_url = (
-            data.get("chat_url")
-            or data.get("scheduled_prompts_url")
-            or data.get("url")
-        )
-
-        body = message
-        if click_url and click_url not in body:
-            body = f"{body}\n\n{click_url}"
 
         headers = {
             "Title": title,
             "Tags": "calendar" if status == "success" else "warning",
             "Priority": "default" if status == "success" else "high",
         }
-        if click_url:
-            headers["Click"] = click_url
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
@@ -626,7 +576,7 @@ async def send_ntfy_notification(user, data: dict):
             async with session.post(
                 url,
                 headers=headers,
-                data=body.encode("utf-8"),
+                data=message.encode("utf-8"),
                 timeout=aiohttp.ClientTimeout(total=10),
             ) as response:
                 if response.status >= 400:
