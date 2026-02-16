@@ -31,6 +31,7 @@
 	let runOnce = false;
 	let enabled = true;
 	let selectedToolIds: string[] = [];
+	let functionCallingMode: 'default' | 'native' | 'auto' = 'default';
 
 	let availableTools: any[] = [];
 	let loading = false;
@@ -92,6 +93,7 @@
 			runOnce = prompt.run_once ?? false;
 			enabled = prompt.enabled;
 			selectedToolIds = prompt.tool_ids || [];
+			functionCallingMode = prompt.function_calling_mode || 'default';
 		} else {
 			// Create mode - reset form
 			name = '';
@@ -104,6 +106,7 @@
 			runOnce = false;
 			enabled = true;
 			selectedToolIds = [];
+			functionCallingMode = 'default';
 		}
 		initialized = true;
 	};
@@ -147,7 +150,8 @@
 				prompt: promptText.trim(),
 				create_new_chat: createNewChat,
 				run_once: runOnce,
-				tool_ids: selectedToolIds.length > 0 ? selectedToolIds : null
+				tool_ids: selectedToolIds.length > 0 ? selectedToolIds : null,
+				function_calling_mode: functionCallingMode
 			};
 
 			if (prompt) {
@@ -318,6 +322,28 @@
 					{/if}
 				</div>
 			{/if}
+
+			<!-- Function Calling Mode -->
+			<div>
+				<label class="block text-sm font-medium mb-1" for="function-calling-mode">
+					Function Calling Mode
+					<Tooltip content="Choose how tools are orchestrated for this prompt">
+						<span class="text-gray-400 cursor-help">ⓘ</span>
+					</Tooltip>
+				</label>
+				<select
+					id="function-calling-mode"
+					bind:value={functionCallingMode}
+					class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-850 text-sm"
+				>
+					<option value="default">Default (server-orchestrated)</option>
+					<option value="native">Native (model-driven)</option>
+					<option value="auto">Auto (inherit model setting)</option>
+				</select>
+				<div class="text-xs text-gray-500 mt-1">
+					Use native if your model handles tool calling reliably; use default for safer scheduler behavior.
+				</div>
+			</div>
 
 			<!-- Options -->
 			<div class="flex flex-wrap items-center gap-x-6 gap-y-2">

@@ -6,6 +6,7 @@ Checks the database every minute for due jobs and executes them.
 """
 
 import asyncio
+import json
 import logging
 import os
 import time
@@ -101,6 +102,43 @@ def get_cron_description(cron_expression: str) -> str:
         return cron_expression
 
 
+def get_webui_base_url(app) -> Optional[str]:
+    """
+    Get configured public WebUI URL from app config.
+    Returns a normalized URL without trailing slash, or None if unavailable.
+    """
+    config = getattr(getattr(app, "state", None), "config", None)
+    raw_url = getattr(config, "WEBUI_URL", "") if config else ""
+    base_url = str(raw_url or "").strip().rstrip("/")
+
+    if not base_url:
+        log.debug(
+            "[Scheduler] WEBUI_URL is empty; skipping deep-link generation for scheduled prompt notifications"
+        )
+        return None
+
+    return base_url
+
+
+def build_webui_url(app, path: str) -> Optional[str]:
+    """Build an absolute WebUI URL for an app-relative path."""
+    base_url = get_webui_base_url(app)
+    if not base_url:
+        return None
+
+    normalized_path = path if path.startswith("/") else f"/{path}"
+    return f"{base_url}{normalized_path}"
+
+
+def truncate_text_for_notification(text: str, max_length: int = 500) -> str:
+    """Truncate text for notification display while preserving readability."""
+    cleaned = (text or "").strip()
+    if len(cleaned) <= max_length:
+        return cleaned
+
+    return f"{cleaned[:max_length].rstrip()}..."
+
+
 async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
     """
     Execute a single scheduled prompt.
@@ -139,6 +177,19 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
             "messages": messages,
             "stream": False,
         }
+
+        function_calling_mode = getattr(prompt, "function_calling_mode", "default") or "default"
+        if function_calling_mode in ["default", "native"]:
+            payload["params"] = {
+                "function_calling": function_calling_mode,
+            }
+        else:
+            # "auto" defers to model/open-webui defaults.
+            function_calling_mode = "auto"
+
+        log.info(
+            f"[Scheduler] Function calling mode for prompt {prompt.id}: {function_calling_mode}"
+        )
         
         # Get models from app state and validate/fallback model
         models = app.state.MODELS
@@ -180,18 +231,31 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 tool_ids = model_tool_ids
                 log.info(f"[Scheduler] Using model's configured tools: {tool_ids}")
         
+        # Exclude prompt_scheduler from execution tools to avoid recursive scheduling calls.
+        action_tools = [t for t in (tool_ids or []) if "prompt_scheduler" not in t.lower()]
+
         if tool_ids:
-            payload["tool_ids"] = tool_ids
-            log.info(f"[Scheduler] Prompt will use tools: {tool_ids}")
+            if action_tools:
+                payload["tool_ids"] = action_tools
+                log.info(f"[Scheduler] Prompt will use tools: {action_tools}")
+            else:
+                log.info(
+                    "[Scheduler] Only prompt_scheduler tool was configured; skipping tool execution for this run"
+                )
             
-            # Build tool instruction - exclude prompt_scheduler from "use these tools" instruction
-            # since this IS a scheduled prompt execution, not a request to create one
-            action_tools = [t for t in tool_ids if 'prompt_scheduler' not in t.lower()]
+            # Build tool instruction from executable tools only.
             
             if action_tools:
                 tool_instruction = f"\n\nIMPORTANT: This is an automated scheduled reminder. You have access to these tools: {', '.join(action_tools)}. Use them to help the user with their request. For example, if this is about a todo list, use the notes_manager tool to fetch the actual current data."
             else:
                 tool_instruction = "\n\nIMPORTANT: This is an automated scheduled reminder. Respond helpfully to the user's request."
+
+            if "notes_manager" in action_tools:
+                tool_instruction += (
+                    "\n\nWhen using notes_manager for todos/notes: do not stop after list_my_notes "
+                    "if the user asked for note contents. Use get_note on the relevant note ID "
+                    "and summarize the actual items from the note content."
+                )
             
             if messages and messages[0].get("role") == "system":
                 messages[0]["content"] += tool_instruction
@@ -218,21 +282,173 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
             "Content-Type": "application/json",
         }
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                api_url,
-                headers=headers,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=300),
-            ) as response:
-                if response.status != 200:
-                    error_text = await response.text()
-                    raise Exception(f"API error {response.status}: {error_text}")
-                
-                response_data = await response.json()
+        async def _call_chat_completion(request_payload: dict) -> dict:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    api_url,
+                    headers=headers,
+                    json=request_payload,
+                    timeout=aiohttp.ClientTimeout(total=300),
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise Exception(f"API error {response.status}: {error_text}")
+                    return await response.json()
+
+        response_data = await _call_chat_completion(payload)
         
         # Extract the assistant response
-        assistant_content = response_data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        response_message = response_data.get("choices", [{}])[0].get("message", {}) or {}
+        assistant_content = (
+            response_message.get("content")
+            or response_message.get("reasoning_content")
+            or ""
+        )
+
+        if not assistant_content and response_message.get("tool_calls"):
+            log.warning(
+                "[Scheduler] Completion returned tool_calls without final text content for prompt %s",
+                prompt.id,
+            )
+
+            # Some model/tool modes may finish with tool_calls but no final assistant text.
+            # Retry once in default mode so scheduler runs still produce a visible response.
+            if function_calling_mode != "default":
+                retry_payload = dict(payload)
+                retry_params = dict(retry_payload.get("params", {}))
+                retry_params["function_calling"] = "default"
+                retry_payload["params"] = retry_params
+
+                log.info(
+                    "[Scheduler] Retrying prompt %s with function_calling=default for final text",
+                    prompt.id,
+                )
+
+                response_data = await _call_chat_completion(retry_payload)
+                response_message = (
+                    response_data.get("choices", [{}])[0].get("message", {}) or {}
+                )
+                assistant_content = (
+                    response_message.get("content")
+                    or response_message.get("reasoning_content")
+                    or ""
+                )
+
+            if not assistant_content:
+                assistant_content = (
+                    "Scheduled prompt completed, but the model returned only tool calls and no final text."
+                )
+
+        # If model returns a raw tool-call JSON string instead of a user-facing answer,
+        # run one continuation turn to execute that requested tool call and produce
+        # plain-language output.
+        raw_tool_request = None
+        if isinstance(assistant_content, str) and assistant_content.strip().startswith("{"):
+            try:
+                parsed_content = json.loads(assistant_content.strip())
+                if isinstance(parsed_content, dict) and (
+                    parsed_content.get("tool") or parsed_content.get("tool_calls")
+                ):
+                    raw_tool_request = parsed_content
+            except Exception:
+                raw_tool_request = None
+
+        if raw_tool_request and action_tools:
+            log.info(
+                "[Scheduler] Detected raw tool-call JSON output for prompt %s; running continuation pass",
+                prompt.id,
+            )
+
+            continuation_messages = [
+                *messages,
+                {"role": "assistant", "content": assistant_content},
+                {
+                    "role": "user",
+                    "content": (
+                        "Execute the requested tool call(s) above, then answer the original user request "
+                        "in plain language. Do not return tool-call JSON."
+                    ),
+                },
+            ]
+
+            continuation_payload = {
+                "model": model_id,
+                "messages": continuation_messages,
+                "stream": False,
+                "tool_ids": action_tools,
+                "params": {"function_calling": "default"},
+            }
+
+            continuation_response = await _call_chat_completion(continuation_payload)
+            continuation_message = (
+                continuation_response.get("choices", [{}])[0].get("message", {}) or {}
+            )
+            continuation_content = (
+                continuation_message.get("content")
+                or continuation_message.get("reasoning_content")
+                or ""
+            )
+
+            if continuation_content:
+                assistant_content = continuation_content
+
+        assistant_content_lower = (assistant_content or "").lower()
+        chatter_markers = [
+            "to=",
+            "tool call",
+            "tool_call",
+            "arguments",
+            "need proper json",
+            "do not output json",
+            "json",
+        ]
+        mentions_configured_tool = any(
+            tool_id.lower() in assistant_content_lower for tool_id in action_tools
+        )
+        has_malformed_tool_chatter = (
+            any(marker in assistant_content_lower for marker in chatter_markers)
+            and mentions_configured_tool
+        )
+
+        if has_malformed_tool_chatter and action_tools:
+            log.info(
+                "[Scheduler] Detected malformed tool-call chatter for prompt %s; forcing generic continuation",
+                prompt.id,
+            )
+
+            forced_tool_messages = [
+                *messages,
+                {"role": "assistant", "content": assistant_content},
+                {
+                    "role": "user",
+                    "content": (
+                        "Execute the intended tool call(s) from your previous response using available tools, "
+                        "then answer the original request in plain language with concrete results. "
+                        "Do not output tool-call syntax, analysis text, or JSON."
+                    ),
+                },
+            ]
+
+            forced_tool_payload = {
+                "model": model_id,
+                "messages": forced_tool_messages,
+                "stream": False,
+                "tool_ids": action_tools,
+                "params": {"function_calling": "default"},
+            }
+
+            forced_tool_response = await _call_chat_completion(forced_tool_payload)
+            forced_tool_message = (
+                forced_tool_response.get("choices", [{}])[0].get("message", {}) or {}
+            )
+            forced_tool_content = (
+                forced_tool_message.get("content")
+                or forced_tool_message.get("reasoning_content")
+                or ""
+            )
+
+            if forced_tool_content:
+                assistant_content = forced_tool_content
         
         timestamp = int(time.time())
         
@@ -265,10 +481,10 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 "messages": chat_messages,
                 "models": [model_id],
             }
-            # Include tool_ids in chat data so UI can restore them
-            if tool_ids:
-                chat_data["tool_ids"] = tool_ids
-                log.info(f"[Scheduler] Saving chat with tool_ids: {tool_ids}")
+            # Include executable tool_ids in chat data so UI can restore them.
+            if action_tools:
+                chat_data["tool_ids"] = action_tools
+                log.info(f"[Scheduler] Saving chat with tool_ids: {action_tools}")
             
             chat = Chats.insert_new_chat(
                 prompt.user_id,
@@ -291,10 +507,10 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                     "messages": chat_messages,
                     "models": [model_id],
                 }
-                # Include tool_ids in chat data so UI can restore them
-                if tool_ids:
-                    chat_data["tool_ids"] = tool_ids
-                    log.info(f"[Scheduler] Saving fallback chat with tool_ids: {tool_ids}")
+                # Include executable tool_ids in chat data so UI can restore them.
+                if action_tools:
+                    chat_data["tool_ids"] = action_tools
+                    log.info(f"[Scheduler] Saving fallback chat with tool_ids: {action_tools}")
                 
                 chat = Chats.insert_new_chat(
                     prompt.user_id,
@@ -332,10 +548,28 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
         
         log.info(f"[Scheduler] Successfully executed prompt {prompt.id}, chat_id: {chat_id}")
         
+        scheduled_prompts_url = build_webui_url(app, "/workspace/scheduled-prompts")
+        chat_url = build_webui_url(app, f"/c/{chat_id}") if chat_id else None
+
+        # Fallback for local/dev setups where WEBUI_URL is not configured.
+        if not scheduled_prompts_url:
+            port = os.environ.get("PORT", "8080")
+            scheduled_prompts_url = (
+                f"http://127.0.0.1:{port}/workspace/scheduled-prompts"
+            )
+        if chat_id and not chat_url:
+            port = os.environ.get("PORT", "8080")
+            chat_url = f"http://127.0.0.1:{port}/c/{chat_id}"
+
         # Send notification to user via websocket
         notification_message = f"'{prompt.name}' ran successfully"
         if prompt.run_once:
             notification_message += " (one-off, now disabled)"
+
+        output_preview = truncate_text_for_notification(assistant_content)
+        ntfy_message = notification_message
+        if output_preview:
+            ntfy_message = f"{ntfy_message}\n\nOutput:\n{output_preview}"
         
         await send_user_notification(
             prompt.user_id,
@@ -345,6 +579,8 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 "title": f"Scheduled prompt completed",
                 "message": notification_message,
                 "chat_id": chat_id,
+                "chat_url": chat_url,
+                "scheduled_prompts_url": scheduled_prompts_url,
                 "prompt_id": prompt.id,
             }
         )
@@ -354,10 +590,12 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
             {
                 "status": "success",
                 "title": "Scheduled prompt completed",
-                "message": notification_message,
+                "message": ntfy_message,
                 "prompt_name": prompt.name,
                 "prompt_id": prompt.id,
                 "chat_id": chat_id,
+                "chat_url": chat_url,
+                "scheduled_prompts_url": scheduled_prompts_url,
             },
         )
         
@@ -394,6 +632,13 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
             )
         
         # Send error notification to user
+        scheduled_prompts_url = build_webui_url(app, "/workspace/scheduled-prompts")
+        if not scheduled_prompts_url:
+            port = os.environ.get("PORT", "8080")
+            scheduled_prompts_url = (
+                f"http://127.0.0.1:{port}/workspace/scheduled-prompts"
+            )
+
         await send_user_notification(
             prompt.user_id,
             {
@@ -402,6 +647,7 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 "title": "Scheduled prompt failed",
                 "message": f"'{prompt.name}' failed: {str(e)[:200]}",
                 "prompt_id": prompt.id,
+                "scheduled_prompts_url": scheduled_prompts_url,
             }
         )
 
@@ -413,6 +659,7 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 "message": f"'{prompt.name}' failed: {str(e)[:200]}",
                 "prompt_name": prompt.name,
                 "prompt_id": prompt.id,
+                "scheduled_prompts_url": scheduled_prompts_url,
             },
         )
         
@@ -563,12 +810,25 @@ async def send_ntfy_notification(user, data: dict):
         status = data.get("status", "info")
         title = data.get("title") or "Scheduled prompt notification"
         message = data.get("message") or "Scheduled prompt update"
+        click_url = data.get("chat_url") or data.get("scheduled_prompts_url") or data.get("url")
 
         headers = {
             "Title": title,
             "Tags": "calendar" if status == "success" else "warning",
             "Priority": "default" if status == "success" else "high",
         }
+        if click_url:
+            headers["Click"] = click_url
+
+        actions = []
+        if data.get("chat_url"):
+            actions.append(f"view, Open Chat, {data.get('chat_url')}")
+        if data.get("scheduled_prompts_url"):
+            actions.append(
+                f"view, Scheduled Prompts, {data.get('scheduled_prompts_url')}"
+            )
+        if actions:
+            headers["Actions"] = "; ".join(actions)
         if token:
             headers["Authorization"] = f"Bearer {token}"
 

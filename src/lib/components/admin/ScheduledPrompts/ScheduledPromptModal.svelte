@@ -28,6 +28,7 @@
 	let promptText = '';
 	let createNewChat = true;
 	let enabled = true;
+	let functionCallingMode: 'default' | 'native' | 'auto' = 'default';
 
 	let loading = false;
 	let initialized = false;
@@ -76,6 +77,7 @@
 			promptText = prompt.prompt;
 			createNewChat = prompt.create_new_chat;
 			enabled = prompt.enabled;
+			functionCallingMode = prompt.function_calling_mode || 'default';
 		} else {
 			// Create mode - reset form
 			name = '';
@@ -86,6 +88,7 @@
 			promptText = '';
 			createNewChat = true;
 			enabled = true;
+			functionCallingMode = 'default';
 		}
 		initialized = true;
 	};
@@ -127,7 +130,8 @@
 				model_id: modelId,
 				system_prompt: systemPrompt.trim() || null,
 				prompt: promptText.trim(),
-				create_new_chat: createNewChat
+				create_new_chat: createNewChat,
+				function_calling_mode: functionCallingMode
 			};
 
 			if (prompt) {
@@ -170,6 +174,25 @@
 					placeholder="Daily summary, Weekly report, etc."
 					class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-850 text-sm"
 				/>
+			</div>
+
+			<!-- Function Calling Mode -->
+			<div>
+				<label class="block text-sm font-medium mb-1" for="function-calling-mode">
+					Function Calling Mode
+					<Tooltip content="Choose how tools are orchestrated for this prompt">
+						<span class="text-gray-400 cursor-help">ⓘ</span>
+					</Tooltip>
+				</label>
+				<select
+					id="function-calling-mode"
+					bind:value={functionCallingMode}
+					class="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-850 text-sm"
+				>
+					<option value="default">Default (server-orchestrated)</option>
+					<option value="native">Native (model-driven)</option>
+					<option value="auto">Auto (inherit model setting)</option>
+				</select>
 			</div>
 
 			<!-- Schedule -->

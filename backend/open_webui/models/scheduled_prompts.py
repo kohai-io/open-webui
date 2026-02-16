@@ -1,7 +1,7 @@
 import logging
 import time
 import uuid
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 from open_webui.internal.db import Base, get_db, JSONField
 from open_webui.env import SRC_LOG_LEVELS
@@ -42,6 +42,12 @@ class ScheduledPrompt(Base):
     
     # Tools
     tool_ids = Column(JSONField, nullable=True)  # List of tool IDs to enable for this prompt
+    function_calling_mode = Column(
+        String,
+        nullable=False,
+        default="default",
+        server_default="default",
+    )  # default | native | auto
     
     # Execution tracking
     last_run_at = Column(BigInteger, nullable=True)
@@ -80,6 +86,7 @@ class ScheduledPromptModel(BaseModel):
     create_new_chat: bool = True
     run_once: bool = False
     tool_ids: Optional[List[str]] = None
+    function_calling_mode: Literal["default", "native", "auto"] = "default"
     
     last_run_at: Optional[int] = None
     next_run_at: Optional[int] = None
@@ -107,6 +114,7 @@ class ScheduledPromptForm(BaseModel):
     create_new_chat: bool = True
     run_once: bool = False
     tool_ids: Optional[List[str]] = None
+    function_calling_mode: Literal["default", "native", "auto"] = "default"
 
 
 class ScheduledPromptUpdateForm(BaseModel):
@@ -120,6 +128,7 @@ class ScheduledPromptUpdateForm(BaseModel):
     create_new_chat: Optional[bool] = None
     run_once: Optional[bool] = None
     tool_ids: Optional[List[str]] = None
+    function_calling_mode: Optional[Literal["default", "native", "auto"]] = None
 
 
 class ScheduledPromptResponse(BaseModel):
@@ -136,6 +145,7 @@ class ScheduledPromptResponse(BaseModel):
     create_new_chat: bool = True
     run_once: bool = False
     tool_ids: Optional[List[str]] = None
+    function_calling_mode: Literal["default", "native", "auto"] = "default"
     last_run_at: Optional[int] = None
     next_run_at: Optional[int] = None
     last_status: Optional[str] = None
@@ -176,6 +186,7 @@ class ScheduledPromptTable:
                     "create_new_chat": form_data.create_new_chat,
                     "run_once": form_data.run_once,
                     "tool_ids": form_data.tool_ids,
+                    "function_calling_mode": form_data.function_calling_mode,
                     "next_run_at": next_run_at,
                     "created_at": int(time.time()),
                     "updated_at": int(time.time()),
@@ -293,6 +304,8 @@ class ScheduledPromptTable:
                 prompt.run_once = form_data.run_once
             if form_data.tool_ids is not None:
                 prompt.tool_ids = form_data.tool_ids
+            if form_data.function_calling_mode is not None:
+                prompt.function_calling_mode = form_data.function_calling_mode
             if next_run_at is not None:
                 prompt.next_run_at = next_run_at
                 

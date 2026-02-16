@@ -1572,6 +1572,14 @@ async def chat_completion(
         if model_info_params.get("reasoning_tags") is not None:
             reasoning_tags = model_info_params.get("reasoning_tags")
 
+        requested_function_calling = form_data.get("params", {}).get("function_calling")
+        if requested_function_calling in ["native", "default"]:
+            function_calling_mode = requested_function_calling
+        elif model_info_params.get("function_calling") == "native":
+            function_calling_mode = "native"
+        else:
+            function_calling_mode = "default"
+
         metadata = {
             "user_id": user.id,
             "chat_id": form_data.pop("chat_id", None),
@@ -1588,14 +1596,7 @@ async def chat_completion(
             "params": {
                 "stream_delta_chunk_size": stream_delta_chunk_size,
                 "reasoning_tags": reasoning_tags,
-                "function_calling": (
-                    "native"
-                    if (
-                        form_data.get("params", {}).get("function_calling") == "native"
-                        or model_info_params.get("function_calling") == "native"
-                    )
-                    else "default"
-                ),
+                "function_calling": function_calling_mode,
             },
         }
 
