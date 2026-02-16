@@ -131,14 +131,25 @@ def build_webui_url(app, path: str) -> Optional[str]:
     return f"{base_url}{normalized_path}"
 
 
-def get_chat_completions_api_url(app) -> str:
-    """Get the API URL for chat completions, preferring configured WEBUI_URL when available."""
+def get_chat_completions_api_urls(app) -> list[str]:
+    """Get ordered API URL candidates for chat completions."""
+    candidates: list[str] = []
+
     configured_api_url = build_webui_url(app, "/api/chat/completions")
     if configured_api_url:
-        return configured_api_url
+        candidates.append(configured_api_url)
 
     port = os.environ.get("PORT", "8080")
-    return f"http://127.0.0.1:{port}/api/chat/completions"
+    local_api_url = f"http://127.0.0.1:{port}/api/chat/completions"
+    if local_api_url not in candidates:
+        candidates.append(local_api_url)
+
+    return candidates
+
+
+def get_chat_completions_api_url(app) -> str:
+    """Get the API URL for chat completions, preferring configured WEBUI_URL when available."""
+    return get_chat_completions_api_urls(app)[0]
 
 
 def truncate_text_for_notification(text: str, max_length: int = 500) -> str:
@@ -414,7 +425,8 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
         
         # Call the internal API. Prefer configured WEBUI_URL when available,
         # otherwise fall back to localhost for local/dev setups.
-        api_url = get_chat_completions_api_url(app)
+        api_urls = get_chat_completions_api_urls(app)
+        api_url = api_urls[0]
         
         log.info(f"[Scheduler] Calling API: {api_url}")
         
@@ -424,17 +436,42 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
         }
         
         async def _call_chat_completion(request_payload: dict) -> dict:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    api_url,
-                    headers=headers,
-                    json=request_payload,
-                    timeout=aiohttp.ClientTimeout(total=300),
-                ) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        raise Exception(f"API error {response.status}: {error_text}")
-                    return await response.json()
+            last_error = None
+
+            for index, candidate_api_url in enumerate(api_urls):
+                try:
+                    async with aiohttp.ClientSession() as session:
+                        async with session.post(
+                            candidate_api_url,
+                            headers=headers,
+                            json=request_payload,
+                            timeout=aiohttp.ClientTimeout(total=300),
+                        ) as response:
+                            if response.status != 200:
+                                error_text = await response.text()
+                                raise Exception(f"API error {response.status}: {error_text}")
+                            return await response.json()
+                except (
+                    aiohttp.ClientConnectionError,
+                    aiohttp.ClientConnectorError,
+                    aiohttp.ServerTimeoutError,
+                    asyncio.TimeoutError,
+                ) as err:
+                    last_error = err
+                    if index < len(api_urls) - 1:
+                        log.warning(
+                            "[Scheduler] Failed calling API URL %s for prompt %s (%s); retrying with fallback URL",
+                            candidate_api_url,
+                            prompt.id,
+                            err,
+                        )
+                        continue
+                    raise
+
+            if last_error:
+                raise last_error
+
+            raise Exception("No chat completion API URL candidates available")
 
         response_data = await _call_chat_completion(payload)
         
