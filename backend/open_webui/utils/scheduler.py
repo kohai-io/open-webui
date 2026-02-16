@@ -9,6 +9,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from datetime import datetime, timedelta
@@ -130,6 +131,16 @@ def build_webui_url(app, path: str) -> Optional[str]:
     return f"{base_url}{normalized_path}"
 
 
+def get_chat_completions_api_url(app) -> str:
+    """Get the API URL for chat completions, preferring configured WEBUI_URL when available."""
+    configured_api_url = build_webui_url(app, "/api/chat/completions")
+    if configured_api_url:
+        return configured_api_url
+
+    port = os.environ.get("PORT", "8080")
+    return f"http://127.0.0.1:{port}/api/chat/completions"
+
+
 def truncate_text_for_notification(text: str, max_length: int = 500) -> str:
     """Truncate text for notification display while preserving readability."""
     cleaned = (text or "").strip()
@@ -137,6 +148,136 @@ def truncate_text_for_notification(text: str, max_length: int = 500) -> str:
         return cleaned
 
     return f"{cleaned[:max_length].rstrip()}..."
+
+
+def is_notes_tool_enabled(action_tools: list[str]) -> bool:
+    """Return True when either notes_manager or note_manager tool id is enabled."""
+    return any(
+        isinstance(tool_id, str)
+        and ("notes_manager" in tool_id.lower() or "note_manager" in tool_id.lower())
+        for tool_id in (action_tools or [])
+    )
+
+
+def source_matches_note_function(source_name: str, function_name: str) -> bool:
+    """Match note tool source names regardless of tool id aliasing."""
+    normalized = str(source_name or "").lower()
+    target = function_name.lower()
+    return normalized == target or normalized.endswith(f"/{target}")
+
+
+def extract_note_attachments_from_sources(sources: list) -> list[dict]:
+    """Extract notes_manager/get_note payloads from citation sources."""
+    attachments = []
+
+    for source in sources or []:
+        source_name = str(source.get("source", {}).get("name", ""))
+        if not source_matches_note_function(source_name, "get_note"):
+            continue
+
+        documents = source.get("document") or []
+        metadata = source.get("metadata") or []
+
+        for idx, document in enumerate(documents):
+            if not isinstance(document, str) or not document.strip():
+                continue
+
+            metadata_item = metadata[idx] if idx < len(metadata) and isinstance(metadata[idx], dict) else {}
+            parameters = metadata_item.get("parameters", {}) if isinstance(metadata_item, dict) else {}
+            note_id = parameters.get("note_id") if isinstance(parameters, dict) else None
+
+            attachments.append(
+                {
+                    "note_id": note_id,
+                    "content": document.strip(),
+                }
+            )
+
+    return attachments
+
+
+def extract_note_ids_from_list_sources(sources: list) -> list[str]:
+    """Extract note IDs from note listing/search citation documents."""
+    note_ids: list[str] = []
+    uuid_pattern = re.compile(
+        r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b"
+    )
+
+    for source in sources or []:
+        source_name = str(source.get("source", {}).get("name", ""))
+        if not (
+            source_matches_note_function(source_name, "list_my_notes")
+            or source_matches_note_function(source_name, "search_notes")
+        ):
+            continue
+
+        for document in source.get("document") or []:
+            if not isinstance(document, str):
+                continue
+
+            for match in uuid_pattern.findall(document):
+                if match not in note_ids:
+                    note_ids.append(match)
+
+    return note_ids
+
+
+def extract_get_note_ids_and_failures(sources: list) -> tuple[list[str], bool]:
+    """Extract note_id parameters used in get_note calls and detect explicit lookup failures."""
+    used_note_ids: list[str] = []
+    has_not_found_error = False
+
+    for source in sources or []:
+        source_name = str(source.get("source", {}).get("name", ""))
+        if not source_matches_note_function(source_name, "get_note"):
+            continue
+
+        for document in source.get("document") or []:
+            if isinstance(document, str) and "note not found" in document.lower():
+                has_not_found_error = True
+
+        metadata = source.get("metadata") or []
+        for metadata_item in metadata:
+            if not isinstance(metadata_item, dict):
+                continue
+            parameters = metadata_item.get("parameters", {})
+            if not isinstance(parameters, dict):
+                continue
+            note_id = parameters.get("note_id")
+            if isinstance(note_id, str) and note_id.strip():
+                used_note_ids.append(note_id.strip())
+
+    return used_note_ids, has_not_found_error
+
+
+def sanitize_tool_chatter_text(content: str, action_tools: list[str]) -> str:
+    """Remove malformed tool-call chatter prefixes while preserving final user-facing output."""
+    if not isinstance(content, str) or not content.strip():
+        return content
+
+    lowered = content.lower()
+    tool_mentions = [tool_id.lower() for tool_id in (action_tools or [])]
+    if "to=" not in lowered or not any(tool in lowered for tool in tool_mentions):
+        return content
+
+    blocks = [block.strip() for block in re.split(r"\n{2,}", content) if block.strip()]
+    if len(blocks) > 1:
+        for block in reversed(blocks):
+            block_lower = block.lower()
+            if "to=" in block_lower and any(tool in block_lower for tool in tool_mentions):
+                continue
+            if "need proper json" in block_lower or "commentary" in block_lower:
+                continue
+            return block
+
+    cleaned = re.sub(
+        r"(?:\bto=[^\s]+(?:\s+commentary)?(?:\s+[^\s]{1,30})?\s*){2,}",
+        "",
+        content,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
+    return cleaned or content
 
 
 async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
@@ -271,9 +412,9 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
             expires_delta=timedelta(seconds=600),
         )
         
-        # Call the internal API - always use localhost since scheduler runs on same server
-        port = os.environ.get("PORT", "8080")
-        api_url = f"http://127.0.0.1:{port}/api/chat/completions"
+        # Call the internal API. Prefer configured WEBUI_URL when available,
+        # otherwise fall back to localhost for local/dev setups.
+        api_url = get_chat_completions_api_url(app)
         
         log.info(f"[Scheduler] Calling API: {api_url}")
         
@@ -391,6 +532,7 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
 
             if continuation_content:
                 assistant_content = continuation_content
+                response_data = continuation_response
 
         assistant_content_lower = (assistant_content or "").lower()
         chatter_markers = [
@@ -416,15 +558,37 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 prompt.id,
             )
 
+            latest_sources = (
+                response_data.get("sources", []) if isinstance(response_data, dict) else []
+            )
+            if not isinstance(latest_sources, list):
+                latest_sources = []
+
+            note_ids_from_list = (
+                extract_note_ids_from_list_sources(latest_sources)
+                if is_notes_tool_enabled(action_tools)
+                else []
+            )
+
+            if note_ids_from_list:
+                notes_hint = (
+                    " Use get_note with parameter note_id and one of these IDs: "
+                    f"{', '.join(note_ids_from_list[:5])}. "
+                    "Do not call list_my_notes/search_notes again unless none of these IDs work."
+                )
+            else:
+                notes_hint = ""
+
             forced_tool_messages = [
                 *messages,
-                {"role": "assistant", "content": assistant_content},
                 {
                     "role": "user",
                     "content": (
-                        "Execute the intended tool call(s) from your previous response using available tools, "
-                        "then answer the original request in plain language with concrete results. "
-                        "Do not output tool-call syntax, analysis text, or JSON."
+                        "Your prior attempt produced malformed tool-call chatter. "
+                        "Execute the intended tool call(s) using available tools, then answer the original "
+                        "request in plain language with concrete results. "
+                        "Do not include tool-call syntax, commentary, analysis text, or JSON."
+                        f"{notes_hint}"
                     ),
                 },
             ]
@@ -449,8 +613,121 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
 
             if forced_tool_content:
                 assistant_content = forced_tool_content
+                response_data = forced_tool_response
+
+        if has_malformed_tool_chatter:
+            assistant_content = sanitize_tool_chatter_text(assistant_content, action_tools)
+
+        notes_followup_attempts = 0
+        while is_notes_tool_enabled(action_tools) and notes_followup_attempts < 2:
+            current_sources = response_data.get("sources", []) if isinstance(response_data, dict) else []
+            if not isinstance(current_sources, list):
+                current_sources = []
+
+            has_list_notes_source = any(
+                source_matches_note_function(source.get("source", {}).get("name", ""), "list_my_notes")
+                or source_matches_note_function(source.get("source", {}).get("name", ""), "search_notes")
+                for source in current_sources
+            )
+            has_get_note_source = any(
+                source_matches_note_function(source.get("source", {}).get("name", ""), "get_note")
+                for source in current_sources
+            )
+
+            note_ids_from_list = extract_note_ids_from_list_sources(current_sources)
+            used_get_note_ids, has_not_found_get_note = extract_get_note_ids_and_failures(
+                current_sources
+            )
+
+            used_expected_note_id = any(
+                used_id in note_ids_from_list for used_id in used_get_note_ids
+            )
+
+            needs_notes_followup = has_list_notes_source and (
+                not has_get_note_source
+                or has_not_found_get_note
+                or (note_ids_from_list and not used_expected_note_id)
+            )
+
+            # If we already have concrete note content (get_note), do not force another turn.
+            if not needs_notes_followup:
+                break
+
+            if not note_ids_from_list:
+                break
+
+            notes_followup_attempts += 1
+            note_id_candidates = ", ".join(note_ids_from_list[:5])
+            log.info(
+                "[Scheduler] Prompt %s returned note listing without successful get_note; forcing notes follow-up pass %s",
+                prompt.id,
+                notes_followup_attempts,
+            )
+
+            followup_messages = [
+                *messages,
+                {"role": "assistant", "content": assistant_content},
+                {
+                    "role": "user",
+                    "content": (
+                        "You MUST call get_note with parameter note_id using one of these IDs: "
+                        f"{note_id_candidates}. "
+                        "Use the exact UUID from the ID column, not the note title. "
+                        "Do not call list_my_notes/search_notes again unless every provided ID fails. "
+                        "After retrieving the note content, answer the original request in plain language."
+                    ),
+                },
+            ]
+
+            followup_payload = {
+                "model": model_id,
+                "messages": followup_messages,
+                "stream": False,
+                "tool_ids": action_tools,
+                "params": {"function_calling": "default"},
+            }
+
+            followup_response = await _call_chat_completion(followup_payload)
+            followup_message = (
+                followup_response.get("choices", [{}])[0].get("message", {}) or {}
+            )
+            followup_content = (
+                followup_message.get("content")
+                or followup_message.get("reasoning_content")
+                or ""
+            )
+
+            if followup_content:
+                assistant_content = sanitize_tool_chatter_text(followup_content, action_tools)
+                response_data = followup_response
+            else:
+                break
         
+        response_sources = response_data.get("sources", []) if isinstance(response_data, dict) else []
+        if not isinstance(response_sources, list):
+            response_sources = []
+
+        note_attachments = extract_note_attachments_from_sources(response_sources)
+
         timestamp = int(time.time())
+
+        assistant_message = {
+            "id": str(uuid.uuid4()),
+            "role": "assistant",
+            "content": assistant_content,
+            "timestamp": timestamp,
+            "models": [model_id],
+        }
+
+        if response_sources:
+            assistant_message["sources"] = response_sources
+            # Keep both keys for compatibility with chat UIs that reference either.
+            assistant_message["citations"] = response_sources
+
+        if note_attachments:
+            # Persist note payloads on the message without duplicating full note
+            # content in the user-visible assistant text.
+            assistant_message["note_attachments"] = note_attachments
         
         # Build chat messages (only user + assistant, system prompt is hidden context)
         chat_messages = [
@@ -461,13 +738,7 @@ async def execute_scheduled_prompt(app, prompt: ScheduledPromptModel) -> dict:
                 "timestamp": timestamp,
                 "models": [model_id],
             },
-            {
-                "id": str(uuid.uuid4()),
-                "role": "assistant",
-                "content": assistant_content,
-                "timestamp": timestamp,
-                "models": [model_id],
-            },
+            assistant_message,
         ]
         
         chat_id = prompt.chat_id

@@ -698,4 +698,717 @@ def test_execute_scheduled_prompt_forces_generic_continuation_after_malformed_to
     assert result["success"] is True
     assert len(captured_payloads) == 2
     assert captured_payloads[1]["params"]["function_calling"] == "default"
-    assert "Do not output tool-call syntax" in captured_payloads[1]["messages"][-1]["content"]
+    assert "Do not include tool-call syntax" in captured_payloads[1]["messages"][-1]["content"]
+
+
+def test_execute_scheduled_prompt_attaches_note_content_and_preserves_citations(monkeypatch):
+    captured = {}
+
+    class _ApiResponse:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def text(self):
+            return ""
+
+        async def json(self):
+            return {
+                "choices": [{"message": {"content": "Here is your todo summary."}}],
+                "sources": [
+                    {
+                        "source": {"name": "notes_manager/get_note"},
+                        "document": ["- buy milk\n- call mom"],
+                        "metadata": [
+                            {
+                                "source": "notes_manager/get_note",
+                                "parameters": {"note_id": "note-123"},
+                            }
+                        ],
+                    }
+                ],
+            }
+
+    class _DummySession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url, headers, json, timeout):
+            captured["payload"] = json
+            return _ApiResponse()
+
+    monkeypatch.setattr("open_webui.utils.scheduler.aiohttp.ClientSession", _DummySession)
+    monkeypatch.setattr("open_webui.utils.scheduler.create_token", lambda **kwargs: "token")
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.Users.get_user_by_id",
+        lambda _user_id: SimpleNamespace(id="u1", settings=None),
+    )
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.ScheduledPrompts.update_execution_status",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.ScheduledPrompts.update_scheduled_prompt_by_id",
+        lambda *args, **kwargs: None,
+    )
+
+    async def _noop_async(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("open_webui.utils.scheduler.send_user_notification", _noop_async)
+    monkeypatch.setattr("open_webui.utils.scheduler.send_ntfy_notification", _noop_async)
+
+    def _insert_new_chat(_user_id, chat_form):
+        captured["chat_data"] = chat_form.chat
+        return SimpleNamespace(id="chat-1")
+
+    monkeypatch.setattr("open_webui.utils.scheduler.Chats.insert_new_chat", _insert_new_chat)
+
+    app = SimpleNamespace(
+        state=SimpleNamespace(
+            MODELS={"model-1": {"info": {"meta": {"toolIds": []}}}},
+            config=SimpleNamespace(WEBUI_URL=""),
+        )
+    )
+
+    prompt = SimpleNamespace(
+        id="p7",
+        name="Attach note",
+        user_id="u1",
+        system_prompt="",
+        prompt="What's on my todo list?",
+        model_id="model-1",
+        tool_ids=["notes_manager"],
+        function_calling_mode="default",
+        chat_id=None,
+        create_new_chat=True,
+        run_once=True,
+        cron_expression="* * * * *",
+        timezone="UTC",
+    )
+
+    result = asyncio.run(execute_scheduled_prompt(app, prompt))
+
+    assert result["success"] is True
+    assistant_message = captured["chat_data"]["messages"][1]
+    assert assistant_message["content"] == "Here is your todo summary."
+    assert assistant_message["note_attachments"][0]["note_id"] == "note-123"
+    assert "- buy milk" in assistant_message["note_attachments"][0]["content"]
+    assert assistant_message["sources"] == assistant_message["citations"]
+    assert assistant_message["sources"][0]["source"]["name"] == "notes_manager/get_note"
+
+
+def test_execute_scheduled_prompt_uses_continuation_sources_for_note_attachment(monkeypatch):
+    captured = {"call_count": 0}
+
+    class _ApiResponse:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def text(self):
+            return ""
+
+        async def json(self):
+            captured["call_count"] += 1
+            if captured["call_count"] == 1:
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": '{"tool":"notes_manager/get_note","params":{"note_id":"n1"}}'
+                            }
+                        }
+                    ]
+                }
+
+            return {
+                "choices": [{"message": {"content": "Final summary after tool call."}}],
+                "sources": [
+                    {
+                        "source": {"name": "notes_manager/get_note"},
+                        "document": ["- task from continuation"],
+                        "metadata": [
+                            {
+                                "source": "notes_manager/get_note",
+                                "parameters": {"note_id": "cont-note-1"},
+                            }
+                        ],
+                    }
+                ],
+            }
+
+    class _DummySession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url, headers, json, timeout):
+            return _ApiResponse()
+
+    monkeypatch.setattr("open_webui.utils.scheduler.aiohttp.ClientSession", _DummySession)
+    monkeypatch.setattr("open_webui.utils.scheduler.create_token", lambda **kwargs: "token")
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.Users.get_user_by_id",
+        lambda _user_id: SimpleNamespace(id="u1", settings=None),
+    )
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.ScheduledPrompts.update_execution_status",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.ScheduledPrompts.update_scheduled_prompt_by_id",
+        lambda *args, **kwargs: None,
+    )
+
+    async def _noop_async(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("open_webui.utils.scheduler.send_user_notification", _noop_async)
+    monkeypatch.setattr("open_webui.utils.scheduler.send_ntfy_notification", _noop_async)
+
+    def _insert_new_chat(_user_id, chat_form):
+        captured["chat_data"] = chat_form.chat
+        return SimpleNamespace(id="chat-1")
+
+    monkeypatch.setattr("open_webui.utils.scheduler.Chats.insert_new_chat", _insert_new_chat)
+
+    app = SimpleNamespace(
+        state=SimpleNamespace(
+            MODELS={"model-1": {"info": {"meta": {"toolIds": []}}}},
+            config=SimpleNamespace(WEBUI_URL=""),
+        )
+    )
+
+    prompt = SimpleNamespace(
+        id="p8",
+        name="Continuation note sources",
+        user_id="u1",
+        system_prompt="",
+        prompt="What's on my todo list?",
+        model_id="model-1",
+        tool_ids=["notes_manager"],
+        function_calling_mode="default",
+        chat_id=None,
+        create_new_chat=True,
+        run_once=True,
+        cron_expression="* * * * *",
+        timezone="UTC",
+    )
+
+    result = asyncio.run(execute_scheduled_prompt(app, prompt))
+
+    assert result["success"] is True
+    assistant_message = captured["chat_data"]["messages"][1]
+    assert assistant_message["content"] == "Final summary after tool call."
+    assert assistant_message["note_attachments"][0]["note_id"] == "cont-note-1"
+    assert "- task from continuation" in assistant_message["note_attachments"][0]["content"]
+    assert assistant_message["sources"][0]["source"]["name"] == "notes_manager/get_note"
+
+
+def test_execute_scheduled_prompt_strips_malformed_tool_chatter_prefix(monkeypatch):
+    captured = {"call_count": 0}
+
+    class _ApiResponse:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def text(self):
+            return ""
+
+        async def json(self):
+            captured["call_count"] += 1
+            if captured["call_count"] == 1:
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "to=notes_manager/get_note commentary Need proper JSON.",
+                            }
+                        }
+                    ]
+                }
+
+            return {
+                "choices": [
+                    {
+                        "message": {
+                            "content": (
+                                "to=notes_manager/get_note commentary foo to=notes_manager/get_note commentary bar\n\n"
+                                "Here is your Todo list:\n- Buy groceries\n- Finish report"
+                            ),
+                        }
+                    }
+                ]
+            }
+
+    class _DummySession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url, headers, json, timeout):
+            return _ApiResponse()
+
+    monkeypatch.setattr("open_webui.utils.scheduler.aiohttp.ClientSession", _DummySession)
+    monkeypatch.setattr("open_webui.utils.scheduler.create_token", lambda **kwargs: "token")
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.Users.get_user_by_id",
+        lambda _user_id: SimpleNamespace(id="u1", settings=None),
+    )
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.ScheduledPrompts.update_execution_status",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.ScheduledPrompts.update_scheduled_prompt_by_id",
+        lambda *args, **kwargs: None,
+    )
+
+    async def _noop_async(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("open_webui.utils.scheduler.send_user_notification", _noop_async)
+    monkeypatch.setattr("open_webui.utils.scheduler.send_ntfy_notification", _noop_async)
+
+    def _insert_new_chat(_user_id, chat_form):
+        captured["chat_data"] = chat_form.chat
+        return SimpleNamespace(id="chat-1")
+
+    monkeypatch.setattr("open_webui.utils.scheduler.Chats.insert_new_chat", _insert_new_chat)
+
+    app = SimpleNamespace(
+        state=SimpleNamespace(
+            MODELS={"model-1": {"info": {"meta": {"toolIds": []}}}},
+            config=SimpleNamespace(WEBUI_URL=""),
+        )
+    )
+
+    prompt = SimpleNamespace(
+        id="p9",
+        name="Strip chatter",
+        user_id="u1",
+        system_prompt="",
+        prompt="What's on my todo list?",
+        model_id="model-1",
+        tool_ids=["notes_manager"],
+        function_calling_mode="default",
+        chat_id=None,
+        create_new_chat=True,
+        run_once=True,
+        cron_expression="* * * * *",
+        timezone="UTC",
+    )
+
+    result = asyncio.run(execute_scheduled_prompt(app, prompt))
+
+    assert result["success"] is True
+    assistant_message = captured["chat_data"]["messages"][1]
+    assert "to=notes_manager/get_note" not in assistant_message["content"]
+    assert "Here is your Todo list:" in assistant_message["content"]
+
+
+def test_execute_scheduled_prompt_forces_notes_get_note_after_list_only_sources(monkeypatch):
+    captured_payloads = []
+    note_id = "0416d5a0-3468-4f0b-a6d6-11900b2439ea"
+
+    class _ApiResponse:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def text(self):
+            return ""
+
+        async def json(self):
+            call_idx = len(captured_payloads)
+            if call_idx == 1:
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "to=notes_manager/get_note commentary Need proper JSON.",
+                            }
+                        }
+                    ],
+                    "sources": [
+                        {
+                            "source": {"name": "notes_manager/list_my_notes"},
+                            "document": [f"| Todo | `{note_id}` | 2026-02-16 |"],
+                            "metadata": [{"source": "notes_manager/list_my_notes"}],
+                        }
+                    ],
+                }
+            if call_idx == 2:
+                return {
+                    "choices": [{"message": {"content": "Still working on it..."}}],
+                    "sources": [
+                        {
+                            "source": {"name": "notes_manager/list_my_notes"},
+                            "document": [f"| Todo | `{note_id}` | 2026-02-16 |"],
+                            "metadata": [{"source": "notes_manager/list_my_notes"}],
+                        }
+                    ],
+                }
+
+            return {
+                "choices": [{"message": {"content": "Todo summary from note content."}}],
+                "sources": [
+                    {
+                        "source": {"name": "notes_manager/get_note"},
+                        "document": ["- step 1\n- step 2"],
+                        "metadata": [
+                            {
+                                "source": "notes_manager/get_note",
+                                "parameters": {"note_id": note_id},
+                            }
+                        ],
+                    }
+                ],
+            }
+
+    class _DummySession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url, headers, json, timeout):
+            captured_payloads.append(json)
+            return _ApiResponse()
+
+    monkeypatch.setattr("open_webui.utils.scheduler.aiohttp.ClientSession", _DummySession)
+    monkeypatch.setattr("open_webui.utils.scheduler.create_token", lambda **kwargs: "token")
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.Users.get_user_by_id",
+        lambda _user_id: SimpleNamespace(id="u1", settings=None),
+    )
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.ScheduledPrompts.update_execution_status",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.ScheduledPrompts.update_scheduled_prompt_by_id",
+        lambda *args, **kwargs: None,
+    )
+
+    async def _noop_async(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("open_webui.utils.scheduler.send_user_notification", _noop_async)
+    monkeypatch.setattr("open_webui.utils.scheduler.send_ntfy_notification", _noop_async)
+
+    def _insert_new_chat(_user_id, chat_form):
+        return SimpleNamespace(id="chat-1")
+
+    monkeypatch.setattr("open_webui.utils.scheduler.Chats.insert_new_chat", _insert_new_chat)
+
+    app = SimpleNamespace(
+        state=SimpleNamespace(
+            MODELS={"model-1": {"info": {"meta": {"toolIds": []}}}},
+            config=SimpleNamespace(WEBUI_URL=""),
+        )
+    )
+
+    prompt = SimpleNamespace(
+        id="p10",
+        name="Notes follow-up",
+        user_id="u1",
+        system_prompt="",
+        prompt="What's on my todo list?",
+        model_id="model-1",
+        tool_ids=["notes_manager"],
+        function_calling_mode="default",
+        chat_id=None,
+        create_new_chat=True,
+        run_once=True,
+        cron_expression="* * * * *",
+        timezone="UTC",
+    )
+
+    result = asyncio.run(execute_scheduled_prompt(app, prompt))
+
+    assert result["success"] is True
+    assert len(captured_payloads) == 3
+    assert (
+        "You MUST call get_note with parameter note_id"
+        in captured_payloads[2]["messages"][-1]["content"]
+    )
+
+
+def test_execute_scheduled_prompt_retries_when_get_note_uses_title_instead_of_uuid(
+    monkeypatch,
+):
+    captured_payloads = []
+    note_id = "0416d5a0-3468-4f0b-a6d6-11900b2439ea"
+
+    class _ApiResponse:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def text(self):
+            return ""
+
+        async def json(self):
+            call_idx = len(captured_payloads)
+            if call_idx == 1:
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "I found your note but could not read it.",
+                            }
+                        }
+                    ],
+                    "sources": [
+                        {
+                            "source": {"name": "notes_manager/list_my_notes"},
+                            "document": [f"| Todo | `{note_id}` | 2026-02-16 |"],
+                            "metadata": [{"source": "notes_manager/list_my_notes"}],
+                        },
+                        {
+                            "source": {"name": "notes_manager/get_note"},
+                            "document": ["❌ Note not found: Todo"],
+                            "metadata": [
+                                {
+                                    "source": "notes_manager/get_note",
+                                    "parameters": {"note_id": "Todo"},
+                                }
+                            ],
+                        },
+                    ],
+                }
+
+            return {
+                "choices": [{"message": {"content": "Todo items: step 1, step 2."}}],
+                "sources": [
+                    {
+                        "source": {"name": "notes_manager/get_note"},
+                        "document": ["- step 1\n- step 2"],
+                        "metadata": [
+                            {
+                                "source": "notes_manager/get_note",
+                                "parameters": {"note_id": note_id},
+                            }
+                        ],
+                    }
+                ],
+            }
+
+    class _DummySession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url, headers, json, timeout):
+            captured_payloads.append(json)
+            return _ApiResponse()
+
+    monkeypatch.setattr("open_webui.utils.scheduler.aiohttp.ClientSession", _DummySession)
+    monkeypatch.setattr("open_webui.utils.scheduler.create_token", lambda **kwargs: "token")
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.Users.get_user_by_id",
+        lambda _user_id: SimpleNamespace(id="u1", settings=None),
+    )
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.ScheduledPrompts.update_execution_status",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.ScheduledPrompts.update_scheduled_prompt_by_id",
+        lambda *args, **kwargs: None,
+    )
+
+    async def _noop_async(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("open_webui.utils.scheduler.send_user_notification", _noop_async)
+    monkeypatch.setattr("open_webui.utils.scheduler.send_ntfy_notification", _noop_async)
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.Chats.insert_new_chat",
+        lambda _user_id, chat_form: SimpleNamespace(id="chat-1"),
+    )
+
+    app = SimpleNamespace(
+        state=SimpleNamespace(
+            MODELS={"model-1": {"info": {"meta": {"toolIds": []}}}},
+            config=SimpleNamespace(WEBUI_URL=""),
+        )
+    )
+
+    prompt = SimpleNamespace(
+        id="p11",
+        name="Retry title-based get_note",
+        user_id="u1",
+        system_prompt="",
+        prompt="What's on my todo list?",
+        model_id="model-1",
+        tool_ids=["notes_manager"],
+        function_calling_mode="default",
+        chat_id=None,
+        create_new_chat=True,
+        run_once=True,
+        cron_expression="* * * * *",
+        timezone="UTC",
+    )
+
+    result = asyncio.run(execute_scheduled_prompt(app, prompt))
+
+    assert result["success"] is True
+    assert len(captured_payloads) == 2
+    assert (
+        "Use the exact UUID from the ID column, not the note title"
+        in captured_payloads[1]["messages"][-1]["content"]
+    )
+
+
+def test_execute_scheduled_prompt_note_manager_search_notes_triggers_followup(monkeypatch):
+    captured_payloads = []
+    note_id = "0fbc657d-fc83-4c0c-94c3-f7585b30c74a"
+
+    class _ApiResponse:
+        status = 200
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def text(self):
+            return ""
+
+        async def json(self):
+            call_idx = len(captured_payloads)
+            if call_idx == 1:
+                return {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": "I found your todo note title but need content access.",
+                            }
+                        }
+                    ],
+                    "sources": [
+                        {
+                            "source": {"name": "note_manager/search_notes"},
+                            "document": [
+                                "| todo | 📌 title | `0fbc657d-fc83-4c0c-94c3-f7585b30c74a` | 2026-02-16 |"
+                            ],
+                            "metadata": [{"source": "note_manager/search_notes"}],
+                        }
+                    ],
+                }
+
+            return {
+                "choices": [{"message": {"content": "Todo list retrieved."}}],
+                "sources": [
+                    {
+                        "source": {"name": "note_manager/get_note"},
+                        "document": ["- step 1\n- step 2"],
+                        "metadata": [
+                            {
+                                "source": "note_manager/get_note",
+                                "parameters": {"note_id": note_id},
+                            }
+                        ],
+                    }
+                ],
+            }
+
+    class _DummySession:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url, headers, json, timeout):
+            captured_payloads.append(json)
+            return _ApiResponse()
+
+    monkeypatch.setattr("open_webui.utils.scheduler.aiohttp.ClientSession", _DummySession)
+    monkeypatch.setattr("open_webui.utils.scheduler.create_token", lambda **kwargs: "token")
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.Users.get_user_by_id",
+        lambda _user_id: SimpleNamespace(id="u1", settings=None),
+    )
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.ScheduledPrompts.update_execution_status",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.ScheduledPrompts.update_scheduled_prompt_by_id",
+        lambda *args, **kwargs: None,
+    )
+
+    async def _noop_async(*args, **kwargs):
+        return None
+
+    monkeypatch.setattr("open_webui.utils.scheduler.send_user_notification", _noop_async)
+    monkeypatch.setattr("open_webui.utils.scheduler.send_ntfy_notification", _noop_async)
+    monkeypatch.setattr(
+        "open_webui.utils.scheduler.Chats.insert_new_chat",
+        lambda _user_id, chat_form: SimpleNamespace(id="chat-1"),
+    )
+
+    app = SimpleNamespace(
+        state=SimpleNamespace(
+            MODELS={"model-1": {"info": {"meta": {"toolIds": []}}}},
+            config=SimpleNamespace(WEBUI_URL=""),
+        )
+    )
+
+    prompt = SimpleNamespace(
+        id="p12",
+        name="Note manager search follow-up",
+        user_id="u1",
+        system_prompt="",
+        prompt="What's on my todo list?",
+        model_id="model-1",
+        tool_ids=["note_manager"],
+        function_calling_mode="auto",
+        chat_id=None,
+        create_new_chat=True,
+        run_once=True,
+        cron_expression="* * * * *",
+        timezone="UTC",
+    )
+
+    result = asyncio.run(execute_scheduled_prompt(app, prompt))
+
+    assert result["success"] is True
+    assert len(captured_payloads) == 2
+    assert "You MUST call get_note with parameter note_id" in captured_payloads[1]["messages"][-1]["content"]

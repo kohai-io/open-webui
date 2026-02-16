@@ -295,16 +295,56 @@ async def chat_completion_tools_handler(
 ) -> tuple[dict, dict]:
     async def get_content_from_response(response) -> Optional[str]:
         content = None
+
+        def _extract_content_from_payload(data: dict, current: Optional[str]) -> Optional[str]:
+            choices = data.get("choices", []) if isinstance(data, dict) else []
+            if not choices:
+                return current
+
+            choice = choices[0] or {}
+            message = choice.get("message", {}) or {}
+            message_content = message.get("content") or message.get("reasoning_content")
+            if message_content:
+                return message_content
+
+            # Some providers still stream delta chunks even when stream=False.
+            delta = choice.get("delta", {}) or {}
+            delta_content = delta.get("content") or delta.get("reasoning_content")
+            if delta_content:
+                return f"{current or ''}{delta_content}"
+
+            return current
+
         if hasattr(response, "body_iterator"):
             async for chunk in response.body_iterator:
-                data = json.loads(chunk.decode("utf-8", "replace"))
-                content = data["choices"][0]["message"]["content"]
+                chunk_text = (
+                    chunk.decode("utf-8", "replace") if isinstance(chunk, (bytes, bytearray)) else str(chunk)
+                )
+
+                for raw_line in chunk_text.splitlines():
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+
+                    if line.startswith("data:"):
+                        line = line[5:].strip()
+
+                    if not line or line == "[DONE]":
+                        continue
+
+                    try:
+                        data = json.loads(line)
+                    except Exception:
+                        continue
+
+                    content = _extract_content_from_payload(data, content)
 
             # Cleanup any remaining background tasks if necessary
             if response.background is not None:
                 await response.background()
         else:
-            content = response["choices"][0]["message"]["content"]
+            content = _extract_content_from_payload(response, content)
+
         return content
 
     def get_tools_function_calling_payload(messages, task_model_id, content):
