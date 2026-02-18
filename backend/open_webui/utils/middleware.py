@@ -2981,10 +2981,26 @@ async def process_chat_response(
 
                     results = []
 
+                    def resolve_tool_name(requested_name: str) -> Optional[str]:
+                        if requested_name in tools:
+                            return requested_name
+
+                        if isinstance(requested_name, str):
+                            candidates = [
+                                key for key in tools.keys() if key.endswith(f"_{requested_name}")
+                            ]
+                            if len(candidates) == 1:
+                                return candidates[0]
+
+                        return None
+
                     for tool_call in response_tool_calls:
                         tool_call_id = tool_call.get("id", "")
                         tool_function_name = tool_call.get("function", {}).get(
                             "name", ""
+                        )
+                        resolved_tool_function_name = resolve_tool_name(
+                            tool_function_name
                         )
                         tool_args = tool_call.get("function", {}).get("arguments", "{}")
 
@@ -3019,8 +3035,15 @@ async def process_chat_response(
                         tool_type = None
                         direct_tool = False
 
-                        if tool_function_name in tools:
-                            tool = tools[tool_function_name]
+                        if resolved_tool_function_name in tools:
+                            if resolved_tool_function_name != tool_function_name:
+                                log.info(
+                                    "Executing native tool call: %s (resolved from %s)",
+                                    resolved_tool_function_name,
+                                    tool_function_name,
+                                )
+
+                            tool = tools[resolved_tool_function_name]
                             spec = tool.get("spec", {})
 
                             tool_type = tool.get("type", "")
@@ -3045,7 +3068,7 @@ async def process_chat_response(
                                             "type": "execute:tool",
                                             "data": {
                                                 "id": str(uuid4()),
-                                                "name": tool_function_name,
+                                                "name": resolved_tool_function_name,
                                                 "params": tool_function_params,
                                                 "server": tool.get("server", {}),
                                                 "session_id": metadata.get(
@@ -3072,6 +3095,15 @@ async def process_chat_response(
 
                             except Exception as e:
                                 tool_result = str(e)
+                        else:
+                            log.warning(
+                                "Native tool call '%s' could not be resolved. Available tools: %s",
+                                tool_function_name,
+                                ", ".join(sorted(list(tools.keys()))[:25]),
+                            )
+                            tool_result = (
+                                f"Tool '{tool_function_name}' is not available in this session."
+                            )
 
                         tool_result, tool_result_files, tool_result_embeds = (
                             process_tool_result(
