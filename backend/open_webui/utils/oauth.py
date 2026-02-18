@@ -391,13 +391,26 @@ class OAuthClientManager:
         self.clients = {}
 
     def add_client(self, client_id, oauth_client_info: OAuthClientInformationFull):
+        client_kwargs = {}
+        if oauth_client_info.scope:
+            client_kwargs["scope"] = oauth_client_info.scope
+        if oauth_client_info.token_endpoint_auth_method:
+            client_kwargs["token_endpoint_auth_method"] = (
+                oauth_client_info.token_endpoint_auth_method
+            )
+
+        log.debug(
+            "Registering OAuth client %s with token_endpoint_auth_method=%s scope=%s",
+            client_id,
+            oauth_client_info.token_endpoint_auth_method or "(provider default)",
+            oauth_client_info.scope or "(none)",
+        )
+
         kwargs = {
             "name": client_id,
             "client_id": oauth_client_info.client_id,
             "client_secret": oauth_client_info.client_secret,
-            "client_kwargs": (
-                {"scope": oauth_client_info.scope} if oauth_client_info.scope else {}
-            ),
+            "client_kwargs": client_kwargs,
             "server_metadata_url": (
                 oauth_client_info.issuer if oauth_client_info.issuer else None
             ),
