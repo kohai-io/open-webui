@@ -15,7 +15,7 @@
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 	import Sidebar from '$lib/components/icons/Sidebar.svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: any = getContext('i18n');
 
 	let loaded = false;
 
@@ -36,6 +36,8 @@
 			} else if ($page.url.pathname.includes('/tools') && !$user?.permissions?.workspace?.tools) {
 				goto('/');
 			} else if ($page.url.pathname.includes('/skills') && !$user?.permissions?.workspace?.skills) {
+				goto('/');
+			} else if ($page.url.pathname.includes('/flows') && !$user?.permissions?.workspace?.flows) {
 				goto('/');
 			}
 		}
@@ -142,6 +144,19 @@
 								href="/workspace/tools"
 							>
 								{$i18n.t('Tools')}
+							</a>
+						{/if}
+
+						{#if $user?.role === 'admin' || $user?.permissions?.workspace?.flows}
+							<a
+								draggable="false"
+								aria-current={$page.url.pathname.includes('/workspace/flows') ? 'page' : null}
+								class="min-w-fit p-1.5 {$page.url.pathname.includes('/workspace/flows')
+									? ''
+									: 'text-gray-300 dark:text-gray-600 hover:text-gray-700 dark:hover:text-white'} transition select-none"
+								href="/workspace/flows"
+							>
+								{$i18n.t('Flows')}
 							</a>
 						{/if}
 					</div>

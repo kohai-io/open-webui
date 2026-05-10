@@ -33,7 +33,7 @@
 	} from '$lib/stores';
 	import { onMount, getContext, tick, onDestroy } from 'svelte';
 
-	const i18n = getContext('i18n');
+	const i18n: any = getContext('i18n');
 
 	import {
 		getChatList,
@@ -119,7 +119,8 @@
 					$user?.permissions?.workspace?.models ||
 					$user?.permissions?.workspace?.knowledge ||
 					$user?.permissions?.workspace?.prompts ||
-					$user?.permissions?.workspace?.tools
+					$user?.permissions?.workspace?.tools ||
+					$user?.permissions?.workspace?.flows
 				);
 			case 'automations':
 				return (

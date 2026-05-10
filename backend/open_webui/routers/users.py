@@ -172,6 +172,7 @@ class WorkspacePermissions(BaseModel):
     prompts: bool = False
     tools: bool = False
     skills: bool = False
+    flows: bool = False
     models_import: bool = False
     models_export: bool = False
     prompts_import: bool = False
@@ -191,6 +192,8 @@ class SharingPermissions(BaseModel):
     public_tools: bool = True
     skills: bool = False
     public_skills: bool = False
+    flows: bool = False
+    public_flows: bool = False
     notes: bool = False
     public_notes: bool = True
     public_chats: bool = False
