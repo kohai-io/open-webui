@@ -315,3 +315,6 @@ cypress/screenshots
 /functions_tools/*
 
 /docs/archive/*
+
+backend/start.ps1
+scripts/port_v082_bootstrap.ps1
