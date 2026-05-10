@@ -318,6 +318,14 @@ export class FlowExecutor {
 		return result.dataUri;
 	}
 
+	private extractDataUri(value: string): string | null {
+		return value.match(/data:(?:image|video|audio)\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]+/)?.[0] ?? null;
+	}
+
+	private extractFileId(value: string): string | null {
+		return value.match(/\/(?:api\/v1\/)?files\/([a-f0-9-]+)\/content/)?.[1] ?? null;
+	}
+
 	private async executeInputNode(node: FlowNode): Promise<string | string[]> {
 		const data = node.data as any;
 		
@@ -612,8 +620,8 @@ export class FlowExecutor {
 				model: data.modelId,
 				messages,
 				stream: false,
-				session_id: 'flow-execution', // Required by API
-				chat_id: `flow-${Date.now()}` // Required by API
+				session_id: null, // Required by API
+				chat_id: null // Required by API
 			};
 			
 			// Only include advanced settings if enabled
@@ -715,12 +723,18 @@ export class FlowExecutor {
 						}
 						
 						// Match /api/v1/files/{id}/content or /files/{id}/content
-						const fileIdMatch = content.match(/\/(?:api\/v1\/)?files\/([a-f0-9-]+)\/content/);
-						if (fileIdMatch) {
+						const dataUri = this.extractDataUri(content);
+						if (dataUri) {
+							console.log('✓ Extracted data URI from messages');
+							return dataUri;
+						}
+
+						const fileId = this.extractFileId(content);
+						if (fileId) {
 							// Found a file ID - return just the ID
-							console.log('✓ Extracted file ID from messages:', fileIdMatch[1]);
+							console.log('✓ Extracted file ID from messages:', fileId);
 							console.log('✓ Returning file ID to next node');
-							return fileIdMatch[1];
+							return fileId;
 						}
 					}
 					
@@ -754,11 +768,17 @@ export class FlowExecutor {
 					}
 					
 					// Match /api/v1/files/{id}/content or /files/{id}/content
-					const fileIdMatch = content.match(/\/(?:api\/v1\/)?files\/([a-f0-9-]+)\/content/);
-					if (fileIdMatch) {
+					const dataUri = this.extractDataUri(content);
+					if (dataUri) {
+						console.log('Extracted data URI from choices');
+						return dataUri;
+					}
+
+					const fileId = this.extractFileId(content);
+					if (fileId) {
 						// Found a file ID - return just the ID
-						console.log('Extracted file ID from choices:', fileIdMatch[1]);
-						return fileIdMatch[1];
+						console.log('Extracted file ID from choices:', fileId);
+						return fileId;
 					}
 				}
 				
@@ -810,6 +830,16 @@ export class FlowExecutor {
 			
 			// Input can be a file ID, URL, or base64 data
 			if (typeof input === 'string') {
+				const extractedDataUri = this.extractDataUri(input);
+				if (extractedDataUri && extractedDataUri !== input) {
+					return await this.executeOutputNode(node, [extractedDataUri]);
+				}
+
+				const extractedFileId = this.extractFileId(input);
+				if (extractedFileId) {
+					return await this.executeOutputNode(node, [extractedFileId]);
+				}
+
 				// Check if it's base64 data
 				if (input.startsWith('data:')) {
 					// Base64 data - convert to file and upload
