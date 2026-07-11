@@ -260,12 +260,12 @@ Create a short contract document before implementing the integration.
 
 ## Phase 5: First vertical slice — Welcome and Agents
 
-- [x] Define minimal `StudioUser`, `OwuiModel`, Studio-owned `StudioAgent`, and chat-launch contracts.
+- [x] Define minimal `StudioUser`, executable `OwuiModel`, accessible workspace-model/function, and native OWUI launch contracts.
 - [ ] Port only the reusable visual components; replace OWUI internal stores with explicit Studio data/services.
 - [x] List only models and agents available to the current user.
 - [ ] Preserve Studio-owned ordering or favourites in the Studio database.
-- [x] Launch a new OWUI chat using an authorised model or agent, with server-side availability revalidation.
-- [x] Verify the launch redirects to the created chat in OWUI.
+- [x] Hand an authorised model or agent to OWUI's native new-chat route, with server-side availability revalidation.
+- [x] Verify launch redirects to `/?models=<id>` so OWUI applies the workspace model's prompt, knowledge, skills, and tools.
 - [ ] Add loading, empty, permission-denied, and upstream-unavailable states.
 - [ ] Add end-to-end tests for two users with different access.
 - [ ] Deploy behind a feature flag or removable navigation link.
@@ -430,7 +430,8 @@ Record material decisions here or link to separate decision records.
 | 2026-07-11 | Use upstream Google Drive selected-file import and drop fork synchronisation | The upstream browser picker covers fresh imports; server OAuth and continuous sync are a separate product/security lifecycle | Continuous Drive synchronisation becomes an explicit Studio/connector requirement |
 | 2026-07-11 | Use upstream admin analytics and move only LiteLLM spend reporting to Studio | v0.10.2 already owns standard analytics; LiteLLM credentials and provider-specific reporting do not belong in the OWUI patch set | Upstream gains the required LiteLLM reporting or the report is no longer needed |
 | 2026-07-11 | Keep Studio OIDC provider-neutral with Okta as the intended production provider | Discovery and standards-based Authorization Code + PKCE allow automated fake-provider tests now and Okta conformance later without making a homelab IdP a production dependency | Okta requires a documented non-standard integration or the production IdP changes |
-| 2026-07-11 | Make agents Studio-owned compositions that reference authorised OWUI models | Upstream v0.10.2 has configurable workspace models but no formal agent resource or agent-type model; Studio needs a stable product meaning without inventing upstream semantics | Upstream adds a user-scoped agent resource that covers Studio's composition requirements |
+| 2026-07-11 | Keep agent definitions in OWUI and classify executable workspace models/functions for Welcome | OWUI workspace models already provide prompts, knowledge, skills/tools and user/group access; the legacy Welcome page correctly intersected them with the authorised executable catalogue | Revisit only if upstream replaces these APIs or adds a first-class equivalent catalogue |
+| 2026-07-11 | Prefer a thin, feature-flagged OWUI Welcome page while retaining Studio as a compatibility implementation | Welcome presents OWUI-owned concepts and benefits from native chat/workspace navigation; Media and other independent schemas still belong in Studio | Upstream accepts an equivalent dashboard, or the UI patch becomes materially costly to rebase |
 
 ## Evidence log
 
@@ -443,7 +444,7 @@ Add concise links or references as work completes.
 | 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Clean build/start, admin/auth, OpenAI-compatible discovery/SSE chat, explicit model grant/denial, private file/Knowledge denial, processing, attachment, and retrieval pass; source variables classified; real providers, OAuth/MCP/Drive, proxy/browser checks, upstream type check, live deployment names, and signature trust remain |
 | 3 | `docs/owui-studio-contract.md` | Ownership, shared-OIDC/token-exchange authentication, fallback launch exchange, minimum user-scoped API surface, typed adapter policy, denial matrix, and narrow patch set documented; no direct database access or administrator browser credential required |
 | 4 | Studio repository `git.theoldschool.house/robert/open-webui-studio` through `b40cd51`; functions repository `git.theoldschool.house/robert/open-webui-functions-tools` through `196b1a4`; live Keycloak realm `homelab` | Canonical origins are private Gitea; Studio shell, non-root container, typed v0.10.2 adapter, SQLite migrations, encrypted sessions, provider-neutral OIDC routes, and fake IdP pass automated validation; shared Keycloak login and OWUI provider-token exchange were manually verified against a locally built clean v0.10.2 image; live Okta, second-user matrix, proxy, and rollback checks remain |
-| 5 | Studio repository `git.theoldschool.house/robert/open-webui-studio` commit `e84a80d` | Welcome lists user-authorised OWUI models; personal Studio agents are persisted independently, isolated by OWUI user, filtered when their referenced model becomes inaccessible, and revalidated before launch; create/delete/launch UI and chat redirection are implemented; lint, zero-diagnostic checking, 17 server tests, browser test, and production build pass; live personal-agent retest, loading UX, favourites/order, two-user browser proof, navigation flag, and deployment rollback proof remain |
+| 5 | Studio repository `git.theoldschool.house/robert/open-webui-studio` commits `0d74d7f` and `abb86cc`, plus `docs/welcome-feature-maintenance-options.md` | The Studio-owned agent experiment was reverted. Welcome intersects the user-authorised executable catalogue with accessible OWUI workspace models and active functions, and delegates chat initialisation to OWUI; tests, zero-diagnostic checking, browser test, and production build pass. A thin feature-flagged OWUI implementation is recommended; live workspace-agent retest, favourites/order, two-user browser proof, native fork implementation, and deployment rollback proof remain |
 | 6 | | |
 | 7 | | |
 | 8 | `docs/mcp-oauth-google-drive-comparison.md` | MCP/OAuth fixes classified commit by commit; use upstream Google Drive selected-file import; fork server OAuth/sync dropped; tool-name resolver and optional Drive multi-file handling identified as narrow upstream contribution candidates |
