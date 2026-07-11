@@ -220,8 +220,20 @@ All 126 server tests pass, including focused graph-editing and component coverag
 
 The remaining UI gate is a user-led authenticated check of adding and deleting each admitted node, connecting and deleting edges, editing and saving settings, position reload, structural feedback, run inputs, live progress, cancellation, output, and history.
 
+The user explicitly asked to retry the in-app browser and signed in. The authenticated check confirmed the existing saved flow, adding a Transform node, incomplete-topology feedback, and changing the Transform setting from trim to uppercase. The browser controller stalled at the native delete confirmation, so no save or server mutation was made. Deletion, edge editing, save/reload position persistence, and a fresh run/cancel/history pass remain useful manual confidence checks.
+
+## Completed slice: Flow audit and automated Phase 7 lifecycle gate
+
+Studio commit `bf7dd04` adds migration `0007_flow_audit.sql` and transactional metadata-only audit records for flow creation/update/deletion and execution queue/start/requeue/cancel/success/failure transitions. The table has fixed columns for owner, action, Flow/version IDs, execution ID/state, stable error code, and timestamp. It has no flexible JSON or fields for names, descriptions, definitions, model IDs, prompts, inputs, outputs, request IDs, idempotency keys, tokens, or connector secrets. Audit rows intentionally survive terminal Flow deletion.
+
+Focused tests prove transaction rollback, one audit event for idempotent queueing, owner-scoped audit reads, the exact fixed schema, and absence of sensitive markers. A representative two-user lifecycle fixture creates both flows from empty Studio storage, queues user A against version 1, saves version 2, proves the worker still executes version 1, hides flow/execution/event/audit data from user B, cancels user B's queued run, deletes user A's terminal Flow, and retains only metadata audit history.
+
+All 130 Studio server tests pass. Svelte check reports zero errors and warnings, full ESLint passes, changed TypeScript files pass Prettier, `git diff --check` is clean, and the production build succeeds. The repository-wide Prettier check still reports the same 34 baseline files outside this slice.
+
+Image `open-webui-studio:flows-ui-local` was rebuilt from the validated worktree. Only `owui-studio-media-test` was rotated; it is healthy, runs as `studio`, uses the preserved `owui-studio-media-test-data` volume, and reports migration `0007_flow_audit.sql` and `studio_flow_audit` present. The previous container remains stopped as `owui-studio-media-test-pre-flow-audit`; all older rollback containers remain unchanged. `/studio/health` returns `200`, startup logs are clean, and anonymous Flow/API requests retain hidden `404` behavior.
+
 Do not copy the legacy global stores, browser executor, broad `any` types, window event listener, forced `flowKey` remount, random node placement, weak graph validation, discarded handle IDs, or automatic breakpoint layout that overwrites user positions. Keep the server validator authoritative. Unlock add, delete, and connect for the four admitted node types after the locked canvas passes. Deferred node types retain the admission gates in `docs/flow-extraction-contract.md`.
 
-Do not use in-app browser automation. The user reports that browser access crashes the ChatGPT app. Use automated tests, HTTP checks, container logs, and user-led UI verification.
+Do not use in-app browser automation again unless the user explicitly asks. The user reversed the earlier prohibition for one authenticated check, but the controller stalled at a native confirmation. Prefer automated tests, HTTP checks, container logs, and user-led UI verification.
 
-The Studio branch contains five unpushed commits: `e9accc5`, `eac13a2`, `18efba0`, locked-canvas commit `cd30583`, and editable-canvas commit `70462a8`. This planning repository also has local commits and documentation changes awaiting publication. Push each repository only after the user gives fresh approval for its private remote.
+The Studio branch contains six unpushed commits: `e9accc5`, `eac13a2`, `18efba0`, locked-canvas commit `cd30583`, editable-canvas commit `70462a8`, and audit/lifecycle commit `bf7dd04`. This planning repository also has local commits and documentation changes awaiting publication. Push each repository only after the user gives fresh approval for its private remote.
