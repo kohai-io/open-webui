@@ -65,7 +65,7 @@ Do not rewrite the legacy or archived rebaseline histories.
 - [ ] Preserve the unfinished v0.9.4 rebaseline as `archive/rebaseline-v0.9.4`.
 - [ ] Record the deployed container image and digest.
 - [ ] Record Compose files, reverse-proxy routes, volumes, environment variable names, and external dependencies.
-- [ ] Record the `functions_tools` submodule revision and how it is deployed.
+- [ ] Record the `functions_tools` submodule revision and how it is deployed. The source revision and compatibility work are recorded; live deployment use remains unverified. See `docs/rebaseline-phase-0-source-record.md` and `docs/functions-tools-v0.10.2-file-api-compatibility.md`.
 - [ ] Store secrets only in the existing secret-management location; do not copy secret values into this plan.
 
 ### Fresh-start boundary
@@ -105,7 +105,7 @@ Create `docs/feature-ledger.md`. Give every custom feature one explicit decision
 - [x] Knowledge-management changes. See `docs/feature-ledger.md`.
 - [x] Branding, navigation, and static assets. See `docs/feature-ledger.md`.
 - [x] Pi Gateway and other experimental interfaces. See `docs/feature-ledger.md`.
-- [x] `functions_tools` submodule features. See `docs/feature-ledger.md`; per-tool inventory remains open.
+- [x] `functions_tools` submodule features. See `docs/feature-ledger.md`; all pipe files were inventoried and the 19 file-API callers were patched for v0.10.2. Action/tool disposition and runtime contract tests remain open. See `docs/functions-tools-v0.10.2-file-api-compatibility.md`.
 
 ### Record for every feature
 
