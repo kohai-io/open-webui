@@ -45,6 +45,7 @@ Run the backend with isolated local data:
 $env:DATA_DIR = Join-Path $PWD '.local-data'
 $env:WEBUI_SECRET_KEY = '<local-development-secret>'
 $env:OFFLINE_MODE = 'true'
+New-Item -ItemType Directory -Force $env:DATA_DIR | Out-Null
 Set-Location backend
 python -m uvicorn open_webui.main:app --host 127.0.0.1 --port 8080 --workers 1
 ```

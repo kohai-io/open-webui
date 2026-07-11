@@ -150,6 +150,7 @@ Create `docs/feature-ledger.md`. Give every custom feature one explicit decision
 - [ ] Create a staging configuration without production secrets.
 - [ ] Verify reverse-proxy headers, WebSockets, streaming, upload limits, and callback URLs.
 - [ ] Verify required model providers, Ollama/OpenAI-compatible endpoints, MCP servers, and OAuth providers.
+  - Local OpenAI-compatible model discovery, explicit per-user model grants, denial, and SSE streaming pass with a disposable stub; intended real providers, MCP, and OAuth remain.
 
 ### Fresh data rehearsal
 
@@ -418,7 +419,7 @@ Add concise links or references as work completes.
 | --- | --- | --- |
 | 0 | `docs/rebaseline-phase-0-source-record.md` | Local source, remote, branch, submodule, and candidate deployment material recorded; live deployment and recovery evidence still required |
 | 1 | `docs/feature-ledger.md` | Initial inventory, disposition, ownership, fresh-start acceptance, and rollback ledger created; no legacy data migration or import is in scope |
-| 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Official remote/tag fetched; clean branch recorded; frontend build and empty-data backend smoke checks pass; all directly read legacy source variables classified; upstream type check, live deployment names, extended workflows, production-like configuration, and independent signature trust remain |
+| 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Clean build/start, admin/auth, OpenAI-compatible discovery/SSE chat, explicit model grant/denial, private file/Knowledge denial, processing, attachment, and retrieval pass; source variables classified; real providers, OAuth/MCP/Drive, proxy/browser checks, upstream type check, live deployment names, and signature trust remain |
 | 3 | | |
 | 4 | | |
 | 5 | | |
