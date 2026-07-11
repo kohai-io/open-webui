@@ -260,20 +260,20 @@ Create a short contract document before implementing the integration.
 
 ## Phase 5: First vertical slice — Welcome and Agents
 
-- [ ] Define minimal `StudioUser`, `OwuiModel`, `OwuiAgent`, and chat-launch contracts.
+- [x] Define minimal `StudioUser`, `OwuiModel`/agent-kind, and chat-launch contracts.
 - [ ] Port only the reusable visual components; replace OWUI internal stores with explicit Studio data/services.
-- [ ] List only models and agents available to the current user.
+- [x] List only models and agents available to the current user.
 - [ ] Preserve Studio-owned ordering or favourites in the Studio database.
-- [ ] Launch a new OWUI chat using an authorised model or agent.
-- [ ] Verify deep links back to OWUI.
+- [x] Launch a new OWUI chat using an authorised model or agent, with server-side availability revalidation.
+- [x] Verify the launch redirects to the created chat in OWUI.
 - [ ] Add loading, empty, permission-denied, and upstream-unavailable states.
 - [ ] Add end-to-end tests for two users with different access.
 - [ ] Deploy behind a feature flag or removable navigation link.
 
 ### Exit gate 5
 
-- [ ] Welcome and Agents work in Studio without legacy OWUI UI code.
-- [ ] A user cannot discover or launch inaccessible models or agents.
+- [x] Welcome and Agents work in Studio without legacy OWUI UI code.
+- [x] A user cannot discover or launch inaccessible models or agents; the two-user end-to-end proof remains open above.
 - [ ] Rollback requires only disabling Studio navigation or restoring the previous Studio image.
 
 ---
@@ -442,7 +442,7 @@ Add concise links or references as work completes.
 | 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Clean build/start, admin/auth, OpenAI-compatible discovery/SSE chat, explicit model grant/denial, private file/Knowledge denial, processing, attachment, and retrieval pass; source variables classified; real providers, OAuth/MCP/Drive, proxy/browser checks, upstream type check, live deployment names, and signature trust remain |
 | 3 | `docs/owui-studio-contract.md` | Ownership, shared-OIDC/token-exchange authentication, fallback launch exchange, minimum user-scoped API surface, typed adapter policy, denial matrix, and narrow patch set documented; no direct database access or administrator browser credential required |
 | 4 | Studio repository `git.theoldschool.house/robert/open-webui-studio` through `2f0bd9b`; functions repository `git.theoldschool.house/robert/open-webui-functions-tools` through `196b1a4` | Canonical origins are private Gitea; Studio shell, non-root container, typed v0.10.2 adapter, SQLite migrations, encrypted sessions, provider-neutral OIDC routes, and fake IdP pass lint, zero-diagnostic checking, 14 tests, production build, and Node 22 Alpine image build; live Okta, full user matrix, proxy, and rollback checks remain |
-| 5 | | |
+| 5 | Studio repository `git.theoldschool.house/robert/open-webui-studio` commit `a8e1696` | Server-rendered Welcome and Agents pages use the typed user-scoped OWUI adapter, separate model/agent catalogue entries, revalidate launch authorisation, create and redirect to OWUI chats, and expose signed-out, empty, permission-denied, and upstream-unavailable states; lint, zero-diagnostic checking, 16 server tests, browser test, and production build pass; loading UX, Studio favourites/order, two-user browser proof, navigation flag, and deployment rollback proof remain |
 | 6 | | |
 | 7 | | |
 | 8 | `docs/mcp-oauth-google-drive-comparison.md` | MCP/OAuth fixes classified commit by commit; use upstream Google Drive selected-file import; fork server OAuth/sync dropped; tool-name resolver and optional Drive multi-file handling identified as narrow upstream contribution candidates |
