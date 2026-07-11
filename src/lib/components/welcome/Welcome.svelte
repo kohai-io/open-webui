@@ -1,133 +1,1164 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { getModelItems } from '$lib/apis/models';
-	import { getFunctions } from '$lib/apis/functions';
-	import { models, user } from '$lib/stores';
+	import { onMount, getContext, tick } from 'svelte';
+	import { goto } from '$app/navigation';
 	import {
-		classifyWelcomeCatalogue,
-		type WelcomeCatalogueItem
-	} from '$lib/components/welcome/catalogue';
+		config,
+		settings,
+		user,
+		showSidebar,
+		mobile,
+		showArchivedChats,
+		showSearch
+	} from '$lib/stores';
+	import { getModels } from '$lib/apis';
+	import { getModelItems as getWorkspaceModels } from '$lib/apis/models';
+	import { getFunctions } from '$lib/apis/functions';
+	import type { Writable } from 'svelte/store';
+	import type { i18n as i18nType } from 'i18next';
+	import { toast } from 'svelte-sonner';
+	import Voice from '$lib/components/icons/Voice.svelte';
+	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import VoiceRecording from '$lib/components/chat/MessageInput/VoiceRecording.svelte';
+	import Sidebar from '$lib/components/icons/Sidebar.svelte';
+	import UserMenu from '$lib/components/layout/Sidebar/UserMenu.svelte';
+	import InputMenu from '$lib/components/chat/MessageInput/InputMenu.svelte';
+	import IntegrationsMenu from '$lib/components/chat/MessageInput/IntegrationsMenu.svelte';
+	import PlusAlt from '$lib/components/icons/PlusAlt.svelte';
+	import Component from '$lib/components/icons/Component.svelte';
 
-	let agents: WelcomeCatalogueItem[] = [];
-	let baseModels: WelcomeCatalogueItem[] = [];
-	let loading = true;
-	let unavailable = false;
+	const i18n: Writable<i18nType> = getContext('i18n');
+
+	let agents: any[] = [];
+	let orderedAgents: any[] = [];
+	let loading = false;
+	let draggedIndex: number | null = null;
+	let dragOverIndex: number | null = null;
+	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+	let isDragging = false;
+	let scrollContainer: HTMLDivElement;
+	let files: any[] = [];
+	let filesInputElement: HTMLInputElement;
+	let webSearchEnabled = false;
+	let imageGenerationEnabled = false;
+	let codeInterpreterEnabled = false;
+	let selectedToolIds: string[] = [];
+	let recording = false;
+	let inputElement: HTMLInputElement;
+	let mobileInputElement: HTMLInputElement;
+
+	const storeFilesForTransfer = () => {
+		if (files.length > 0) {
+			try {
+				sessionStorage.setItem('welcome-files', JSON.stringify(files));
+			} catch (error) {
+				console.error('Failed to store files in sessionStorage:', error);
+				toast.error($i18n.t('Files are too large to transfer'));
+			}
+		}
+	};
+
+	const AGENT_ORDER_KEY = 'welcome-agent-order';
 
 	const loadWorkspaceModels = async (): Promise<any[]> => {
 		const items: any[] = [];
 		for (let page = 1; ; page += 1) {
-			const response = await getModelItems(localStorage.token, '', '', '', '', '', page);
+			const response = await getWorkspaceModels(localStorage.token, '', '', '', '', '', page);
 			const pageItems = response?.items ?? [];
 			items.push(...pageItems);
 			if (items.length >= (response?.total ?? 0) || pageItems.length === 0) return items;
 		}
 	};
 
-	onMount(async () => {
+	const applyStoredOrder = (agentList: any[]): any[] => {
 		try {
-			const [workspaceModels, functions] = await Promise.all([
+			const storedOrder = localStorage.getItem(AGENT_ORDER_KEY);
+			if (storedOrder) {
+				const orderIds: string[] = JSON.parse(storedOrder);
+				const agentMap = new Map(agentList.map((a) => [a.id, a]));
+				const ordered: any[] = [];
+
+				// Add agents in stored order
+				for (const id of orderIds) {
+					const agent = agentMap.get(id);
+					if (agent) {
+						ordered.push(agent);
+						agentMap.delete(id);
+					}
+				}
+
+				// Add any new agents not in stored order
+				for (const agent of agentMap.values()) {
+					ordered.push(agent);
+				}
+
+				return ordered;
+			}
+		} catch (error) {
+			console.error('Failed to load agent order:', error);
+		}
+		return agentList;
+	};
+
+	const saveAgentOrder = () => {
+		try {
+			const orderIds = orderedAgents.map((a) => a.id);
+			localStorage.setItem(AGENT_ORDER_KEY, JSON.stringify(orderIds));
+		} catch (error) {
+			console.error('Failed to save agent order:', error);
+		}
+	};
+
+	const handleDragStart = (index: number) => {
+		draggedIndex = index;
+		isDragging = true;
+	};
+
+	const handleDragOver = (index: number) => {
+		if (draggedIndex !== null && draggedIndex !== index) {
+			// Dynamically reorder the list as user drags
+			const newOrder = [...orderedAgents];
+			const [removed] = newOrder.splice(draggedIndex, 1);
+			newOrder.splice(index, 0, removed);
+			orderedAgents = newOrder;
+			draggedIndex = index; // Update dragged index to new position
+			dragOverIndex = null;
+		}
+	};
+
+	const handleDragEnd = () => {
+		if (isDragging) {
+			// Save the new order (reordering already happened dynamically)
+			saveAgentOrder();
+		}
+		draggedIndex = null;
+		dragOverIndex = null;
+		isDragging = false;
+	};
+
+	const handleTouchStart = (index: number, event: TouchEvent) => {
+		longPressTimer = setTimeout(() => {
+			handleDragStart(index);
+			// Vibrate for haptic feedback if supported
+			if (navigator.vibrate) {
+				navigator.vibrate(50);
+			}
+		}, 500); // 500ms long press
+	};
+
+	const handleTouchMove = (event: TouchEvent) => {
+		if (!isDragging) {
+			// Cancel long press if user moves before drag starts
+			if (longPressTimer) {
+				clearTimeout(longPressTimer);
+				longPressTimer = null;
+			}
+			return;
+		}
+
+		event.preventDefault();
+		const touch = event.touches[0];
+
+		// Auto-scroll when near edges of scroll container
+		if (scrollContainer) {
+			const rect = scrollContainer.getBoundingClientRect();
+			const scrollThreshold = 50; // pixels from edge to trigger scroll
+			const scrollSpeed = 8; // pixels per frame
+
+			if (touch.clientY < rect.top + scrollThreshold) {
+				// Near top - scroll up
+				scrollContainer.scrollTop -= scrollSpeed;
+			} else if (touch.clientY > rect.bottom - scrollThreshold) {
+				// Near bottom - scroll down
+				scrollContainer.scrollTop += scrollSpeed;
+			}
+		}
+
+		const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
+		const agentButton = elements.find((el) => el.hasAttribute('data-agent-index'));
+		if (agentButton) {
+			const index = parseInt(agentButton.getAttribute('data-agent-index') || '-1');
+			if (index >= 0) {
+				handleDragOver(index);
+			}
+		}
+	};
+
+	const handleTouchEnd = () => {
+		if (longPressTimer) {
+			clearTimeout(longPressTimer);
+			longPressTimer = null;
+		}
+		if (isDragging) {
+			handleDragEnd();
+		}
+	};
+
+	onMount(async () => {
+		// Clear session storage for selected models to ensure default models are used
+		sessionStorage.removeItem('selectedModels');
+		loading = true;
+		try {
+			const connections = $config?.features?.enable_direct_connections
+				? ($settings?.directConnections ?? null)
+				: null;
+			const [allModelsData, workspaceModelsData, functionsData] = await Promise.all([
+				getModels(localStorage.token, connections),
 				loadWorkspaceModels(),
 				getFunctions(localStorage.token)
 			]);
-			const catalogue = classifyWelcomeCatalogue($models, workspaceModels, functions ?? []);
-			agents = catalogue.agents;
-			baseModels = catalogue.models;
+
+			// Merge workspace metadata
+			const mergedModels = (allModelsData || []).map((m: any) => {
+				const workspaceModel = (workspaceModelsData || []).find((wm: any) => wm.id === m.id);
+				return workspaceModel ? { ...m, ...workspaceModel } : m;
+			});
+
+			// Get agent IDs (assistants + functions)
+			const functionIds = new Set(
+				(functionsData || []).filter((a: any) => a.is_active).map((a: any) => a.id)
+			);
+			const assistantIds = new Set(
+				(workspaceModelsData || [])
+					.filter((m: any) => m.is_active && m.base_model_id)
+					.map((m: any) => m.id)
+			);
+			const agentIds = new Set([...functionIds, ...assistantIds]);
+
+			// Filter agents
+			agents = mergedModels.filter((m: any) => m.is_active !== false && agentIds.has(m.id));
+
+			// Apply stored order from localStorage
+			orderedAgents = applyStoredOrder(agents);
 		} catch (error) {
-			console.error('Failed to load Welcome catalogue', error);
-			unavailable = true;
+			console.error('Error loading agents:', error);
 		} finally {
 			loading = false;
 		}
+
+		// Focus chat input (desktop only - mobile browsers block programmatic keyboard)
+		await tick();
+		if (!$mobile) {
+			inputElement?.focus();
+		}
 	});
+
+	const selectAgent = (agentId: string) => {
+		storeFilesForTransfer();
+		goto(`/?models=${encodeURIComponent(agentId)}`);
+	};
+
+	const handleSearch = (e: Event) => {
+		const formData = new FormData(e.target as HTMLFormElement);
+		const message = formData.get('message') as string;
+		if (message && message.trim()) {
+			storeFilesForTransfer();
+			const params = new URLSearchParams({ q: message.trim() });
+			if (webSearchEnabled) {
+				params.set('web-search', 'true');
+			}
+			if (imageGenerationEnabled) params.set('image-generation', 'true');
+			if (codeInterpreterEnabled) params.set('code-interpreter', 'true');
+			if (selectedToolIds.length) params.set('tools', selectedToolIds.join(','));
+			goto(`/?${params.toString()}`);
+		}
+	};
+
+	const uploadFilesHandler = () => {
+		filesInputElement?.click();
+	};
+
+	const screenCaptureHandler = async () => {
+		try {
+			const stream = await navigator.mediaDevices.getDisplayMedia({
+				video: { displaySurface: 'monitor' } as any
+			});
+			const video = document.createElement('video');
+			video.srcObject = stream;
+			video.play();
+
+			await new Promise((resolve) => {
+				video.onloadedmetadata = resolve;
+			});
+
+			const canvas = document.createElement('canvas');
+			canvas.width = video.videoWidth;
+			canvas.height = video.videoHeight;
+			const context = canvas.getContext('2d');
+			context?.drawImage(video, 0, 0);
+
+			stream.getTracks().forEach((track) => track.stop());
+
+			const imageUrl = canvas.toDataURL('image/png');
+			files = [...files, { type: 'image', url: imageUrl }];
+			video.srcObject = null;
+		} catch (error) {
+			console.error('Screen capture error:', error);
+			toast.error($i18n.t('Screen capture failed'));
+		}
+	};
+
+	const inputFilesHandler = async (inputFiles: File[]) => {
+		for (const file of inputFiles) {
+			if (file.type.startsWith('image/')) {
+				const reader = new FileReader();
+				reader.onload = (e) => {
+					files = [...files, { type: 'image', url: e.target?.result as string, name: file.name }];
+				};
+				reader.readAsDataURL(file);
+			} else {
+				files = [...files, { type: 'file', file: file, name: file.name }];
+			}
+		}
+	};
+
+	const handleFileInputChange = (event: Event) => {
+		const input = event.target as HTMLInputElement;
+		const selectedFiles = Array.from(input.files || []);
+		if (selectedFiles.length > 0) {
+			inputFilesHandler(selectedFiles);
+		}
+		input.value = '';
+	};
+
+	const removeFile = (index: number) => {
+		files = files.filter((_, i) => i !== index);
+	};
+
+	const handleVoiceMode = () => {
+		storeFilesForTransfer();
+		goto('/?call=true');
+	};
+
+	const handleDictate = async () => {
+		try {
+			const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch((err) => {
+				toast.error(
+					$i18n.t('Permission denied when accessing microphone: {{error}}', { error: err })
+				);
+				return null;
+			});
+
+			if (stream) {
+				recording = true;
+				const tracks = stream.getTracks();
+				tracks.forEach((track) => track.stop());
+			}
+		} catch {
+			toast.error($i18n.t('Permission denied when accessing microphone'));
+		}
+	};
 </script>
 
-<svelte:head><title>Welcome</title></svelte:head>
-
-<main class="h-full overflow-y-auto bg-white text-gray-950 dark:bg-gray-950 dark:text-gray-50">
-	<div class="mx-auto w-full max-w-7xl px-6 py-12 md:px-10 md:py-20">
-		<header class="max-w-5xl">
-			<p
-				class="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-600 dark:text-emerald-400"
-			>
-				Welcome back
-			</p>
-			<h1 class="mt-5 text-6xl font-semibold tracking-[-0.07em] md:text-8xl lg:text-9xl">
-				{$user?.name ?? 'Open WebUI'}
-			</h1>
-			<p class="mt-6 max-w-3xl text-lg text-gray-600 dark:text-gray-300 md:text-2xl">
-				Choose an authorised agent or model and start a new chat.
-			</p>
-			<div class="mt-7 flex flex-wrap gap-4 text-sm font-medium">
-				<a
-					class="rounded-full bg-gray-950 px-5 py-3 text-white dark:bg-white dark:text-gray-950"
-					href="/?chat=true">New chat</a
-				>
-				<a
-					class="rounded-full border border-gray-300 px-5 py-3 dark:border-gray-700"
-					href="/workspace/models">Manage agents</a
-				>
+<div
+	class="h-screen max-h-[100dvh] w-full max-w-full flex flex-col {$showSidebar
+		? 'md:max-w-[calc(100%-260px)]'
+		: ''}"
+>
+	<!-- Top Navigation Bar -->
+	<nav class="sticky top-0 z-30 w-full py-1 pl-1.5 pr-1">
+		<div class="w-full flex items-center justify-between">
+			<!-- Left: Sidebar button (mobile only) -->
+			<div class="flex items-center">
+				{#if $mobile && !$showSidebar}
+					<Tooltip content={$showSidebar ? $i18n.t('Close Sidebar') : $i18n.t('Open Sidebar')}>
+						<button
+							class="cursor-pointer flex rounded-lg hover:bg-gray-100 dark:hover:bg-gray-850 transition"
+							on:click={() => {
+								showSidebar.set(!$showSidebar);
+							}}
+						>
+							<div class="self-center p-1.5">
+								<Sidebar />
+							</div>
+						</button>
+					</Tooltip>
+				{/if}
 			</div>
-		</header>
 
-		{#if loading}
-			<p class="mt-20 text-gray-500">Loading your catalogue…</p>
-		{:else if unavailable}
-			<p class="mt-20 text-red-600 dark:text-red-400">Your catalogue could not be loaded.</p>
-		{:else}
-			<section class="mt-20" aria-labelledby="welcome-agents-heading">
-				<p
-					class="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-600 dark:text-emerald-400"
-				>
-					Agents
-				</p>
-				<h2
-					id="welcome-agents-heading"
-					class="mt-3 text-4xl font-semibold tracking-tight md:text-6xl"
-				>
-					Agents ready to work
-				</h2>
-				{@render Catalogue(agents, 'No agents are available to this account yet.')}
-			</section>
-
-			<section class="mt-20" aria-labelledby="welcome-models-heading">
-				<p
-					class="text-xs font-semibold uppercase tracking-[0.22em] text-emerald-600 dark:text-emerald-400"
-				>
-					Models
-				</p>
-				<h2
-					id="welcome-models-heading"
-					class="mt-3 text-4xl font-semibold tracking-tight md:text-6xl"
-				>
-					Models in reach
-				</h2>
-				{@render Catalogue(baseModels, 'No models are available to this account yet.')}
-			</section>
-		{/if}
-	</div>
-</main>
-
-{#snippet Catalogue(items: WelcomeCatalogueItem[], empty: string)}
-	{#if items.length === 0}
-		<p class="mt-7 text-gray-500 dark:text-gray-400">{empty}</p>
-	{:else}
-		<div class="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-			{#each items as item (item.id)}
-				<article
-					class="flex min-h-48 flex-col justify-between rounded-2xl border border-gray-200 bg-gray-50 p-6 dark:border-gray-800 dark:bg-gray-900"
-				>
-					<div>
-						<h3 class="text-xl font-semibold">{item.name}</h3>
-						<p class="mt-3 text-sm text-gray-500 dark:text-gray-400">
-							{item.tags.length ? item.tags.join(' · ') : item.kind}
-						</p>
-					</div>
-					<a
-						class="mt-8 w-fit rounded-full bg-gray-950 px-4 py-2 text-sm font-semibold text-white dark:bg-white dark:text-gray-950"
-						href={`/?models=${encodeURIComponent(item.id)}`}>Open chat ↗</a
+			<!-- Right: User Menu -->
+			<div class="flex items-center ml-auto">
+				{#if $user !== undefined && $user !== null}
+					<UserMenu
+						className="max-w-[240px]"
+						role={$user?.role}
+						help={true}
+						on:show={(e) => {
+							if (e.detail === 'archived-chat') {
+								showArchivedChats.set(true);
+							}
+						}}
 					>
-				</article>
-			{/each}
+						<div
+							class="select-none flex rounded-xl p-1.5 w-full hover:bg-gray-50 dark:hover:bg-gray-850 transition"
+						>
+							<div class="self-center">
+								<span class="sr-only">{$i18n.t('User menu')}</span>
+								<img
+									src={$user?.profile_image_url}
+									class="size-6 object-cover rounded-full"
+									alt=""
+									draggable="false"
+								/>
+							</div>
+						</div>
+					</UserMenu>
+				{/if}
+			</div>
 		</div>
-	{/if}
-{/snippet}
+	</nav>
+
+	<!-- Mobile/Tablet: Fixed content area (no page scroll) -->
+	<div
+		class="flex-1 overflow-hidden md:overflow-y-auto px-6 py-4 md:py-8 md:px-12 lg:px-20 pb-24 md:pb-8"
+	>
+		<div class="max-w-6xl mx-auto w-full h-full md:h-auto flex flex-col">
+			<!-- Greeting -->
+			<div class="mb-6 md:mb-8 mt-2 md:mt-6">
+				<h1
+					style="font-size: clamp(2rem, 6vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;"
+					class="font-semibold mb-1 text-gray-900 dark:text-white"
+				>
+					<span class="text-blue-600 dark:text-blue-400"
+						>{$i18n.t('Hello, {{name}}.', { name: $user?.name || $i18n.t('there') })}</span
+					>
+				</h1>
+				<p
+					style="font-size: clamp(2rem, 6vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;"
+					class="font-semibold text-gray-600 dark:text-gray-400"
+				>
+					{$i18n.t('how can I help?')}
+				</p>
+			</div>
+
+			<!-- Chat Input - Desktop only (inline) -->
+			<div class="hidden md:block mb-12 w-full">
+				<!-- Voice Recording Overlay -->
+				{#if recording}
+					<div class="mb-4">
+						<VoiceRecording
+							bind:recording
+							onCancel={async () => {
+								recording = false;
+								await tick();
+								inputElement?.focus();
+							}}
+							onConfirm={async (data) => {
+								const { text } = data;
+								recording = false;
+								await tick();
+								if (text && inputElement) {
+									inputElement.value = text;
+									inputElement.focus();
+								}
+							}}
+						/>
+					</div>
+				{/if}
+
+				<!-- Hidden file inputs -->
+				<input
+					bind:this={filesInputElement}
+					type="file"
+					multiple
+					accept="*/*"
+					on:change={handleFileInputChange}
+					style="display: none;"
+				/>
+				<!-- File previews -->
+				{#if files.length > 0}
+					<div class="flex flex-wrap gap-2 mb-3">
+						{#each files as file, index}
+							<div class="relative group">
+								{#if file.type === 'image'}
+									<img
+										src={file.url}
+										alt={file.name || 'Uploaded image'}
+										class="w-20 h-20 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700"
+									/>
+								{:else}
+									<div
+										class="w-20 h-20 flex items-center justify-center rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+									>
+										<div class="text-center px-1">
+											<svg
+												class="w-6 h-6 mx-auto text-gray-400"
+												fill="none"
+												stroke="currentColor"
+												viewBox="0 0 24 24"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													stroke-width="2"
+													d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+												/>
+											</svg>
+											<span class="text-xs text-gray-600 dark:text-gray-400 block truncate w-full"
+												>{file.name}</span
+											>
+										</div>
+									</div>
+								{/if}
+								<button
+									type="button"
+									on:click={() => removeFile(index)}
+									class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+									aria-label={$i18n.t('Remove file')}
+								>
+									<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M6 18L18 6M6 6l12 12"
+										/>
+									</svg>
+								</button>
+							</div>
+						{/each}
+					</div>
+				{/if}
+
+				<form on:submit|preventDefault={handleSearch} class={recording ? 'hidden' : ''}>
+					<div class="relative">
+						<div class="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+							<InputMenu
+								bind:files
+								selectedModels={[]}
+								fileUploadCapableModels={[]}
+								{screenCaptureHandler}
+								{inputFilesHandler}
+								{uploadFilesHandler}
+								uploadGoogleDriveHandler={() => {}}
+								uploadOneDriveHandler={() => {}}
+								onUpload={() => {}}
+								onClose={async () => {
+									await tick();
+									inputElement?.focus();
+								}}
+							>
+								<div
+									class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-8 flex justify-center items-center"
+								>
+									<PlusAlt className="size-5.5" />
+								</div>
+							</InputMenu>
+							<IntegrationsMenu
+								bind:selectedToolIds
+								selectedModels={[]}
+								fileUploadCapableModels={[]}
+								toggleFilters={[]}
+								selectedFilterIds={[]}
+								showWebSearchButton={$config?.features?.enable_web_search ?? false}
+								bind:webSearchEnabled
+								showImageGenerationButton={$config?.features?.enable_image_generation ?? false}
+								bind:imageGenerationEnabled
+								showCodeInterpreterButton={($config?.features as any)?.enable_code_interpreter ??
+									false}
+								bind:codeInterpreterEnabled
+								onShowValves={() => {}}
+								onClose={async () => {
+									await tick();
+									inputElement?.focus();
+								}}
+							>
+								<div
+									class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-8 flex justify-center items-center {webSearchEnabled ||
+									imageGenerationEnabled ||
+									codeInterpreterEnabled ||
+									selectedToolIds.length > 0
+										? 'text-blue-600 dark:text-blue-400'
+										: ''}"
+								>
+									<Component className="size-4.5" strokeWidth="1.5" />
+								</div>
+							</IntegrationsMenu>
+						</div>
+						<input
+							bind:this={inputElement}
+							type="text"
+							name="message"
+							placeholder={$i18n.t('Ask anything...')}
+							class="w-full px-6 py-4 pl-24 pr-32 text-lg rounded-2xl bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
+						/>
+						<div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
+							<Tooltip content={$i18n.t('Dictate')}>
+								<button
+									type="button"
+									on:click={handleDictate}
+									class="text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-1.5"
+									aria-label={$i18n.t('Dictate')}
+								>
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										viewBox="0 0 20 20"
+										fill="currentColor"
+										class="size-5"
+									>
+										<path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
+										<path
+											d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-1.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z"
+										/>
+									</svg>
+								</button>
+							</Tooltip>
+							{#if $user?.role === 'admin' || ($user?.permissions?.chat?.call ?? true)}
+								<Tooltip content={$i18n.t('Voice mode')}>
+									<button
+										type="button"
+										on:click={handleVoiceMode}
+										class="bg-black text-white hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full p-1.5 mr-1"
+										aria-label={$i18n.t('Voice mode')}
+									>
+										<Voice className="size-5" strokeWidth="2.5" />
+									</button>
+								</Tooltip>
+							{/if}
+							<button
+								type="submit"
+								class="p-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition"
+								aria-label={$i18n.t('Send')}
+							>
+								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M14 5l7 7m0 0l-7 7m7-7H3"
+									/>
+								</svg>
+							</button>
+						</div>
+					</div>
+				</form>
+			</div>
+
+			<!-- Quick Actions - Mobile only -->
+			<div class="md:hidden mb-6">
+				<h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">
+					{$i18n.t('Quick Actions')}
+				</h2>
+				<div class="flex gap-3 overflow-x-auto scrollbar-none pb-1">
+					<a
+						href="/?new=true"
+						class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-[0.98] transition"
+					>
+						<svg
+							class="w-4 h-4 text-blue-500"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+							/>
+						</svg>
+						<span class="text-sm font-medium text-gray-900 dark:text-gray-100"
+							>{$i18n.t('New Chat')}</span
+						>
+					</a>
+					<button
+						type="button"
+						on:click={() => showSearch.set(true)}
+						class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-[0.98] transition"
+					>
+						<svg
+							class="w-4 h-4 text-purple-500"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+							/>
+						</svg>
+						<span class="text-sm font-medium text-gray-900 dark:text-gray-100"
+							>{$i18n.t('Search')}</span
+						>
+					</button>
+					<a
+						href="/notes"
+						class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-[0.98] transition"
+					>
+						<svg
+							class="w-4 h-4 text-amber-500"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+							/>
+						</svg>
+						<span class="text-sm font-medium text-gray-900 dark:text-gray-100"
+							>{$i18n.t('Notes')}</span
+						>
+					</a>
+				</div>
+			</div>
+
+			<!-- Agents Section (scrollable on mobile, positioned at bottom for thumb reach) -->
+			<div class="w-full mt-auto md:mt-0">
+				<div class="flex items-center justify-between mb-6">
+					<h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200">
+						{$i18n.t('Agents')}
+					</h2>
+					<a
+						href="/workspace/agents"
+						class="hidden md:block text-sm text-blue-600 dark:text-blue-400 hover:underline"
+					>
+						{$i18n.t('View all')}
+					</a>
+				</div>
+
+				{#if loading}
+					<div class="flex justify-center py-16">
+						<div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+					</div>
+				{:else if agents.length === 0}
+					<div class="text-center py-16">
+						<p class="text-gray-500 dark:text-gray-400 mb-4">
+							{$i18n.t('No agents available yet.')}
+						</p>
+						<a
+							href="/workspace/agents"
+							class="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+						>
+							{$i18n.t('Browse Agents')}
+						</a>
+					</div>
+				{:else}
+					<!-- Mobile: Constrained vertical scroll area with drag reorder -->
+					<div class="md:hidden flex flex-col">
+						<div
+							bind:this={scrollContainer}
+							class="overflow-y-auto max-h-[240px] space-y-2 scrollbar-none"
+							on:touchmove={handleTouchMove}
+							on:touchend={handleTouchEnd}
+						>
+							{#each orderedAgents as agent, index (agent.id)}
+								<button
+									data-agent-index={index}
+									on:click={() => !isDragging && selectAgent(agent.id)}
+									on:touchstart={(e) => handleTouchStart(index, e)}
+									class="w-full flex items-center gap-2.5 p-2.5 rounded-xl border transition-all duration-150 text-left touch-manipulation
+									{draggedIndex === index
+										? 'bg-blue-100 dark:bg-blue-900/30 border-blue-500 border-2 shadow-lg scale-[1.02]'
+										: 'bg-white dark:bg-gray-850 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'}
+									{!isDragging ? 'active:scale-[0.98]' : ''}"
+								>
+									<img
+										src={agent?.meta?.profile_image_url ??
+											agent?.info?.meta?.profile_image_url ??
+											'/static/favicon.png'}
+										alt={agent.name}
+										class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700 flex-shrink-0 pointer-events-none"
+									/>
+									<div class="min-w-0 flex-1 pointer-events-none">
+										<h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+											{agent.name}
+										</h3>
+										<p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+											{agent?.meta?.description ?? agent?.info?.meta?.description ?? ''}
+										</p>
+									</div>
+									<svg
+										class="w-4 h-4 text-gray-400 flex-shrink-0 pointer-events-none"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M9 5l7 7-7 7"
+										/>
+									</svg>
+								</button>
+							{/each}
+							<!-- Create Agent Card - Mobile -->
+							<a
+								href="/workspace/models/create"
+								class="w-full flex items-center justify-center gap-2 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 active:scale-[0.98] transition"
+							>
+								<div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+									<svg
+										class="w-4 h-4 text-white"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M12 4v16m8-8H4"
+										/>
+									</svg>
+								</div>
+								<span class="text-sm font-medium text-blue-600 dark:text-blue-400"
+									>{$i18n.t('Create Agent')}</span
+								>
+							</a>
+						</div>
+					</div>
+
+					<!-- Desktop/Tablet: Grid layout with scroll -->
+					<div
+						class="hidden md:block overflow-y-auto scrollbar-none"
+						style="max-height: calc(3 * 72px + 2 * 12px);"
+					>
+						<div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-min">
+							{#each orderedAgents as agent, index (agent.id)}
+								<button
+									data-agent-index={index}
+									draggable="true"
+									on:click={() => !isDragging && selectAgent(agent.id)}
+									on:dragstart={(e) => {
+										handleDragStart(index);
+										e.dataTransfer?.setData('text/plain', index.toString());
+									}}
+									on:dragover={(e) => {
+										e.preventDefault();
+										handleDragOver(index);
+									}}
+									on:dragend={handleDragEnd}
+									class="flex items-center gap-3 p-3 h-[72px] bg-white dark:bg-gray-850 rounded-lg border transition-all duration-150 text-left group cursor-grab active:cursor-grabbing
+								{draggedIndex === index
+										? 'opacity-50 scale-95 border-blue-500 border-2'
+										: 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm'}"
+								>
+									<img
+										src={agent?.meta?.profile_image_url ??
+											agent?.info?.meta?.profile_image_url ??
+											'/static/favicon.png'}
+										alt={agent.name}
+										class="w-9 h-9 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700 flex-shrink-0"
+									/>
+									<div class="min-w-0 flex-1">
+										<h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-1">
+											{agent.name}
+										</h3>
+										<p
+											class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed"
+										>
+											{agent?.meta?.description ?? agent?.info?.meta?.description ?? ''}
+										</p>
+									</div>
+								</button>
+							{/each}
+
+							<!-- Create Agent Card - Desktop -->
+							<a
+								href="/workspace/models/create"
+								class="flex items-center gap-3 p-3 h-[72px] bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 transition-all duration-150"
+							>
+								<div
+									class="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0"
+								>
+									<svg
+										class="w-4 h-4 text-white"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M12 4v16m8-8H4"
+										/>
+									</svg>
+								</div>
+								<div class="min-w-0 flex-1">
+									<div class="text-sm font-semibold text-blue-600 dark:text-blue-400">
+										{$i18n.t('Create Agent')}
+									</div>
+									<p class="text-xs text-gray-500 dark:text-gray-400">Add a new agent</p>
+								</div>
+							</a>
+						</div>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Quick Actions (hidden on mobile to save space) -->
+			<div class="hidden md:block mt-16 w-full">
+				<h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">
+					{$i18n.t('Quick Actions')}
+				</h2>
+				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+					<a
+						href="/?new=true"
+						class="flex items-center gap-3 p-4 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+					>
+						<svg
+							class="w-5 h-5 text-gray-600 dark:text-gray-400"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+							/>
+						</svg>
+						<div>
+							<div class="font-medium text-gray-900 dark:text-gray-100">{$i18n.t('New Chat')}</div>
+							<div class="text-sm text-gray-500 dark:text-gray-400">
+								{$i18n.t('Start a conversation')}
+							</div>
+						</div>
+					</a>
+
+					<a
+						href="/workspace/agents"
+						class="flex items-center gap-3 p-4 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+					>
+						<svg
+							class="w-5 h-5 text-gray-600 dark:text-gray-400"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+							/>
+						</svg>
+						<div>
+							<div class="font-medium text-gray-900 dark:text-gray-100">
+								{$i18n.t('Browse Agents')}
+							</div>
+							<div class="text-sm text-gray-500 dark:text-gray-400">
+								{$i18n.t('Explore all agents')}
+							</div>
+						</div>
+					</a>
+
+					<a
+						href="/workspace"
+						class="flex items-center gap-3 p-4 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+					>
+						<svg
+							class="w-5 h-5 text-gray-600 dark:text-gray-400"
+							fill="none"
+							stroke="currentColor"
+							viewBox="0 0 24 24"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+							/>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+							/>
+						</svg>
+						<div>
+							<div class="font-medium text-gray-900 dark:text-gray-100">{$i18n.t('Workspace')}</div>
+							<div class="text-sm text-gray-500 dark:text-gray-400">
+								{$i18n.t('Manage your settings')}
+							</div>
+						</div>
+					</a>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Mobile/Tablet: Fixed bottom chat input -->
+	<div
+		class="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-3 py-3 z-40 overflow-hidden"
+	>
+		<!-- Voice Recording Overlay -->
+		{#if recording}
+			<div class="mb-3">
+				<VoiceRecording
+					bind:recording
+					onCancel={async () => {
+						recording = false;
+						await tick();
+						mobileInputElement?.focus({ preventScroll: true });
+					}}
+					onConfirm={async (data) => {
+						const { text } = data;
+						recording = false;
+						await tick();
+						if (text && mobileInputElement) {
+							mobileInputElement.value = text;
+							mobileInputElement.focus({ preventScroll: true });
+						}
+					}}
+				/>
+			</div>
+		{/if}
+
+		<!-- File previews -->
+		{#if files.length > 0}
+			<div class="flex flex-wrap gap-2 mb-3">
+				{#each files as file, index}
+					<div class="relative group">
+						{#if file.type === 'image'}
+							<img
+								src={file.url}
+								alt={file.name || 'Uploaded image'}
+								class="w-16 h-16 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700"
+							/>
+						{:else}
+							<div
+								class="w-16 h-16 flex items-center justify-center rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
+							>
+								<div class="text-center px-1">
+									<svg
+										class="w-5 h-5 mx-auto text-gray-400"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+										/>
+									</svg>
+									<span class="text-xs text-gray-600 dark:text-gray-400 block truncate w-full"
+										>{file.name}</span
+									>
+								</div>
+							</div>
+						{/if}
+						<button
+							type="button"
+							on:click={() => removeFile(index)}
+							class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
+							aria-label={$i18n.t('Remove file')}
+						>
+							<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M6 18L18 6M6 6l12 12"
+								/>
+							</svg>
+						</button>
+					</div>
+				{/each}
+			</div>
+		{/if}
+
+		<form on:submit|preventDefault={handleSearch} class={recording ? 'hidden' : ''}>
+			<div class="relative flex items-center gap-2">
+				<InputMenu
+					bind:files
+					selectedModels={[]}
+					fileUploadCapableModels={[]}
+					{screenCaptureHandler}
+					{inputFilesHandler}
+					{uploadFilesHandler}
+					uploadGoogleDriveHandler={() => {}}
+					uploadOneDriveHandler={() => {}}
+					onUpload={() => {}}
+					onClose={async () => {
+						await tick();
+					}}
+				>
+					<div
+						class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-9 flex justify-center items-center"
+					>
+						<PlusAlt className="size-5.5" />
+					</div>
+				</InputMenu>
+				<IntegrationsMenu
+					bind:selectedToolIds
+					selectedModels={[]}
+					fileUploadCapableModels={[]}
+					toggleFilters={[]}
+					selectedFilterIds={[]}
+					showWebSearchButton={$config?.features?.enable_web_search ?? false}
+					bind:webSearchEnabled
+					showImageGenerationButton={$config?.features?.enable_image_generation ?? false}
+					bind:imageGenerationEnabled
+					showCodeInterpreterButton={($config?.features as any)?.enable_code_interpreter ?? false}
+					bind:codeInterpreterEnabled
+					onShowValves={() => {}}
+					onClose={async () => {
+						await tick();
+					}}
+				>
+					<div
+						class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-9 flex justify-center items-center {webSearchEnabled ||
+						imageGenerationEnabled ||
+						codeInterpreterEnabled ||
+						selectedToolIds.length > 0
+							? 'text-blue-600 dark:text-blue-400'
+							: ''}"
+					>
+						<Component className="size-4.5" strokeWidth="1.5" />
+					</div>
+				</IntegrationsMenu>
+				<input
+					bind:this={mobileInputElement}
+					type="text"
+					name="message"
+					placeholder={$i18n.t('Ask anything...')}
+					class="flex-1 min-w-0 px-3 py-3 text-base rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
+				/>
+				<div class="flex items-center gap-0.5 shrink-0">
+					<button
+						type="button"
+						on:click={handleDictate}
+						class="text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-1.5"
+						aria-label={$i18n.t('Dictate')}
+					>
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							viewBox="0 0 20 20"
+							fill="currentColor"
+							class="size-5"
+						>
+							<path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
+							<path
+								d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-1.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z"
+							/>
+						</svg>
+					</button>
+					<button
+						type="submit"
+						class="p-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition"
+						aria-label={$i18n.t('Send')}
+					>
+						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M14 5l7 7m0 0l-7 7m7-7H3"
+							/>
+						</svg>
+					</button>
+				</div>
+			</div>
+		</form>
+	</div>
+</div>

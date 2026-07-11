@@ -14,7 +14,7 @@
 	});
 </script>
 
-{#if $config?.features?.enable_welcome_page && !$page.url.searchParams.has('models') && $page.url.searchParams.get('chat') !== 'true'}
+{#if $config?.features?.enable_welcome_page && $page.url.searchParams.size === 0}
 	<Welcome />
 {:else}
 	<Chat />
