@@ -185,3 +185,11 @@ Studio commit `53fe122` completes the worker-core gate. `FlowWorker` recovers st
 All 100 Studio server tests pass; scoped Prettier, project ESLint, zero-warning Svelte check, and the production build pass. Tests use the real adapter stub and make no live model call.
 
 The worker is not running as a background process yet. Studio still has no Flow API routes, event stream, or UI. Resume with a queue service that creates the execution and credential lease in one transaction, add the background runner, then expose owner-scoped Flow and execution routes for the first small UI.
+
+Studio commit `69029f9` completes that server-facing slice. `FlowQueueService` creates the execution and credential lease in one transaction and caps the lease at the OWUI token, absolute session, and idle session expiries. The in-process runner polls without overlap, accepts queue wakeups, contains failures, and records its configured identity on each claim. Environment settings control enablement, polling, claim/heartbeat timing, deadlines, and concurrency.
+
+Seven authenticated handlers now cover Flow CRUD, immutable versions, execution queue/list/read, cancellation, and owner-scoped SSE. Routes derive identity and credentials from `locals.session`, require `Idempotency-Key` for execution creation, reject unknown fields and cross-origin mutations, hide cross-user records as `not_found`, and keep retained user data out of events. The route fixture covers version conflict, active-delete guard, two-user hiding, cancellation, transaction rollback, and terminal stream redaction.
+
+All 111 Studio server tests pass; scoped Prettier, project ESLint, zero-warning Svelte check, and the production build pass. This slice made no live model call and did not rebuild a deployed Studio container.
+
+Resume with the first Flow UI. Keep it constrained to a linear Input, Model, optional Transform, and Output flow; provide list/create, run, state and node progress, cancellation, and execution history. Consume the new APIs and SSE endpoint. Leave arbitrary graph editing and deferred node types for a later slice.

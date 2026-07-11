@@ -316,3 +316,18 @@ Studio commit `53fe122` implements the durable worker core:
 The test suite uses the real adapter against its OWUI stub for the success path and controlled clients for failure timing. All 100 Studio server tests pass. Scoped Prettier, project ESLint, zero-warning Svelte check, and the production build pass. The tests make no live model call.
 
 The worker remains a server library. Studio has no background runner, Flow API routes, event stream, or UI. Resume with an owner-scoped queue service that creates the execution and credential lease in one transaction, then add the worker runner and Flow API surface before building the first UI.
+
+Studio commit `69029f9` adds queue orchestration, the runner, and the owner-scoped API surface:
+
+- `FlowQueueService` creates an execution and its credential lease in one SQLite immediate transaction, bounds the lease by OWUI token plus absolute and idle session expiry, and wakes the runner after commit;
+- `FlowWorkerRunner` polls without overlapping runs, coalesces wakeups, contains worker errors, and starts from the Studio service lifecycle unless `FLOW_WORKER_ENABLED=false`;
+- migration `0006_flow_worker_identity.sql` records the configured worker ID with each claim for multi-replica diagnostics;
+- Flow APIs support create, list, read, update, delete, immutable version history, execution queue/list/read, and cancellation;
+- execution creation requires an `Idempotency-Key` header, rejects unknown body fields, and derives ownership plus the OWUI credential from the server session;
+- mutations reject cross-origin browser requests, while missing and cross-user records return the same `not_found` response;
+- the authenticated SSE endpoint supports reconnect cursors and streams bounded metadata without input, output, prompt, credential, or upstream body data;
+- `.env.example` and the Studio README document runner settings and the heartbeat-before-claim-expiry constraint.
+
+All 111 Studio server tests pass. Scoped Prettier, project ESLint, zero-warning Svelte check, and the production build pass. Automated tests cover transaction rollback, session expiry, runner polling and wakeups, CRUD, version conflict, active-delete guard, cancellation, two-user hiding, same-origin enforcement, and terminal SSE redaction.
+
+This slice made no live model call and did not rebuild or start a deployed Studio container. Resume with the first Flow UI: list and create a constrained linear text flow, run it with an idempotency key, show execution state and node progress, allow cancellation, and consume the SSE endpoint. Keep arbitrary graph editing and deferred node types out of that slice.
