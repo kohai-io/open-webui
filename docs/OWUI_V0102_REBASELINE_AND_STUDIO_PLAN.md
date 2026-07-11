@@ -427,6 +427,6 @@ Add concise links or references as work completes.
 | 5 | | |
 | 6 | | |
 | 7 | | |
-| 8 | | |
+| 8 | `docs/mcp-oauth-google-drive-comparison.md` | MCP/OAuth fixes classified commit by commit; use upstream Google Drive selected-file import; fork server OAuth/sync dropped; tool-name resolver and optional Drive multi-file handling identified as narrow upstream contribution candidates |
 | 9 | | |
 | 10 | | |
