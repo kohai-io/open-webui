@@ -49,6 +49,7 @@ from open_webui.config import (
     # Admin
     ENABLE_ADMIN_CHAT_ACCESS,
     ENABLE_ADMIN_EXPORT,
+    ENABLE_WELCOME_PAGE,
     ENABLE_ONEDRIVE_BUSINESS,
     ENABLE_ONEDRIVE_PERSONAL,
     # OpenAI
@@ -1947,6 +1948,7 @@ async def get_app_config(request: Request):
                     'enable_admin_export': ENABLE_ADMIN_EXPORT,
                     'enable_admin_chat_access': ENABLE_ADMIN_CHAT_ACCESS,
                     'enable_admin_analytics': ENABLE_ADMIN_ANALYTICS,
+                    'enable_welcome_page': ENABLE_WELCOME_PAGE,
                     'enable_google_drive_integration': config.get('google_drive.enable'),
                     'enable_onedrive_integration': config.get('onedrive.enable'),
                     'enable_memories': config.get('memories.enable'),
