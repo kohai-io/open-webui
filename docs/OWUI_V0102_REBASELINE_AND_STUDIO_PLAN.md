@@ -280,6 +280,8 @@ Create a short contract document before implementing the integration.
 
 ## Phase 6: Media browser and video timeline
 
+Handoff point (2026-07-11): the native Welcome slice is implemented, hardened, documented, deployed locally, and manually verified. Resume with the read-only Media contract comparison in `docs/HANDOFF_2026-07-11_WELCOME_TO_MEDIA.md`.
+
 ### Media access
 
 - [ ] Define a paginated, user-scoped media contract.
