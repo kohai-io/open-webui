@@ -198,7 +198,7 @@ The first live run exposed two adapter gaps. Commit `eac13a2` normalises OWUI to
 
 All 117 Studio server tests pass. Scoped Prettier, ESLint, zero-warning Svelte check, the production build, and the signed-out headless route test pass. Docker image `open-webui-studio:flows-ui-local` runs in `owui-studio-media-test` at `http://localhost:5173/studio/`; the container reports healthy. The prior Studio containers remain stopped as rollback points.
 
-## Completed slice: locked Svelte Flow canvas
+## Completed slices: locked and editable Svelte Flow canvas
 
 The legacy `src/lib/components/flows/FlowEditor.svelte` at commit `7f562ebb5c0893a886adc02521251fce7b725cb2` used `@xyflow/svelte` `0.1.19` for draggable nodes, handles, edges, controls, a minimap, fixed panels, and responsive graph layout. Use Svelte Flow `1.6.2`, reviewed on 2026-07-11, with Studio's Svelte 5 stack. See the [Svelte Flow quick start](https://svelteflow.dev/learn).
 
@@ -212,10 +212,16 @@ The local Studio worktree now implements the locked-topology Input, Model, optio
 
 All 122 server tests pass, including focused adapter, execution-map, position, and component coverage. Svelte check reports zero errors and warnings, full ESLint passes, changed files pass Prettier, and the production build succeeds. The Node 22.17.0 Docker image builds and the rebuilt `owui-studio-media-test` container is healthy at `http://localhost:5173/studio/`, still using `owui-studio-media-test-data`. The prior container is preserved as `owui-studio-media-test-pre-svelte-flow`; older rollback containers are unchanged. Health and signed-out Flows HTTP checks return `200`, and container logs are clean.
 
-The remaining canvas gate is a user-led authenticated check of node selection, configuration, dragging and saved-position reload, fit view, MiniMap, live node progress, output, cancellation, and history. Do not unlock topology until that check is accepted.
+The user accepted the locked canvas and requested the legacy-style editing interaction. Studio commit `70462a8` makes the canvas the main editor surface and unlocks add, delete, and connect for Input, Model, Transform, and Output only. A typed local graph editor provides deterministic placement, duplicate/cycle/direction checks, incident-edge cleanup, and incomplete-topology feedback. The server validator remains authoritative on save.
+
+Node selection opens an in-canvas settings drawer. It covers Input keys/defaults, Model selection/prompt/temperature/max tokens, all admitted Transform operations and their fields, and Output format. Connections are created by dragging between typed ports and explicitly deleted when selected. The runner renders the saved version's Input keys, so unsaved graph edits cannot change the execution request before a successful save. Deferred node types remain rejected.
+
+All 126 server tests pass, including focused graph-editing and component coverage. Svelte check reports zero errors and warnings, full ESLint passes, changed files pass Prettier, and both local and Node 22.17.0 Docker production builds succeed. The rebuilt `owui-studio-media-test` container is healthy on the preserved `owui-studio-media-test-data` volume. Its predecessor is retained as `owui-studio-media-test-pre-editable-flow`, and `owui-studio-media-test-pre-svelte-flow` plus older rollbacks remain unchanged. Health and signed-out Flows HTTP checks return `200`; logs are clean.
+
+The remaining UI gate is a user-led authenticated check of adding and deleting each admitted node, connecting and deleting edges, editing and saving settings, position reload, structural feedback, run inputs, live progress, cancellation, output, and history.
 
 Do not copy the legacy global stores, browser executor, broad `any` types, window event listener, forced `flowKey` remount, random node placement, weak graph validation, discarded handle IDs, or automatic breakpoint layout that overwrites user positions. Keep the server validator authoritative. Unlock add, delete, and connect for the four admitted node types after the locked canvas passes. Deferred node types retain the admission gates in `docs/flow-extraction-contract.md`.
 
 Do not use in-app browser automation. The user reports that browser access crashes the ChatGPT app. Use automated tests, HTTP checks, container logs, and user-led UI verification.
 
-The Studio branch contains four unpushed commits: `e9accc5`, `eac13a2`, `18efba0`, and locked-canvas commit `cd30583`. This planning repository also has local commits and documentation changes awaiting publication. Push each repository only after the user gives fresh approval for its private remote.
+The Studio branch contains five unpushed commits: `e9accc5`, `eac13a2`, `18efba0`, locked-canvas commit `cd30583`, and editable-canvas commit `70462a8`. This planning repository also has local commits and documentation changes awaiting publication. Push each repository only after the user gives fresh approval for its private remote.
