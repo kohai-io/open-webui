@@ -45,8 +45,8 @@ All calls carry the current user's OWUI bearer token. Studio does not call admin
 | List launchable models and agents | `GET /api/models` | This filtered endpoint is authoritative for the current user. Studio must not reconstruct access from admin model records. |
 | Create a chat launch target | `POST /api/v1/chats/new` | Create only for the current user using an ID returned by the filtered model endpoint. |
 | Read/update a Studio-launched chat when needed | `GET /api/v1/chats/{id}` and `POST /api/v1/chats/{id}` | OWUI enforces ownership/access; Studio maps missing and denied responses without revealing metadata. |
-| List/search media | `GET /api/v1/files/`, `GET /api/v1/files/search`, and `GET /api/v1/files/count` | Use bounded pages and user-scoped results. Never use admin/all-files methods. |
-| Read media metadata/content | `GET /api/v1/files/{id}` and `GET /api/v1/files/{id}/content` | Revalidate on every preview/download. Proxy or redirect only according to an explicit content policy. |
+| List/search media | `GET /api/v1/files/`, `GET /api/v1/files/search`, and `GET /api/v1/files/count` | Use bounded pages and return only self-owned results for every role, including administrators. Never expose the upstream admin-bypass result set to the browser. |
+| Read media metadata/content | `GET /api/v1/files/{id}` and `GET /api/v1/files/{id}/content` | Revalidate ownership on every preview/download and map an owner mismatch to `not_found`, including for administrators. Proxy content only according to the explicit policy in `docs/media-contract-review.md`. |
 | Upload/delete user media if required | `POST /api/v1/files/` and `DELETE /api/v1/files/{id}` | User initiated; enforce size/type limits and do not infer ownership from a supplied user ID. |
 | List/read Knowledge references | `GET /api/v1/knowledge/`, search endpoints, and `GET /api/v1/knowledge/{id}` | Use only the user's filtered results. Mutating Knowledge is outside the first Studio slice. |
 
@@ -55,6 +55,8 @@ Groups and permissions are consumed only when returned for the current identity 
 ## Server-side adapter
 
 All OWUI calls pass through a typed Studio adapter. UI code receives normalised Studio types such as `StudioUser`, `OwuiModel`, `OwuiAgent`, `OwuiFileSummary`, and `OwuiKnowledgeSummary`, not raw OWUI responses. Unknown response fields are ignored; missing required fields fail contract validation.
+
+OWUI's default admin bypass makes the ordinary Files API return all users' files to an administrator. Studio Media applies a stricter self-owned policy: it filters summaries by the current OWUI user ID and repeats that ownership check before proxying content. Cross-user records are never returned to the browser, cached, persisted, or logged. See `docs/media-contract-review.md`.
 
 Compatibility fixtures are captured from an empty v0.10.2 test deployment for success, pagination, empty results, `401`, `403`, `404`, validation error, rate limit, and upstream failure. Fixtures contain synthetic IDs and no tokens or user content. CI runs adapter contract tests against the pinned OWUI version.
 
@@ -82,7 +84,8 @@ The contract-test matrix includes two ordinary users with disjoint models/files/
 6. expired/revoked tokens and disabled accounts fail closed;
 7. logout and session rotation invalidate the prior Studio session;
 8. OWUI `403`/hidden `404` responses do not leak names, sizes, owners, or existence;
-9. request and error logs contain no provider token, OWUI JWT, administrator key, prompt, or file content.
+9. an administrator cannot list, preview, or download another user's media through Studio even when OWUI admin bypass is enabled;
+10. request and error logs contain no provider token, OWUI JWT, administrator key, prompt, or file content.
 
 ## Narrow OWUI patch set
 

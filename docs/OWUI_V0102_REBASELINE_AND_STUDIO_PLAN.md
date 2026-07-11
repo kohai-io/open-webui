@@ -268,6 +268,8 @@ Create a short contract document before implementing the integration.
 - [x] Verify launch redirects to `/?models=<id>` so OWUI applies the workspace model's prompt, knowledge, skills, and tools.
 - [ ] Add loading, empty, permission-denied, and upstream-unavailable states.
 - [ ] Add end-to-end tests for two users with different access.
+- [x] Manually verify live Welcome interactions in Chrome at normal and responsive/narrow widths.
+- [ ] Verify Welcome on a physical mobile device.
 - [x] Deploy behind `ENABLE_WELCOME_PAGE`, disabled by default.
 
 ### Exit gate 5
@@ -284,10 +286,11 @@ Handoff point (2026-07-11): the native Welcome slice is implemented, hardened, d
 
 ### Media access
 
-- [ ] Define a paginated, user-scoped media contract.
-- [ ] Determine which file metadata and preview operations existing OWUI APIs support.
-- [ ] Add only the narrow bridge endpoints that remain necessary.
-- [ ] Implement pagination, lazy previews, cancellation, and bounded concurrency.
+- [x] Audit the existing typed, paginated, user-scoped files adapter and define its Media extension; do not create a second adapter. See `docs/media-contract-review.md`.
+- [x] Determine which file metadata, search, preview, download, pagination, and access-control operations existing OWUI APIs support. See `docs/media-contract-review.md`.
+- [x] Add no OWUI bridge endpoint initially. Revisit only an upstreamable `owned_only=true` list/search option if representative administrator tests prove Studio-side self-filtering too costly.
+- [x] Extend the Studio adapter with bounded listing/search, strict self-ownership checks, and hardened preview/download streaming. Studio commits `5b5bb4e` and `08a332f`; 11 focused tests, all 21 server tests, Svelte check, image build, and non-root container smoke checks pass.
+- [ ] Implement first-release listing, search, lazy preview, download, pagination, cancellation, and bounded concurrency for existing OWUI media; exclude upload, deletion, generation, and processing controls.
 - [ ] Test large libraries and inaccessible/deleted file references.
 
 ### Timeline ownership
@@ -446,8 +449,8 @@ Add concise links or references as work completes.
 | 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Clean build/start, admin/auth, OpenAI-compatible discovery/SSE chat, explicit model grant/denial, private file/Knowledge denial, processing, attachment, and retrieval pass; source variables classified; real providers, OAuth/MCP/Drive, proxy/browser checks, upstream type check, live deployment names, and signature trust remain |
 | 3 | `docs/owui-studio-contract.md` | Ownership, shared-OIDC/token-exchange authentication, fallback launch exchange, minimum user-scoped API surface, typed adapter policy, denial matrix, and narrow patch set documented; no direct database access or administrator browser credential required |
 | 4 | Studio repository `git.theoldschool.house/robert/open-webui-studio` through `b40cd51`; functions repository `git.theoldschool.house/robert/open-webui-functions-tools` through `196b1a4`; live Keycloak realm `homelab` | Canonical origins are private Gitea; Studio shell, non-root container, typed v0.10.2 adapter, SQLite migrations, encrypted sessions, provider-neutral OIDC routes, and fake IdP pass automated validation; shared Keycloak login and OWUI provider-token exchange were manually verified against a locally built clean v0.10.2 image; live Okta, second-user matrix, proxy, and rollback checks remain |
-| 5 | OWUI branch `rebaseline/upstream-v0.10.2` commits `559cd28f1`, `e9ca2fc11`, and `3ccdbe83c`; branch `PATCHES.md`; Studio commits `0d74d7f` and `abb86cc`; `docs/welcome-feature-maintenance-options.md` | The Studio-owned agent experiment was reverted. Native OWUI Welcome is a disabled-by-default UI island using authorised executable models, accessible workspace models, active functions, and native chat initialisation. The full legacy experience is restored and hardened: composer integrations, Files API upload/handoff, dictation, voice mode, tested local agent order, responsive launchers, and quick actions. Four focused tests and the production build pass. Live interaction retest and two-user browser proof remain |
-| 6 | | |
+| 5 | OWUI branch `rebaseline/upstream-v0.10.2` commits `559cd28f1`, `e9ca2fc11`, and `3ccdbe83c`; branch `PATCHES.md`; Studio commits `0d74d7f` and `abb86cc`; `docs/welcome-feature-maintenance-options.md` | The Studio-owned agent experiment was reverted. Native OWUI Welcome is a disabled-by-default UI island using authorised executable models, accessible workspace models, active functions, and native chat initialisation. The full legacy experience is restored and hardened: composer integrations, Files API upload/handoff, dictation, voice mode, tested local agent order, responsive launchers, and quick actions. Four focused tests and the production build pass. Live interactions were manually verified in Chrome at normal and responsive/narrow widths; physical-device mobile verification and the two-user browser proof remain. |
+| 6 | `docs/media-contract-review.md`; legacy `7f562ebb5c0893a886adc02521251fce7b725cb2`; OWUI `ecd48e2f7`; Studio commits `5b5bb4e` and `08a332f`; image `open-webui-studio:media-adapter-08a332f` | Read-only comparison and the typed Media adapter are complete. Self-owned listing/search, administrator denial, preview/download streaming, range forwarding, MIME/header hardening, fixtures, build, and non-root container startup pass. Upload, deletion, generation/processing controls, chat/folder hierarchy, prompt recovery, browser-facing Media routes/UI, live two-user proof, representative-library performance, and timeline persistence remain. No OWUI bridge is initially justified. |
 | 7 | | |
 | 8 | `docs/mcp-oauth-google-drive-comparison.md` | MCP/OAuth fixes classified commit by commit; use upstream Google Drive selected-file import; fork server OAuth/sync dropped; tool-name resolver and optional Drive multi-file handling identified as narrow upstream contribution candidates |
 | 9 | | |
