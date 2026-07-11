@@ -331,3 +331,16 @@ Studio commit `69029f9` adds queue orchestration, the runner, and the owner-scop
 All 111 Studio server tests pass. Scoped Prettier, project ESLint, zero-warning Svelte check, and the production build pass. Automated tests cover transaction rollback, session expiry, runner polling and wakeups, CRUD, version conflict, active-delete guard, cancellation, two-user hiding, same-origin enforcement, and terminal SSE redaction.
 
 This slice made no live model call and did not rebuild or start a deployed Studio container. Resume with the first Flow UI: list and create a constrained linear text flow, run it with an idempotency key, show execution state and node progress, allow cancellation, and consume the SSE endpoint. Keep arbitrary graph editing and deferred node types out of that slice.
+
+The local `codex/flows-foundation` worktree contains Studio commit `e9accc5`, which implements the first Flow UI and awaits remote publication:
+
+- `/studio/flows` lists owner-scoped flows and execution history;
+- the editor creates and updates one constrained Input, Model, optional Transform, Output shape and treats definitions with unsupported settings as read-only;
+- the runner supplies an idempotency key, follows owner-scoped SSE events, displays node state and output, and supports cancellation;
+- Studio navigation links to Flows from Welcome, Agents, and Media;
+- page loading admits authorised base models and returns the signed-out state without constructing production services;
+- the UI preserves history after an update and closes the event stream when an execution event reaches a terminal state.
+
+All 115 Studio server tests pass. Scoped Prettier, ESLint, zero-warning Svelte check, the production build, and the signed-out headless route test pass. Image `open-webui-studio:flows-ui-local` runs in the healthy `owui-studio-media-test` container at `http://localhost:5173/studio/`. HTTP checks return `200` for `/studio/flows` and the health endpoint. The checks made no live model call. The user asked us to stop in-app browser testing because it crashes the ChatGPT app.
+
+The next gate is a user-led authenticated create, save, run, progress, cancellation, history, and delete check against the rebuilt container. After that check, add metadata-only audit records and the representative two-user Flow test before closing the Phase 7 exit gate.

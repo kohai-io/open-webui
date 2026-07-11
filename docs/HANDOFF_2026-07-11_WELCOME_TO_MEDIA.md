@@ -1,4 +1,4 @@
-# Handoff: Media browser complete, Flows selected
+# Handoff: First Flow workspace ready for testing
 
 Date: 2026-07-11
 
@@ -8,7 +8,7 @@ The Open WebUI v0.10.2 rebaseline is running locally with the full native Welcom
 
 The first Studio Media browser slice is also complete. It lists, searches, previews, and downloads self-owned OWUI image/video/audio files through the typed server-side adapter. It has no upload, deletion, generation, transcription, narration, or other processing controls. OWUI remains the file, storage, and permission owner.
 
-The user parked timeline persistence after review and selected Phase 7 Flows as the next product slice. `docs/flow-extraction-contract.md` records its contract-first boundary.
+The user parked timeline persistence after review and selected Phase 7 Flows. Studio has the first constrained Flow workspace and uses the durable server-side execution path in `docs/flow-extraction-contract.md`.
 
 The user manually verified:
 
@@ -192,4 +192,10 @@ Seven authenticated handlers now cover Flow CRUD, immutable versions, execution 
 
 All 111 Studio server tests pass; scoped Prettier, project ESLint, zero-warning Svelte check, and the production build pass. This slice made no live model call and did not rebuild a deployed Studio container.
 
-Resume with the first Flow UI. Keep it constrained to a linear Input, Model, optional Transform, and Output flow; provide list/create, run, state and node progress, cancellation, and execution history. Consume the new APIs and SSE endpoint. Leave arbitrary graph editing and deferred node types for a later slice.
+Studio commit `e9accc5` completes that UI slice in the local worktree. `/studio/flows` provides owner-scoped list/create/update/delete, a constrained Input, Model, optional Transform, Output editor, execution history, live SSE node progress, cancellation, and output display. Definitions with settings the first editor cannot represent remain read-only so a save cannot discard them. Welcome, Agents, and Media link to Flows.
+
+All 115 Studio server tests pass. Scoped Prettier, ESLint, zero-warning Svelte check, the production build, and the signed-out headless route test pass. Docker image `open-webui-studio:flows-ui-local` runs in `owui-studio-media-test` at `http://localhost:5173/studio/`; the container reports healthy and HTTP checks return `200` for Flows and health. The prior Studio containers remain stopped as rollback points. No check invoked a live model.
+
+The commit has not reached the remote because the current step lacked fresh approval to send code to the private Git host. In-app browser testing stopped at the user's request because browser access crashes the ChatGPT app. Use the running container for the authenticated check.
+
+Next, create a Flow from the rebuilt UI, save it, run it, watch each node, inspect history, cancel a run, and delete the Flow. After that user-led check passes, add metadata-only audit records and a representative two-user execution test. Keep arbitrary graph editing and deferred node types out of this release.
