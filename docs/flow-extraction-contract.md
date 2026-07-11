@@ -289,3 +289,16 @@ Studio commit `a18151f` adds the execution credential-lease boundary:
 - tests cover encryption at rest, owner isolation, cross-execution replay, expiry, invalid credentials, migration, cancellation, and terminal cleanup.
 
 The full Studio server suite has 73 passing tests. Scoped Prettier, project ESLint, zero-warning Svelte check, and the production build pass. Resume with the execution lifecycle store for idempotent creation, claims, checkpoints, events, heartbeat recovery, cancellation, and terminal transitions before connecting the durable worker.
+
+Studio commit `f31dfe1` implements the execution lifecycle boundary:
+
+- migration `0005_flow_execution_lifecycle.sql` adds hashed claim tokens, claim expiry and attempts, deterministic node order, claim indexes, and terminal claim cleanup;
+- execution creation validates runtime inputs, pins an immutable version, encrypts retained inputs, creates ordered node rows, and returns the original owner-scoped execution for a duplicate idempotency key;
+- SQLite immediate transactions enforce atomic claims, the global worker limit, and one active execution per owner;
+- the store encrypts checkpoints and outputs with owner, execution, node, and attempt context while events retain metadata only;
+- heartbeats extend claims, queued cancellation settles without dispatch, and claimed cancellation requires worker acknowledgement;
+- stale deterministic work returns to the queue, while an uncheckpointed model call fails `model_result_unknown` and cannot dispatch again;
+- failure and cancellation settle open nodes, terminal transitions clear claim capabilities, and the database retains the last heartbeat for history;
+- migration tests fail pre-contract active executions closed because they lack claim metadata and node order.
+
+The full Studio server suite has 85 passing tests. Scoped Prettier, project ESLint, zero-warning Svelte check, and the production build pass. The tests use no live model. Resume with the durable worker core using a dependency-injected OWUI stub. Prove ordered evaluation, credential acquisition, model dispatch boundaries, deadlines, heartbeat refresh, and `AbortController` cancellation before adding routes or the editor.
