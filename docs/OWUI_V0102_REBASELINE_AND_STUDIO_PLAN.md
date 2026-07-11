@@ -20,6 +20,7 @@ The target state is:
 - Treat the rebaseline as a fresh deployment with empty OWUI and Studio databases.
 - Do not migrate or import users, chats, files, knowledge, flows, schedules, preferences, OAuth state, or other data from the legacy fork.
 - Preserve the legacy source reference and deployment record for archaeology; legacy data backup and recovery are outside this plan.
+- Defer live deployment-host capture, reverse-proxy configuration, image publication, and cutover rehearsal until a homelab Proxmox staging target is selected. These items do not block Studio product extraction or source-maintenance work.
 
 ## Target architecture
 
@@ -81,7 +82,7 @@ Do not rewrite the legacy or archived rebaseline histories.
 - [x] The new deployment bootstrap is reproducible from empty storage. Two independent local rehearsals passed after explicit `DATA_DIR` provisioning.
 - [ ] The legacy and new deployments have independent storage and can be selected without database conversion.
 
-The immutable legacy source references must exist before maintained-source implementation begins. Live deployment, routing, image, and rollback evidence may be completed in parallel, but all three gate items must pass before Phase 9 staging/cutover.
+The immutable legacy source references exist. Live deployment, routing, image, and rollback evidence is intentionally deferred until homelab staging, but all three gate items must pass before Phase 9 cutover.
 
 ---
 
@@ -235,9 +236,9 @@ Create a short contract document before implementing the integration.
 
 ### Core services
 
-- [ ] Implement Studio sessions and authentication.
+- [ ] Implement Studio sessions and authentication. Migration-backed opaque session handles, AES-256-GCM encrypted payload storage, expiry, rotation, revocation, and OIDC-subject binding are implemented in Studio commit `bccf2ef`; secure cookie integration and live OIDC routes remain.
 - [x] Implement the typed server-side OWUI adapter. Studio commit `6df9f08` covers upstream OAuth token exchange, current identity, filtered models/agents, paginated files, paginated Knowledge, and chat creation with normalized response types and stable error mapping.
-- [ ] Add a Studio-owned database and migrations.
+- [x] Add a Studio-owned database and migrations. Studio commit `bccf2ef` adds an independent SQLite database, transactional numbered migrations, identity bindings, encrypted session rows, ignored local data files, and container migration assets.
 - [x] Add fixtures or a stub service for OWUI contract tests. Studio commit `6df9f08` adds a deterministic injected-fetch stub covering success, two-user separation, hidden-resource denial, malformed responses, transient read retry, and mutation non-retry.
 - [ ] Add a test user matrix covering ordinary users, administrators, groups, and denied resources.
 
@@ -439,7 +440,7 @@ Add concise links or references as work completes.
 | 1 | `docs/feature-ledger.md` | Source-level inventory, disposition, ownership, fresh-start acceptance, and rollback ledger created; live usage/deployment reconciliation remains open; no legacy data migration or import is in scope |
 | 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Clean build/start, admin/auth, OpenAI-compatible discovery/SSE chat, explicit model grant/denial, private file/Knowledge denial, processing, attachment, and retrieval pass; source variables classified; real providers, OAuth/MCP/Drive, proxy/browser checks, upstream type check, live deployment names, and signature trust remain |
 | 3 | `docs/owui-studio-contract.md` | Ownership, shared-OIDC/token-exchange authentication, fallback launch exchange, minimum user-scoped API surface, typed adapter policy, denial matrix, and narrow patch set documented; no direct database access or administrator browser credential required |
-| 4 | Studio repository `git.theoldschool.house/robert/open-webui-studio` through `6df9f08`; functions repository `git.theoldschool.house/robert/open-webui-functions-tools` through `196b1a4` | Canonical origins are the private Gitea service; the previously local-only submodule compatibility history is published; the Studio shell, non-root container, typed v0.10.2 adapter, and deterministic stub pass their recorded checks; authentication, database, full user matrix, proxy, and rollback work remain |
+| 4 | Studio repository `git.theoldschool.house/robert/open-webui-studio` through `bccf2ef`; functions repository `git.theoldschool.house/robert/open-webui-functions-tools` through `196b1a4` | Canonical origins are private Gitea; Studio shell, non-root container, typed v0.10.2 adapter, deterministic stub, independent SQLite migrations, and encrypted session store pass lint, zero-diagnostic checking, 11 tests, production build, and Node 22 Alpine image build; secure-cookie/OIDC routes, full user matrix, proxy, and rollback work remain |
 | 5 | | |
 | 6 | | |
 | 7 | | |
