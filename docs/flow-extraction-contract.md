@@ -266,4 +266,15 @@ Studio commit `6b957d0` on published branch `codex/flows-foundation` implements 
 - empty-database and existing-0001/0002 migration tests pass without changing OWUI storage;
 - 22 Flow assertions pass as part of the 48-test Studio server suite; Prettier, ESLint, zero-warning Svelte check, and the production build pass.
 
-The implementation adds no browser routes, editor, worker, credential-lease service, or OWUI completion call. The next code slice is the pinned v0.10.2 non-persisted completion adapter fixture.
+The foundation adds no browser routes, editor, worker, credential-lease service, or OWUI completion call.
+
+Studio commit `259179e` on the same published branch adds the pinned v0.10.2 text-completion adapter contract:
+
+- the adapter revalidates the selected model against the current user's model, workspace-model, and function catalogues and admits base text models only;
+- it sends one non-streaming `POST /api/chat/completions` request without `parent_id`, `chat_id`, `user_message`, `session_id`, files, tools, or browser-visible credentials;
+- pinned v0.10.2 treats an absent `parent_id` as the direct legacy API path with no chat management, and the fixture proves Studio never calls an OWUI chat-creation route;
+- the adapter accepts one bounded text choice and rejects empty, oversized, or malformed responses;
+- fixtures cover inaccessible agents/functions, invalid input, `429`, `503`, `504`, internal timeout, caller cancellation, network failure, and single-dispatch no-retry behavior;
+- 64 server tests pass; Prettier, ESLint, zero-warning Svelte check, and the production build pass.
+
+No live model was invoked in this contract slice. Resume with the execution credential-lease security review and service tests before implementing the durable worker.
