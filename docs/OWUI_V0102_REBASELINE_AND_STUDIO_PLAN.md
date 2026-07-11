@@ -14,7 +14,8 @@ The target state is:
 ## How to use this plan
 
 - Check an item only when its evidence has been recorded.
-- Do not pass an exit gate with unresolved blocking issues.
+- Do not pass an exit gate with unresolved issues that block its dependent work.
+- Phases may overlap when their boundaries are already decided. Deployment-host capture in Phase 0 blocks staging and cutover, not the Phase 3 contract.
 - Add links to commits, test output, deployment notes, or decision records beside completed items.
 - Treat the rebaseline as a fresh deployment with empty OWUI and Studio databases.
 - Do not migrate or import users, chats, files, knowledge, flows, schedules, preferences, OAuth state, or other data from the legacy fork.
@@ -74,11 +75,13 @@ Do not rewrite the legacy or archived rebaseline histories.
 - [ ] Record the minimal bootstrap configuration and initial administrator creation procedure without secret values.
 - [ ] Define rollback as switching back to the untouched legacy deployment, not downgrading or converting the new databases.
 
-### Exit gate 0
+### Exit gate 0: preservation and cutover prerequisites
 
 - [ ] The legacy source and deployment are reproducible.
-- [ ] The new deployment bootstrap is reproducible from empty storage.
+- [x] The new deployment bootstrap is reproducible from empty storage. Two independent local rehearsals passed after explicit `DATA_DIR` provisioning.
 - [ ] The legacy and new deployments have independent storage and can be selected without database conversion.
+
+The immutable legacy source references must exist before maintained-source implementation begins. Live deployment, routing, image, and rollback evidence may be completed in parallel, but all three gate items must pass before Phase 9 staging/cutover.
 
 ---
 
@@ -116,19 +119,19 @@ Create `docs/feature-ledger.md`. Give every custom feature one explicit decision
 
 ### Initial assumptions to validate
 
-- [ ] Flows will be extracted to Studio.
-- [ ] Media and the video timeline will be extracted to Studio.
-- [ ] Welcome and Agents are candidates for the first Studio vertical slice.
+- [x] Flows will be extracted to Studio. See `docs/feature-ledger.md`.
+- [x] Media and the video timeline will be extracted to Studio. See `docs/feature-ledger.md`.
+- [x] Welcome and Agents are candidates for the first Studio vertical slice. See `docs/feature-ledger.md`.
 - [x] Scheduled prompts are replaced by upstream Automations and Calendar. The fork implementation and its data are not ported or imported. See `docs/feature-ledger.md`.
-- [ ] Pi Gateway and experiments will not be added to the maintained OWUI fork.
-- [ ] Fork fixes already present upstream will be dropped.
+- [x] Pi Gateway and experiments will not be added to the maintained OWUI fork. See `docs/feature-ledger.md`.
+- [x] Fork fixes already present upstream will be dropped. See `docs/mcp-oauth-google-drive-comparison.md`; remaining feature areas still require their own upstream comparison.
 
 ### Exit gate 1
 
 - [x] Every custom feature has one owner and one disposition. Initial decisions are in `docs/feature-ledger.md`; v0.10.2 comparison can refine them explicitly.
 - [x] Every retained feature has an acceptance test. Acceptance summaries are in `docs/feature-ledger.md`; executable cases remain phase work.
-- [ ] Custom database objects and their target destinations are known.
-- [ ] Nothing is scheduled for porting merely because it exists in the legacy fork.
+- [x] Custom database objects and their target destinations are known. Legacy Flow, execution, scheduled-prompt, and OAuth-session objects are not imported; new Studio schemas start empty. See `docs/feature-ledger.md`.
+- [x] Nothing is scheduled for porting merely because it exists in the legacy fork. Every inventoried feature has an explicit disposition.
 
 ---
 
@@ -155,17 +158,19 @@ Create `docs/feature-ledger.md`. Give every custom feature one explicit decision
 ### Fresh data rehearsal
 
 - [x] Start v0.10.2 against a new empty database and empty file/vector storage. Disposable rehearsal reached Alembic head `42e2978c7933`.
-- [ ] Create bootstrap administrators and representative test users through supported interfaces.
+- [x] Create bootstrap administrators and representative test users through supported interfaces. First-admin signup and administrator-created ordinary user both passed.
 - [ ] Configure representative groups, models, agents, files, knowledge, OAuth, MCP, and tools from scratch.
 - [ ] Verify login, permissions, chats, uploads, knowledge, OAuth, MCP, tools, and API access.
-- [ ] Destroy and repeat the bootstrap from empty storage to prove reproducibility.
+- [x] Destroy and repeat the bootstrap from empty storage to prove reproducibility. Two independent fresh-data rehearsals initialised successfully after explicitly provisioning `DATA_DIR`.
 
 ### Exit gate 2
 
 - [ ] Unmodified v0.10.2 passes its clean build and smoke tests.
-- [ ] A fresh empty database and storage set can be initialised reproducibly.
+- [x] A fresh empty database and storage set can be initialised reproducibly. See `docs/v0.10.2-baseline-comparison.md`.
 - [ ] Core OWUI data and workflows work without Studio.
 - [ ] The fresh deployment and legacy deployment have independent rollback boundaries.
+
+The production frontend build and recorded backend/API smoke tests pass. `npm run check` still fails on existing upstream diagnostics, and the dependency audit reports unresolved advisories. Decide and record whether these block deployment before marking the first gate item complete.
 
 ---
 
@@ -197,6 +202,13 @@ Create a short contract document before implementing the integration.
 - [ ] Add a narrow OWUI bridge endpoint only when no safe supported API exists.
 - [ ] Define API compatibility fixtures for the supported OWUI version.
 - [ ] Define timeouts, retries, error mapping, and request correlation IDs.
+
+### Provisional OWUI patch set
+
+- [ ] Studio navigation/launch seam, preferably feature-flagged or configuration-driven.
+- [ ] MCP unique-suffix tool-name resolver only if intended staging models reproduce the blocker; otherwise upstream contribution only.
+- [ ] Google Drive multi-file handling as an upstream contribution only if retained as a requirement.
+- [x] No other OWUI patch is currently justified by the completed comparisons.
 
 ### Exit gate 3
 
@@ -332,9 +344,10 @@ Create a short contract document before implementing the integration.
 ## Phase 8: Remaining customisations and minimal OWUI patch set
 
 - [x] Decide the scheduled-prompt destination: use upstream Automations/Calendar exclusively; remove the fork implementation and do not import its records.
-- [ ] Decide the destination of admin analytics and LiteLLM spend reporting.
+- [x] Use upstream v0.10.2 admin analytics rather than porting the fork dashboard.
+- [x] Implement optional LiteLLM spend reporting in Studio server-side admin reporting; keep credentials out of browser code and OWUI. See `docs/feature-ledger.md`.
 - [x] Decide the destination of Google Drive customisations after comparing v0.10.2: use upstream picker/chat import, drop fork server OAuth/sync, and contribute multi-file handling only if required.
-- [ ] Decide whether Agent Skills belongs in Studio, an MCP/tool service, or upstream.
+- [x] Use upstream v0.10.2 Agent Skills; do not port the fork implementation.
 - [x] Drop MCP/OAuth fixes already present upstream. Token-auth passthrough, duplicate callback credentials, and safe cleanup are upstream; unprefixed tool-name resolution remains an upstream contribution candidate.
 - [ ] Submit generally useful remaining fixes upstream where practical.
 - [ ] Move experiments such as Pi Gateway outside the maintained OWUI source tree.
@@ -412,6 +425,7 @@ Record material decisions here or link to separate decision records.
 | 2026-07-11 | Start v0.10.2 and Studio with fresh data | Legacy data does not need to be carried forward, which removes schema conversion and custom-feature import risk | A specific legacy dataset is explicitly brought back into scope |
 | 2026-07-11 | Use upstream MCP/OAuth except for a proposed tool-name resolver contribution | v0.10.2 supersedes the fork's token-auth, callback, and cleanup fixes but still requires exact tool names | Upstream accepts the resolver or intended staging models never reproduce the issue |
 | 2026-07-11 | Use upstream Google Drive selected-file import and drop fork synchronisation | The upstream browser picker covers fresh imports; server OAuth and continuous sync are a separate product/security lifecycle | Continuous Drive synchronisation becomes an explicit Studio/connector requirement |
+| 2026-07-11 | Use upstream admin analytics and move only LiteLLM spend reporting to Studio | v0.10.2 already owns standard analytics; LiteLLM credentials and provider-specific reporting do not belong in the OWUI patch set | Upstream gains the required LiteLLM reporting or the report is no longer needed |
 
 ## Evidence log
 
@@ -419,7 +433,7 @@ Add concise links or references as work completes.
 
 | Phase | Evidence | Result |
 | --- | --- | --- |
-| 0 | `docs/rebaseline-phase-0-source-record.md` | Local source, remote, branch, submodule, and candidate deployment material recorded; live deployment and recovery evidence still required |
+| 0 | `docs/rebaseline-phase-0-source-record.md` | Local source, remote, branch, submodule, and candidate deployment material recorded; live deployment, routing, image, and rollback evidence still required |
 | 1 | `docs/feature-ledger.md` | Initial inventory, disposition, ownership, fresh-start acceptance, and rollback ledger created; no legacy data migration or import is in scope |
 | 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Clean build/start, admin/auth, OpenAI-compatible discovery/SSE chat, explicit model grant/denial, private file/Knowledge denial, processing, attachment, and retrieval pass; source variables classified; real providers, OAuth/MCP/Drive, proxy/browser checks, upstream type check, live deployment names, and signature trust remain |
 | 3 | | |
