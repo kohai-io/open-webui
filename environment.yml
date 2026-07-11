@@ -1,0 +1,6 @@
+name: open-webui-v0102-backend
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip

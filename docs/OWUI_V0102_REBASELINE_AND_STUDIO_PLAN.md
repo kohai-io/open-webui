@@ -141,6 +141,7 @@ Create `docs/feature-ledger.md`. Give every custom feature one explicit decision
 - [x] Create `rebaseline/upstream-v0.10.2` from the exact upstream tag. Created locally without switching the legacy working tree.
 - [x] Confirm there are no custom source changes on the initial baseline commit. The branch and release ref both resolve to `ecd48e2f718220a6400ecf49eafd4867a38feb10`.
 - [x] Build and start unmodified v0.10.2 with empty disposable data. Frontend production build and initial backend health/bootstrap smoke checks passed. See `docs/v0.10.2-baseline-comparison.md`.
+- [x] Define separate local runtimes: Node.js 22 for the frontend and a Conda Python 3.11 environment for the backend. See `docs/LOCAL_DEVELOPMENT.md`.
 
 ### Configuration compatibility
 
