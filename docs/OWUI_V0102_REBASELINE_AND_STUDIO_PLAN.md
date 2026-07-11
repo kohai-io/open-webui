@@ -145,8 +145,8 @@ Create `docs/feature-ledger.md`. Give every custom feature one explicit decision
 
 ### Configuration compatibility
 
-- [ ] Compare legacy environment variables with v0.10.2 configuration.
-- [ ] Classify variables as unchanged, renamed, removed, replaced, or custom.
+- [ ] Compare legacy environment variables with v0.10.2 configuration. Source/default and Compose-name comparison is complete; live deployment-host names remain. See `docs/v0.10.2-configuration-matrix.md`.
+- [x] Classify source-level variables as unchanged, renamed, removed, replaced, or custom. All 534 directly read legacy backend names are accounted for; live deployment reconciliation remains separate.
 - [ ] Create a staging configuration without production secrets.
 - [ ] Verify reverse-proxy headers, WebSockets, streaming, upload limits, and callback URLs.
 - [ ] Verify required model providers, Ollama/OpenAI-compatible endpoints, MCP servers, and OAuth providers.
@@ -418,7 +418,7 @@ Add concise links or references as work completes.
 | --- | --- | --- |
 | 0 | `docs/rebaseline-phase-0-source-record.md` | Local source, remote, branch, submodule, and candidate deployment material recorded; live deployment and recovery evidence still required |
 | 1 | `docs/feature-ledger.md` | Initial inventory, disposition, ownership, fresh-start acceptance, and rollback ledger created; no legacy data migration or import is in scope |
-| 2 | `docs/v0.10.2-baseline-comparison.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Official remote/tag fetched; clean branch recorded; frontend build and empty-data backend health/admin/auth/Automations/Calendar/Skills smoke checks pass; upstream type check fails; extended workflows, production-like runtime configuration, and independent signature trust remain |
+| 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Official remote/tag fetched; clean branch recorded; frontend build and empty-data backend smoke checks pass; all directly read legacy source variables classified; upstream type check, live deployment names, extended workflows, production-like configuration, and independent signature trust remain |
 | 3 | | |
 | 4 | | |
 | 5 | | |
