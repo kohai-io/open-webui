@@ -91,6 +91,7 @@ The Keycloak test realm is `homelab`; local client names use the `-local` suffix
 - Manual UI verification completed by the user in Chrome at normal and responsive/narrow widths.
 - Studio Media adapter and page service: 13 focused tests passing; full Studio server suite: 23 tests passing; Svelte check, changed-file ESLint, and production build passing.
 - Studio image `open-webui-studio:media-page-278be05` built successfully. `/studio/media` and the health endpoint return `200`, unauthenticated content returns `401`, and the healthy non-root container can reach OWUI and OIDC.
+- The user manually verified the authenticated Media page, previews, and downloads.
 
 Do not use browser automation in the next session unless the user explicitly reverses this instruction; it repeatedly crashed the Codex desktop app. Prefer source tests, HTTP checks, Docker health/logs, and user-led manual UI verification.
 
@@ -109,7 +110,7 @@ Start with a read-only comparison; do not port the Media UI first.
 
 The first Studio Media release is read-only apart from downloading: it lists, searches, previews, and downloads media already stored in OWUI. Upload, deletion, generation, transcription, narration, and other processing controls are out of scope for this release.
 
-The read-only comparison and first-release contract are now recorded in `docs/media-contract-review.md`. The first Media page, authenticated preview/download route, search, pagination, navigation, and empty/error states are implemented. Resume with user-led authenticated UI verification and representative-library performance checks; do not use browser automation unless the user reverses the instruction above.
+The read-only comparison and first-release contract are now recorded in `docs/media-contract-review.md`. The first Media page, authenticated preview/download route, search, pagination, navigation, and empty/error states are implemented and manually verified. Resume with representative-library performance checks; do not use browser automation unless the user reverses the instruction above.
 
 1. Inventory the legacy Media page, services, metadata expectations, preview behavior, and timeline references from the immutable `legacy/v0.6.36-custom` reference at `7f562ebb5c0893a886adc02521251fce7b725cb2`.
 2. Compare them with v0.10.2 Files API listing, pagination, content, download, deletion, processing status, metadata, and access-control behavior.
