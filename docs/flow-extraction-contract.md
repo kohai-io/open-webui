@@ -302,3 +302,17 @@ Studio commit `f31dfe1` implements the execution lifecycle boundary:
 - migration tests fail pre-contract active executions closed because they lack claim metadata and node order.
 
 The full Studio server suite has 85 passing tests. Scoped Prettier, project ESLint, zero-warning Svelte check, and the production build pass. The tests use no live model. Resume with the durable worker core using a dependency-injected OWUI stub. Prove ordered evaluation, credential acquisition, model dispatch boundaries, deadlines, heartbeat refresh, and `AbortController` cancellation before adding routes or the editor.
+
+Studio commit `53fe122` implements the durable worker core:
+
+- `FlowWorker` recovers stale claims, claims one queued execution, evaluates nodes in stored order, commits each checkpoint, and seals the execution result;
+- Input, Transform, and Output evaluation runs without an OWUI credential; Model acquires its execution lease at dispatch time and calls the proven text-completion adapter once;
+- the worker refreshes heartbeats during Model calls, enforces separate run and node deadlines, and aborts the adapter signal after an owner cancellation request;
+- completed checkpoints survive worker recovery, while an abandoned in-flight Model node fails `model_result_unknown` before a new worker can dispatch it;
+- OWUI denial and failure codes map to stable Flow errors without retries or upstream response data in events;
+- graph validation rejects fan-in for transforms and outputs that lack merge semantics;
+- execution heartbeats cannot revive an expired claim, and a background heartbeat error aborts and seals the run.
+
+The test suite uses the real adapter against its OWUI stub for the success path and controlled clients for failure timing. All 100 Studio server tests pass. Scoped Prettier, project ESLint, zero-warning Svelte check, and the production build pass. The tests make no live model call.
+
+The worker remains a server library. Studio has no background runner, Flow API routes, event stream, or UI. Resume with an owner-scoped queue service that creates the execution and credential lease in one transaction, then add the worker runner and Flow API surface before building the first UI.
