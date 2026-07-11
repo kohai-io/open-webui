@@ -12,7 +12,8 @@ Provide the fork's user landing experience beside the OWUI-owned concepts it pre
 
 - `559cd28f1` — add the disabled-by-default feature seam and OWUI catalogue classification.
 - `e9ca2fc11` — restore the full legacy Welcome experience and adapt it to v0.10.2 APIs.
-- The next commit hardens ordering, composer handoff, and ordinary-file upload behavior.
+- `3ccdbe83c` — harden ordering, composer handoff, and ordinary-file upload behavior.
+- `da39eb4a1` — keep sidebar New Chat navigation separate from the parameter-free Welcome route.
 
 ### Configuration
 
@@ -35,12 +36,13 @@ Set `ENABLE_WELCOME_PAGE=True` to replace the parameter-free `/` chat landing pa
 - `src/routes/(app)/+page.svelte`
 - `src/lib/components/welcome/*`
 - A narrow Welcome attachment restore block in `src/lib/components/chat/Chat.svelte`
+- Sidebar route adjustments in `src/lib/components/layout/Sidebar.svelte`
 
 ### Verification
 
 - Focused Vitest coverage for access-aware classification, ordering, and composer query handoff.
 - Full Vite production build.
-- Manual checks: agent/model visibility, prompt submission, integrations, file/image attachment, dictation, voice mode, ordering persistence, quick actions, and mobile layout.
+- Manual checks: agent/model visibility, prompt submission, integrations, file/image attachment, dictation, voice mode, ordering persistence, quick actions, sidebar New Chat and Welcome navigation, and mobile layout.
 
 ### Rebase procedure
 
