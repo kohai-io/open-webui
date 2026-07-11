@@ -1,0 +1,25 @@
+# Record ownership and secret-store references beside this inventory. Do not add values.
+
+# Required service and proxy boundary
+WEBUI_SECRET_KEY secret
+WEBUI_URL non-secret
+CORS_ALLOW_ORIGIN non-secret
+FORWARDED_ALLOW_IPS non-secret
+ENABLE_WELCOME_PAGE non-secret
+
+# Fresh account and OIDC configuration
+ENABLE_SIGNUP non-secret
+ENABLE_OAUTH_SIGNUP non-secret
+OAUTH_CLIENT_ID non-secret
+OAUTH_CLIENT_SECRET secret
+OPENID_PROVIDER_URL non-secret
+OAUTH_PROVIDER_NAME non-secret
+OAUTH_SCOPES non-secret
+
+# Configure only the selected model providers
+OPENAI_API_BASE_URL non-secret
+OPENAI_API_KEY secret
+OLLAMA_BASE_URL non-secret
+
+# Add required Automations, Calendar, MCP, files, storage, and provider names
+# from docs/v0.10.2-configuration-matrix.md before the rehearsal.

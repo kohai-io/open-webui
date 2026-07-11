@@ -1,0 +1,27 @@
+name: open-webui-studio
+
+services:
+  studio:
+    image: ${SERVICE_IMAGE:?SERVICE_IMAGE must be an immutable digest reference}
+    container_name: open-webui-studio
+    restart: unless-stopped
+    env_file:
+      - ./runtime.env
+    ports:
+      - "3000:3000"
+    volumes:
+      - /srv/open-webui-studio/data:/app/data
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:3000/studio/health >/dev/null || exit 1",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3

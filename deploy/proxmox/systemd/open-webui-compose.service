@@ -1,0 +1,21 @@
+[Unit]
+Description=Open WebUI pinned OCI deployment
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/open-webui/compose.yaml
+ConditionPathExists=/etc/open-webui/deployment.env
+ConditionPathExists=/etc/open-webui/runtime.env
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/etc/open-webui
+ExecStartPre=/usr/local/lib/owui-deploy/validate-deployment.sh owui
+ExecStart=/usr/bin/docker compose --env-file /etc/open-webui/deployment.env up -d --remove-orphans
+ExecStop=/usr/bin/docker compose --env-file /etc/open-webui/deployment.env stop
+TimeoutStartSec=0
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

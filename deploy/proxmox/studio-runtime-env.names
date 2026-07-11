@@ -1,0 +1,21 @@
+# Record ownership and secret-store references beside this inventory. Do not add values.
+
+ORIGIN non-secret
+OWUI_BASE_URL non-secret
+OIDC_ISSUER_URL non-secret
+OIDC_CLIENT_ID non-secret
+OIDC_CLIENT_SECRET secret
+OIDC_SCOPES non-secret
+SESSION_SECRET secret
+SESSION_ENCRYPTION_KEY secret
+STUDIO_DATABASE_PATH non-secret
+OWUI_OAUTH_PROVIDER non-secret
+
+FLOW_WORKER_ENABLED non-secret
+FLOW_WORKER_ID non-secret
+FLOW_WORKER_POLL_MS non-secret
+FLOW_CLAIM_TTL_MS non-secret
+FLOW_HEARTBEAT_INTERVAL_MS non-secret
+FLOW_RUN_TIMEOUT_MS non-secret
+FLOW_NODE_TIMEOUT_MS non-secret
+FLOW_MAX_CONCURRENT non-secret

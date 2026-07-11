@@ -218,9 +218,9 @@ Node selection opens an in-canvas settings drawer. It covers Input keys/defaults
 
 All 126 server tests pass, including focused graph-editing and component coverage. Svelte check reports zero errors and warnings, full ESLint passes, changed files pass Prettier, and both local and Node 22.17.0 Docker production builds succeed. The rebuilt `owui-studio-media-test` container is healthy on the preserved `owui-studio-media-test-data` volume. Its predecessor is retained as `owui-studio-media-test-pre-editable-flow`, and `owui-studio-media-test-pre-svelte-flow` plus older rollbacks remain unchanged. Health and signed-out Flows HTTP checks return `200`; logs are clean.
 
-The remaining UI gate is a user-led authenticated check of adding and deleting each admitted node, connecting and deleting edges, editing and saving settings, position reload, structural feedback, run inputs, live progress, cancellation, output, and history.
-
 The user explicitly asked to retry the in-app browser and signed in. The authenticated check confirmed the existing saved flow, adding a Transform node, incomplete-topology feedback, and changing the Transform setting from trim to uppercase. The browser controller stalled at the native delete confirmation, so no save or server mutation was made. Deletion, edge editing, save/reload position persistence, and a fresh run/cancel/history pass remain useful manual confidence checks.
+
+The subsequent user-led authenticated UI confidence gate passed on 2026-07-11: admitted-node deletion cleaned up incident edges; node/edge editing, settings save, reload persistence, execution progress, output, and history worked as expected. Cancellation remained optional because automated lifecycle coverage already proves it.
 
 ## Completed slice: Flow audit and automated Phase 7 lifecycle gate
 
@@ -236,4 +236,4 @@ Do not copy the legacy global stores, browser executor, broad `any` types, windo
 
 Do not use in-app browser automation again unless the user explicitly asks. The user reversed the earlier prohibition for one authenticated check, but the controller stalled at a native confirmation. Prefer automated tests, HTTP checks, container logs, and user-led UI verification.
 
-The Studio branch contains six unpushed commits: `e9accc5`, `eac13a2`, `18efba0`, locked-canvas commit `cd30583`, editable-canvas commit `70462a8`, and audit/lifecycle commit `bf7dd04`. This planning repository also has local commits and documentation changes awaiting publication. Push each repository only after the user gives fresh approval for its private remote.
+The six Flow commits through `bf7dd04` are published on `origin/codex/flows-foundation`. Planning commit `90abaa923` is published on `origin/main`. Any later commits still require fresh approval before they are pushed to either private remote.
