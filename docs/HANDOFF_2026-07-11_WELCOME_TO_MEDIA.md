@@ -45,7 +45,7 @@ No legacy data migration is in scope; deployments start fresh.
 - Worktree: `C:\Users\Robert\dev\AI\open-webui\open-webui-studio`
 - Base branch: `main` at `abb86cc`
 - Active local branch: `codex/media-adapter-contract`
-- The active branch has not been pushed.
+- Published branch: `origin/codex/media-adapter-contract`.
 - Corrected OWUI-owned agent integration: `abb86cc`
 - Studio-owned agent experiment reverted by `0d74d7f`.
 - Media adapter contract: `5b5bb4e` on `codex/media-adapter-contract`.
