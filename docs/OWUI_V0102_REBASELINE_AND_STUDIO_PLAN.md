@@ -180,42 +180,42 @@ Create a short contract document before implementing the integration.
 
 ### Ownership contract
 
-- [ ] OWUI owns users, groups, roles, models, agents, chats, messages, files, and knowledge.
-- [ ] Studio owns preferences specific to Studio, timeline projects, flow definitions, flow versions, execution state, and execution history.
-- [ ] Studio does not access `webui.db` or other OWUI storage directly.
-- [ ] Studio stores OWUI IDs as opaque references and revalidates access through authenticated APIs.
+- [x] OWUI owns users, groups, roles, models, agents, chats, messages, files, and knowledge. See `docs/owui-studio-contract.md`.
+- [x] Studio owns preferences specific to Studio, timeline projects, flow definitions, flow versions, execution state, and execution history. See `docs/owui-studio-contract.md`.
+- [x] Studio does not access `webui.db` or other OWUI storage directly. See `docs/owui-studio-contract.md`.
+- [x] Studio stores OWUI IDs as opaque references and revalidates access through authenticated APIs. See `docs/owui-studio-contract.md`.
 
 ### Authentication decision
 
-- [ ] Evaluate shared OIDC for both services as the preferred solution.
-- [ ] If shared OIDC is unavailable, specify a short-lived, single-use OWUI-to-Studio launch-token exchange.
-- [ ] Derive identity server-side; never trust a browser-supplied OWUI user ID.
-- [ ] Keep administrator credentials out of browser code and logs.
-- [ ] Define logout, expiry, account disablement, and group/role refresh behaviour.
-- [ ] Add negative tests for token replay, wrong issuer/audience, open redirects, and cross-user access.
+- [x] Evaluate shared OIDC for both services as the preferred solution. Use the upstream v0.10.2 OAuth token-exchange endpoint server-side. See `docs/owui-studio-contract.md`.
+- [x] If shared OIDC is unavailable, specify a short-lived, single-use OWUI-to-Studio launch-token exchange. The fallback is specified but must not be implemented while upstream exchange works. See `docs/owui-studio-contract.md`.
+- [x] Derive identity server-side; never trust a browser-supplied OWUI user ID. See `docs/owui-studio-contract.md`.
+- [x] Keep administrator credentials out of browser code and logs. The contract requires no administrator credential. See `docs/owui-studio-contract.md`.
+- [x] Define logout, expiry, account disablement, and group/role refresh behaviour. See `docs/owui-studio-contract.md`.
+- [x] Add negative tests for token replay, wrong issuer/audience, open redirects, and cross-user access. See `docs/owui-studio-contract.md`.
 
 ### API contract
 
-- [ ] List the minimum user-scoped OWUI operations Studio requires.
-- [ ] Prefer documented OWUI APIs.
-- [ ] Put OWUI response normalisation behind a typed server-side adapter.
-- [ ] Add a narrow OWUI bridge endpoint only when no safe supported API exists.
-- [ ] Define API compatibility fixtures for the supported OWUI version.
-- [ ] Define timeouts, retries, error mapping, and request correlation IDs.
+- [x] List the minimum user-scoped OWUI operations Studio requires. See `docs/owui-studio-contract.md`.
+- [x] Prefer documented OWUI APIs. See `docs/owui-studio-contract.md`.
+- [x] Put OWUI response normalisation behind a typed server-side adapter. See `docs/owui-studio-contract.md`.
+- [x] Add a narrow OWUI bridge endpoint only when no safe supported API exists. No bridge is currently justified; the admission rule is documented.
+- [x] Define API compatibility fixtures for the supported OWUI version. See `docs/owui-studio-contract.md`.
+- [x] Define timeouts, retries, error mapping, and request correlation IDs. See `docs/owui-studio-contract.md`.
 
 ### Provisional OWUI patch set
 
-- [ ] Studio navigation/launch seam, preferably feature-flagged or configuration-driven.
-- [ ] MCP unique-suffix tool-name resolver only if intended staging models reproduce the blocker; otherwise upstream contribution only.
-- [ ] Google Drive multi-file handling as an upstream contribution only if retained as a requirement.
+- [x] Studio navigation/launch seam: start with the reverse-proxied direct URL; add only a configuration-driven removable link if required. See `docs/owui-studio-contract.md`.
+- [x] MCP unique-suffix tool-name resolver only if intended staging models reproduce the blocker; otherwise upstream contribution only. See `docs/owui-studio-contract.md`.
+- [x] Google Drive multi-file handling as an upstream contribution only if retained as a requirement. See `docs/owui-studio-contract.md`.
 - [x] No other OWUI patch is currently justified by the completed comparisons.
 
 ### Exit gate 3
 
-- [ ] Identity and data ownership boundaries are documented.
-- [ ] Cross-user denial tests are specified.
-- [ ] The planned OWUI patch set is narrow and enumerated.
-- [ ] No Studio feature requires direct OWUI database access or a browser-visible administrator key.
+- [x] Identity and data ownership boundaries are documented. See `docs/owui-studio-contract.md`.
+- [x] Cross-user denial tests are specified. See `docs/owui-studio-contract.md`.
+- [x] The planned OWUI patch set is narrow and enumerated. No patch is required for the first identity/API slice.
+- [x] No Studio feature requires direct OWUI database access or a browser-visible administrator key. See `docs/owui-studio-contract.md`.
 
 ---
 
@@ -436,7 +436,7 @@ Add concise links or references as work completes.
 | 0 | `docs/rebaseline-phase-0-source-record.md` | Local source, remote, branch, submodule, and candidate deployment material recorded; live deployment, routing, image, and rollback evidence still required |
 | 1 | `docs/feature-ledger.md` | Initial inventory, disposition, ownership, fresh-start acceptance, and rollback ledger created; no legacy data migration or import is in scope |
 | 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Clean build/start, admin/auth, OpenAI-compatible discovery/SSE chat, explicit model grant/denial, private file/Knowledge denial, processing, attachment, and retrieval pass; source variables classified; real providers, OAuth/MCP/Drive, proxy/browser checks, upstream type check, live deployment names, and signature trust remain |
-| 3 | | |
+| 3 | `docs/owui-studio-contract.md` | Ownership, shared-OIDC/token-exchange authentication, fallback launch exchange, minimum user-scoped API surface, typed adapter policy, denial matrix, and narrow patch set documented; no direct database access or administrator browser credential required |
 | 4 | | |
 | 5 | | |
 | 6 | | |
