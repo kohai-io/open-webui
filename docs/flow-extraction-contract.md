@@ -277,4 +277,15 @@ Studio commit `259179e` on the same published branch adds the pinned v0.10.2 tex
 - fixtures cover inaccessible agents/functions, invalid input, `429`, `503`, `504`, internal timeout, caller cancellation, network failure, and single-dispatch no-retry behavior;
 - 64 server tests pass; Prettier, ESLint, zero-warning Svelte check, and the production build pass.
 
-No live model was invoked in this contract slice. Resume with the execution credential-lease security review and service tests before implementing the durable worker.
+This contract slice invoked no live model.
+
+Studio commit `a18151f` adds the execution credential-lease boundary:
+
+- migration `0004_flow_credential_leases.sql` adds the owner to each lease and enforces the execution-owner foreign key;
+- AES-256-GCM associated data binds each ciphertext to its owner and execution, so copied ciphertext fails authentication;
+- the service caps each lease at five minutes or the upstream token expiry, whichever comes first, and deletes expired rows on access or sweep;
+- database triggers reject leases for inactive executions and delete credentials when cancellation starts or an execution reaches a terminal state;
+- the migration discards pre-contract leases because their ciphertext lacks execution-bound associated data;
+- tests cover encryption at rest, owner isolation, cross-execution replay, expiry, invalid credentials, migration, cancellation, and terminal cleanup.
+
+The full Studio server suite has 73 passing tests. Scoped Prettier, project ESLint, zero-warning Svelte check, and the production build pass. Resume with the execution lifecycle store for idempotent creation, claims, checkpoints, events, heartbeat recovery, cancellation, and terminal transitions before connecting the durable worker.
