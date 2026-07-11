@@ -1,4 +1,4 @@
-# Handoff: First Flow workspace ready for testing
+# Handoff: Flow execution verified, Svelte Flow canvas next
 
 Date: 2026-07-11
 
@@ -192,10 +192,26 @@ Seven authenticated handlers now cover Flow CRUD, immutable versions, execution 
 
 All 111 Studio server tests pass; scoped Prettier, project ESLint, zero-warning Svelte check, and the production build pass. This slice made no live model call and did not rebuild a deployed Studio container.
 
-Studio commit `e9accc5` completes that UI slice in the local worktree. `/studio/flows` provides owner-scoped list/create/update/delete, a constrained Input, Model, optional Transform, Output editor, execution history, live SSE node progress, cancellation, and output display. Definitions with settings the first editor cannot represent remain read-only so a save cannot discard them. Welcome, Agents, and Media link to Flows.
+Studio commit `e9accc5` completes the first UI slice in the local worktree. `/studio/flows` provides owner-scoped list/create/update/delete, a constrained Input, Model, optional Transform, Output editor, execution history, live SSE node progress, cancellation, and output display. Definitions with settings the first editor cannot represent remain read-only so a save cannot discard them. Welcome, Agents, and Media link to Flows.
 
-All 115 Studio server tests pass. Scoped Prettier, ESLint, zero-warning Svelte check, the production build, and the signed-out headless route test pass. Docker image `open-webui-studio:flows-ui-local` runs in `owui-studio-media-test` at `http://localhost:5173/studio/`; the container reports healthy and HTTP checks return `200` for Flows and health. The prior Studio containers remain stopped as rollback points. No check invoked a live model.
+The first live run exposed two adapter gaps. Commit `eac13a2` normalises OWUI token expiry from Unix seconds to JavaScript milliseconds and repairs old sessions at read time. Commit `18efba0` changes direct Model calls from non-streaming JSON to bounded SSE, matching the path that works inside OWUI. The streaming adapter requires `[DONE]`, caps bytes and output, supports split transport chunks, preserves cancellation and deadlines, dispatches once, and omits OWUI chat-management fields. The user confirmed the rebuilt Flow completes against the configured `chatgpt/*` model.
 
-The commit has not reached the remote because the current step lacked fresh approval to send code to the private Git host. In-app browser testing stopped at the user's request because browser access crashes the ChatGPT app. Use the running container for the authenticated check.
+All 117 Studio server tests pass. Scoped Prettier, ESLint, zero-warning Svelte check, the production build, and the signed-out headless route test pass. Docker image `open-webui-studio:flows-ui-local` runs in `owui-studio-media-test` at `http://localhost:5173/studio/`; the container reports healthy. The prior Studio containers remain stopped as rollback points.
 
-Next, create a Flow from the rebuilt UI, save it, run it, watch each node, inspect history, cancel a run, and delete the Flow. After that user-led check passes, add metadata-only audit records and a representative two-user execution test. Keep arbitrary graph editing and deferred node types out of this release.
+## Next session: Svelte Flow canvas
+
+The legacy `src/lib/components/flows/FlowEditor.svelte` at commit `7f562ebb5c0893a886adc02521251fce7b725cb2` used `@xyflow/svelte` `0.1.19` for draggable nodes, handles, edges, controls, a minimap, fixed panels, and responsive graph layout. Use Svelte Flow `1.6.2`, reviewed on 2026-07-11, with Studio's Svelte 5 stack. See the [Svelte Flow quick start](https://svelteflow.dev/learn).
+
+Start with a locked-topology canvas for Input, Model, optional Transform, and Output:
+
+1. Add the current `@xyflow/svelte` dependency and required stylesheet.
+2. Create typed adapters between `FlowDefinitionV1` and Svelte Flow view nodes and edges.
+3. Keep configuration in the saved definition and execution state in a separate node-ID map.
+4. Add custom node cards, a configuration panel, controls, background, minimap, fit view, and saved positions.
+5. Overlay SSE node progress and terminal results, then run unit, Svelte, build, container, and user-led checks.
+
+Do not copy the legacy global stores, browser executor, broad `any` types, window event listener, forced `flowKey` remount, random node placement, weak graph validation, discarded handle IDs, or automatic breakpoint layout that overwrites user positions. Keep the server validator authoritative. Unlock add, delete, and connect for the four admitted node types after the locked canvas passes. Deferred node types retain the admission gates in `docs/flow-extraction-contract.md`.
+
+Do not use in-app browser automation. The user reports that browser access crashes the ChatGPT app. Use automated tests, HTTP checks, container logs, and user-led UI verification.
+
+The Studio branch contains three unpushed commits: `e9accc5`, `eac13a2`, and `18efba0`. This planning repository also has local commits awaiting publication. Push each repository after the user gives fresh approval for its private remote.
