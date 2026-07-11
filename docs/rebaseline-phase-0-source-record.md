@@ -23,6 +23,7 @@ The repository status at capture time contained one untracked planning document:
 - Canonical maintained source: `https://git.theoldschool.house/robert/open-webui-functions-tools.git`
 - Legacy pinned tree entry: `15a73d36764ab82522326ee3ca0f99fe15504731`
 - Maintained v0.10.2 compatibility revision: `196b1a4` on `codex/v0102-file-api-compat`
+- Reproducibility check: a fresh `--recurse-submodules` clone from `git.theoldschool.house/robert/open-webui` at root commit `f60fb44e2` checked out `functions_tools` at `196b1a42b4877fd971a9b3a5d00d715a38ffd14f` from the canonical private repository.
 - The root Docker build context copies the repository before the frontend build. The production deployment must still be checked to establish whether it builds this checkout, uses a prebuilt image, or deploys the submodule separately.
 
 ## Deployment material present in source

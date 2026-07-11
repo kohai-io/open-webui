@@ -65,7 +65,7 @@ Do not rewrite the legacy or archived rebaseline histories.
 - [ ] Preserve the unfinished v0.9.4 rebaseline as `archive/rebaseline-v0.9.4`.
 - [ ] Record the deployed container image and digest.
 - [ ] Record Compose files, reverse-proxy routes, volumes, environment variable names, and external dependencies.
-- [ ] Record the `functions_tools` submodule revision and how it is deployed. Compatibility revision `196b1a4` is published on `codex/v0102-file-api-compat` at `git.theoldschool.house/robert/open-webui-functions-tools`; live deployment use remains unverified. See `docs/rebaseline-phase-0-source-record.md` and `docs/functions-tools-v0.10.2-file-api-compatibility.md`.
+- [ ] Record the `functions_tools` submodule revision and how it is deployed. Compatibility revision `196b1a4` is published on `codex/v0102-file-api-compat` at `git.theoldschool.house/robert/open-webui-functions-tools`, and a fresh recursive clone resolves it correctly; live deployment use remains unverified. See `docs/rebaseline-phase-0-source-record.md` and `docs/functions-tools-v0.10.2-file-api-compatibility.md`.
 - [ ] Store secrets only in the existing secret-management location; do not copy secret values into this plan.
 
 ### Fresh-start boundary
@@ -435,7 +435,7 @@ Add concise links or references as work completes.
 
 | Phase | Evidence | Result |
 | --- | --- | --- |
-| 0 | `docs/rebaseline-phase-0-source-record.md` | Local source, remote, branch, submodule, and candidate deployment material recorded; live deployment, routing, image, and rollback evidence still required |
+| 0 | `docs/rebaseline-phase-0-source-record.md` | Root and compatibility-submodule commits are published to canonical private Gitea repositories and a fresh recursive clone succeeds; live deployed SHA, immutable legacy/archive refs, routing, image, topology, and rollback evidence still required |
 | 1 | `docs/feature-ledger.md` | Source-level inventory, disposition, ownership, fresh-start acceptance, and rollback ledger created; live usage/deployment reconciliation remains open; no legacy data migration or import is in scope |
 | 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Clean build/start, admin/auth, OpenAI-compatible discovery/SSE chat, explicit model grant/denial, private file/Knowledge denial, processing, attachment, and retrieval pass; source variables classified; real providers, OAuth/MCP/Drive, proxy/browser checks, upstream type check, live deployment names, and signature trust remain |
 | 3 | `docs/owui-studio-contract.md` | Ownership, shared-OIDC/token-exchange authentication, fallback launch exchange, minimum user-scoped API surface, typed adapter policy, denial matrix, and narrow patch set documented; no direct database access or administrator browser credential required |
