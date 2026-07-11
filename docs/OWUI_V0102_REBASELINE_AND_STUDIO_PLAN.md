@@ -95,9 +95,9 @@ Create `docs/feature-ledger.md`. Give every custom feature one explicit decision
 - [x] Video timeline/editor and project persistence. See `docs/feature-ledger.md`.
 - [x] Scheduled prompts and notifications. See `docs/feature-ledger.md`.
 - [x] Admin analytics and LiteLLM spend reporting. See `docs/feature-ledger.md`.
-- [x] Google Drive OAuth, picker, and sync changes. See `docs/feature-ledger.md`.
+- [x] Google Drive OAuth, picker, and sync changes. Use upstream selected-file import; drop fork server OAuth/sync; contribute multi-file handling only if required. See `docs/mcp-oauth-google-drive-comparison.md`.
 - [x] Agent Skills integration. See `docs/feature-ledger.md`.
-- [x] MCP and OAuth fixes. See `docs/feature-ledger.md`.
+- [x] MCP and OAuth fixes. Upstream covers token-auth passthrough, duplicate callback credentials, and cleanup; contribute the remaining unprefixed tool-name resolver. See `docs/mcp-oauth-google-drive-comparison.md`.
 - [x] Model selector and chat rendering changes. See `docs/feature-ledger.md`.
 - [x] Knowledge-management changes. See `docs/feature-ledger.md`.
 - [x] Branding, navigation, and static assets. See `docs/feature-ledger.md`.
@@ -333,9 +333,9 @@ Create a short contract document before implementing the integration.
 
 - [x] Decide the scheduled-prompt destination: use upstream Automations/Calendar exclusively; remove the fork implementation and do not import its records.
 - [ ] Decide the destination of admin analytics and LiteLLM spend reporting.
-- [ ] Decide the destination of Google Drive customisations after comparing v0.10.2.
+- [x] Decide the destination of Google Drive customisations after comparing v0.10.2: use upstream picker/chat import, drop fork server OAuth/sync, and contribute multi-file handling only if required.
 - [ ] Decide whether Agent Skills belongs in Studio, an MCP/tool service, or upstream.
-- [ ] Drop MCP/OAuth fixes already present upstream.
+- [x] Drop MCP/OAuth fixes already present upstream. Token-auth passthrough, duplicate callback credentials, and safe cleanup are upstream; unprefixed tool-name resolution remains an upstream contribution candidate.
 - [ ] Submit generally useful remaining fixes upstream where practical.
 - [ ] Move experiments such as Pi Gateway outside the maintained OWUI source tree.
 - [ ] Reduce branding and navigation changes to configuration/assets where possible.
@@ -410,6 +410,8 @@ Record material decisions here or link to separate decision records.
 | 2026-07-11 | Extract Flows and video timeline from OWUI core | They are independent product domains with their own persistence and release needs | OWUI provides an official stable extension architecture covering these needs |
 | 2026-07-11 | Remove the fork scheduled-prompt feature and use upstream Automations/Calendar | v0.10.2 now provides the required upstream feature; maintaining duplicate UI, APIs, tables, scheduling, and notifications would add unnecessary fork surface | Upstream removes the capability or a documented production requirement is proven missing |
 | 2026-07-11 | Start v0.10.2 and Studio with fresh data | Legacy data does not need to be carried forward, which removes schema conversion and custom-feature import risk | A specific legacy dataset is explicitly brought back into scope |
+| 2026-07-11 | Use upstream MCP/OAuth except for a proposed tool-name resolver contribution | v0.10.2 supersedes the fork's token-auth, callback, and cleanup fixes but still requires exact tool names | Upstream accepts the resolver or intended staging models never reproduce the issue |
+| 2026-07-11 | Use upstream Google Drive selected-file import and drop fork synchronisation | The upstream browser picker covers fresh imports; server OAuth and continuous sync are a separate product/security lifecycle | Continuous Drive synchronisation becomes an explicit Studio/connector requirement |
 
 ## Evidence log
 
