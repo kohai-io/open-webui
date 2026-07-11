@@ -260,21 +260,21 @@ Create a short contract document before implementing the integration.
 
 ## Phase 5: First vertical slice — Welcome and Agents
 
-- [x] Define minimal `StudioUser`, executable `OwuiModel`, accessible workspace-model/function, and native OWUI launch contracts.
-- [ ] Port only the reusable visual components; replace OWUI internal stores with explicit Studio data/services.
+- [x] Define executable-model, accessible workspace-model/function, and native OWUI launch contracts.
+- [x] Retain Welcome as a feature-flagged native OWUI UI island because it composes OWUI-owned chat, files, tools, dictation, voice, and workspace-model behavior.
 - [x] List only models and agents available to the current user.
-- [ ] Preserve Studio-owned ordering or favourites in the Studio database.
+- [x] Preserve user-arranged agent order as a browser-local presentation preference; do not create a second agent record or permission model.
 - [x] Hand an authorised model or agent to OWUI's native new-chat route, with server-side availability revalidation.
 - [x] Verify launch redirects to `/?models=<id>` so OWUI applies the workspace model's prompt, knowledge, skills, and tools.
 - [ ] Add loading, empty, permission-denied, and upstream-unavailable states.
 - [ ] Add end-to-end tests for two users with different access.
-- [ ] Deploy behind a feature flag or removable navigation link.
+- [x] Deploy behind `ENABLE_WELCOME_PAGE`, disabled by default.
 
 ### Exit gate 5
 
-- [x] Welcome and Agents work in Studio without legacy OWUI UI code.
+- [x] Native Welcome and Agents work without adding backend domain tables or duplicating OWUI authorization.
 - [x] A user cannot discover or launch inaccessible models or agents; the two-user end-to-end proof remains open above.
-- [ ] Rollback requires only disabling Studio navigation or restoring the previous Studio image.
+- [x] Rollback requires only disabling `ENABLE_WELCOME_PAGE` or restoring an upstream/previous OWUI image; no data conversion is required.
 
 ---
 
@@ -355,7 +355,7 @@ Create a short contract document before implementing the integration.
 - [ ] Submit generally useful remaining fixes upstream where practical.
 - [ ] Move experiments such as Pi Gateway outside the maintained OWUI source tree.
 - [ ] Reduce branding and navigation changes to configuration/assets where possible.
-- [ ] Create `PATCHES.md` listing every retained OWUI commit, rationale, owner, test, and upstream status.
+- [x] Create `PATCHES.md` listing every retained OWUI commit, rationale, owner, test, and upstream status. The rebaseline branch documents the Welcome series; future retained patches must be added as they are accepted.
 
 ### Exit gate 8
 
@@ -444,7 +444,7 @@ Add concise links or references as work completes.
 | 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Clean build/start, admin/auth, OpenAI-compatible discovery/SSE chat, explicit model grant/denial, private file/Knowledge denial, processing, attachment, and retrieval pass; source variables classified; real providers, OAuth/MCP/Drive, proxy/browser checks, upstream type check, live deployment names, and signature trust remain |
 | 3 | `docs/owui-studio-contract.md` | Ownership, shared-OIDC/token-exchange authentication, fallback launch exchange, minimum user-scoped API surface, typed adapter policy, denial matrix, and narrow patch set documented; no direct database access or administrator browser credential required |
 | 4 | Studio repository `git.theoldschool.house/robert/open-webui-studio` through `b40cd51`; functions repository `git.theoldschool.house/robert/open-webui-functions-tools` through `196b1a4`; live Keycloak realm `homelab` | Canonical origins are private Gitea; Studio shell, non-root container, typed v0.10.2 adapter, SQLite migrations, encrypted sessions, provider-neutral OIDC routes, and fake IdP pass automated validation; shared Keycloak login and OWUI provider-token exchange were manually verified against a locally built clean v0.10.2 image; live Okta, second-user matrix, proxy, and rollback checks remain |
-| 5 | OWUI branch `rebaseline/upstream-v0.10.2` commits `559cd28f1` and `e9ca2fc11`; Studio commits `0d74d7f` and `abb86cc`; `docs/welcome-feature-maintenance-options.md` | The Studio-owned agent experiment was reverted. Native OWUI Welcome is a disabled-by-default UI island using authorised executable models, accessible workspace models, active functions, and OWUI's native chat initialisation. The full legacy experience is restored: composer integrations, attachments handoff, dictation, voice mode, draggable local agent order, responsive launchers, and quick actions. Focused classifier tests and the production build pass. Live interaction retest, two-user browser proof, and deployment rollback proof remain |
+| 5 | OWUI branch `rebaseline/upstream-v0.10.2` commits `559cd28f1`, `e9ca2fc11`, and `3ccdbe83c`; branch `PATCHES.md`; Studio commits `0d74d7f` and `abb86cc`; `docs/welcome-feature-maintenance-options.md` | The Studio-owned agent experiment was reverted. Native OWUI Welcome is a disabled-by-default UI island using authorised executable models, accessible workspace models, active functions, and native chat initialisation. The full legacy experience is restored and hardened: composer integrations, Files API upload/handoff, dictation, voice mode, tested local agent order, responsive launchers, and quick actions. Four focused tests and the production build pass. Live interaction retest and two-user browser proof remain |
 | 6 | | |
 | 7 | | |
 | 8 | `docs/mcp-oauth-google-drive-comparison.md` | MCP/OAuth fixes classified commit by commit; use upstream Google Drive selected-file import; fork server OAuth/sync dropped; tool-name resolver and optional Drive multi-file handling identified as narrow upstream contribution candidates |
