@@ -12,9 +12,13 @@ Recorded on 2026-07-11 from the local repository. This is source-control evidenc
 | `origin` | `https://git.theoldschool.house/robert/open-webui` |
 | Preserved rebaseline reference | `origin/rebaseline/kohai-upstream-v0.9.4` |
 | Upstream remote | `https://github.com/open-webui/open-webui.git` (added during Phase 2) |
-| Matching local legacy/rebaseline tags | Upstream release tags are now fetched; legacy preservation refs remain to be created |
+| Legacy preservation branch | `legacy/v0.6.36-custom` → `7f562ebb5c0893a886adc02521251fce7b725cb2` |
+| Archived rebaseline branch | `archive/rebaseline-v0.9.4` → `d62f9dc9250be3699d27941f608712d46f4c3f38` |
+| Clean baseline branch | `rebaseline/upstream-v0.10.2` → `ecd48e2f718220a6400ecf49eafd4867a38feb10` |
 
-The repository status at capture time contained one untracked planning document: `docs/OWUI_V0102_REBASELINE_AND_STUDIO_PLAN.md`. No claim is made that the working tree corresponds exactly to production until the deployed SHA is independently recorded.
+The repository status at capture time contained one untracked planning document: `docs/OWUI_V0102_REBASELINE_AND_STUDIO_PLAN.md`. The captured source tip is now preserved, but no claim is made that it corresponds exactly to production until the deployed SHA is independently recorded.
+
+All three named source branches above are published to `https://git.theoldschool.house/robert/open-webui`. They preserve source history; branch protection and the live deployed commit/image remain separate operator checks.
 
 ## `functions_tools`
 

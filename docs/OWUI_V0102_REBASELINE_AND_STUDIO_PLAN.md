@@ -61,8 +61,8 @@ Do not rewrite the legacy or archived rebaseline histories.
 ### Source and deployment record
 
 - [ ] Record the currently deployed commit SHA.
-- [ ] Create and push an immutable `legacy/v0.6.36-custom` tag or branch.
-- [ ] Preserve the unfinished v0.9.4 rebaseline as `archive/rebaseline-v0.9.4`.
+- [x] Create and push an immutable `legacy/v0.6.36-custom` tag or branch. Published at captured pre-plan source commit `7f562ebb5c0893a886adc02521251fce7b725cb2`; this does not claim it is the live deployed SHA. See `docs/rebaseline-phase-0-source-record.md`.
+- [x] Preserve the unfinished v0.9.4 rebaseline as `archive/rebaseline-v0.9.4`. Published at `d62f9dc9250be3699d27941f608712d46f4c3f38`. See `docs/rebaseline-phase-0-source-record.md`.
 - [ ] Record the deployed container image and digest.
 - [ ] Record Compose files, reverse-proxy routes, volumes, environment variable names, and external dependencies.
 - [ ] Record the `functions_tools` submodule revision and how it is deployed. Compatibility revision `196b1a4` is published on `codex/v0102-file-api-compat` at `git.theoldschool.house/robert/open-webui-functions-tools`, and a fresh recursive clone resolves it correctly; live deployment use remains unverified. See `docs/rebaseline-phase-0-source-record.md` and `docs/functions-tools-v0.10.2-file-api-compatibility.md`.
@@ -143,7 +143,7 @@ The source-level routes, ownership, disposition, fresh-start acceptance, and rol
 
 - [x] Add the official Open WebUI repository as the `upstream` remote. See `docs/v0.10.2-baseline-comparison.md`.
 - [x] Fetch the v0.10.2 tag and record its commit SHA. The ref came from the official remote; independent GPG trust verification remains open because the signing public key is unavailable locally. See `docs/v0.10.2-baseline-comparison.md`.
-- [x] Create `rebaseline/upstream-v0.10.2` from the exact upstream tag. Created locally without switching the legacy working tree.
+- [x] Create `rebaseline/upstream-v0.10.2` from the exact upstream tag. Created without switching the legacy working tree and published to the canonical Gitea origin.
 - [x] Confirm there are no custom source changes on the initial baseline commit. The branch and release ref both resolve to `ecd48e2f718220a6400ecf49eafd4867a38feb10`.
 - [x] Build and start unmodified v0.10.2 with empty disposable data. Frontend production build and initial backend health/bootstrap smoke checks passed. See `docs/v0.10.2-baseline-comparison.md`.
 - [x] Define separate local runtimes: Node.js 22 for the frontend and a Conda Python 3.11 environment for the backend. See `docs/LOCAL_DEVELOPMENT.md`.
@@ -435,7 +435,7 @@ Add concise links or references as work completes.
 
 | Phase | Evidence | Result |
 | --- | --- | --- |
-| 0 | `docs/rebaseline-phase-0-source-record.md` | Root and compatibility-submodule commits are published to canonical private Gitea repositories and a fresh recursive clone succeeds; live deployed SHA, immutable legacy/archive refs, routing, image, topology, and rollback evidence still required |
+| 0 | `docs/rebaseline-phase-0-source-record.md` | Root, compatibility submodule, captured legacy source, archived v0.9.4 rebaseline, and clean v0.10.2 baseline refs are published to canonical private Gitea repositories; a fresh recursive clone succeeds; live deployed SHA, branch-protection confirmation, routing, image, topology, and rollback evidence still required |
 | 1 | `docs/feature-ledger.md` | Source-level inventory, disposition, ownership, fresh-start acceptance, and rollback ledger created; live usage/deployment reconciliation remains open; no legacy data migration or import is in scope |
 | 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Clean build/start, admin/auth, OpenAI-compatible discovery/SSE chat, explicit model grant/denial, private file/Knowledge denial, processing, attachment, and retrieval pass; source variables classified; real providers, OAuth/MCP/Drive, proxy/browser checks, upstream type check, live deployment names, and signature trust remain |
 | 3 | `docs/owui-studio-contract.md` | Ownership, shared-OIDC/token-exchange authentication, fallback launch exchange, minimum user-scoped API surface, typed adapter policy, denial matrix, and narrow patch set documented; no direct database access or administrator browser credential required |
