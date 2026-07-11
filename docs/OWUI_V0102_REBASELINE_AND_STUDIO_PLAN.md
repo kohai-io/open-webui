@@ -223,13 +223,13 @@ Create a short contract document before implementing the integration.
 
 ### Repository and application
 
-- [ ] Create the private `open-webui-studio` repository.
-- [ ] Scaffold a SvelteKit TypeScript application using `adapter-node`.
-- [ ] Configure deployment under `/studio`.
-- [ ] Add formatting, linting, type checking, unit tests, integration tests, and Playwright tests.
-- [ ] Add a production Dockerfile running as a non-root user.
-- [ ] Add a health endpoint that exposes no secrets.
-- [ ] Add structured logs and request correlation.
+- [x] Create the private `open-webui-studio` repository. Created at `kohai-io/open-webui-studio`; initial commit `0a5770e`.
+- [x] Scaffold a SvelteKit TypeScript application using `adapter-node`. The repository pins Node.js `22.17.0` for development and containers.
+- [ ] Configure deployment under `/studio`. The application base path and browser tests use `/studio`; reverse-proxy deployment remains.
+- [x] Add formatting, linting, type checking, unit tests, integration tests, and Playwright tests. Formatting, lint, zero-diagnostic Svelte check, two Vitest assertions, production build, and the `/studio` shell/health browser test pass.
+- [x] Add a production Dockerfile running as a non-root user. The multi-stage Node 22 image runs as `studio`; local image build remains unverified because the Docker Desktop Linux engine was not running.
+- [x] Add a health endpoint that exposes no secrets. `GET /studio/health` returns only status, service, and application version.
+- [x] Add structured logs and request correlation. Server requests emit bounded JSON metadata and an allowlisted/generated `X-Request-ID` without query strings or bodies.
 
 ### Core services
 
@@ -437,7 +437,7 @@ Add concise links or references as work completes.
 | 1 | `docs/feature-ledger.md` | Initial inventory, disposition, ownership, fresh-start acceptance, and rollback ledger created; no legacy data migration or import is in scope |
 | 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Clean build/start, admin/auth, OpenAI-compatible discovery/SSE chat, explicit model grant/denial, private file/Knowledge denial, processing, attachment, and retrieval pass; source variables classified; real providers, OAuth/MCP/Drive, proxy/browser checks, upstream type check, live deployment names, and signature trust remain |
 | 3 | `docs/owui-studio-contract.md` | Ownership, shared-OIDC/token-exchange authentication, fallback launch exchange, minimum user-scoped API surface, typed adapter policy, denial matrix, and narrow patch set documented; no direct database access or administrator browser credential required |
-| 4 | | |
+| 4 | Private repository `kohai-io/open-webui-studio`, commit `0a5770e` | SvelteKit/TypeScript `adapter-node` shell created at `/studio`; lint, type check, Vitest, build, and Playwright shell/health test pass; Dockerfile created but image build awaits a running Docker engine; authentication, adapter, database, fixtures, proxy, and rollback work remain |
 | 5 | | |
 | 6 | | |
 | 7 | | |
