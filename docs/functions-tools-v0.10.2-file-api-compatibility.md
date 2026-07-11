@@ -2,7 +2,7 @@
 
 ## Scope
 
-The legacy root repository pinned `functions_tools` at revision `15a73d36764ab82522326ee3ca0f99fe15504731`. The v0.10.2 compatibility branch is now at `c077fe5` (`codex/v0102-file-api-compat`), with the Files API patch in its parent `651c242`. This pass covers the pipe functions at the legacy revision that directly call Open WebUI's file model or retrieval `process_file` implementation. The legacy `tools/prompt_scheduler.py` has been removed because upstream Automations, including the `create_automation` tool, replace it.
+The legacy root repository pinned `functions_tools` at revision `15a73d36764ab82522326ee3ca0f99fe15504731`. The v0.10.2 compatibility branch is now at `196b1a4` (`codex/v0102-file-api-compat`): pipe Files API patch `651c242`, scheduler removal `c077fe5`, and action/tool Files API patch `196b1a4`. This pass covers retained artifacts at the legacy revision that directly call Open WebUI's file model or retrieval `process_file` implementation. The legacy `tools/prompt_scheduler.py` has been removed because upstream Automations, including the `create_automation` tool, replace it.
 
 Open WebUI v0.10.2 changed the relevant file-model operations to async methods. Direct calls to `process_file` also require an explicit async database session. Storage-provider upload and lookup signatures remain compatible, although upload tags must be a mapping rather than a list.
 
@@ -32,6 +32,20 @@ Open WebUI v0.10.2 changed the relevant file-model operations to async methods. 
 
 Each version is a patch increment. Existing `required_open_webui_version` metadata on affected pipes is raised to `0.10.2`.
 
+## Patched action and tools
+
+| Artifact | Version |
+| --- | --- |
+| `actions/gpt_image_2_action.py` | `1.2.1` |
+| `tools/ElevenLabsTTS.py` | `0.2.5` |
+| `tools/elevenlabs_music.py` | `1.0.1` (first explicit version) |
+| `tools/elevenlabs_sfx.py` | `1.0.1` (first explicit version) |
+| `tools/user_dashboard_interactive.py` | `2.3.9` |
+| `tools/video_transcription_subtitle_tool.py` | `2.4.1` |
+| `tools/video_transcription_tool.py` | `3.1.1` |
+
+These artifacts receive the same async Files-model adaptation and `required_open_webui_version: 0.10.2` metadata. The transcription tools also use an explicit async database context for direct retrieval processing. The removed prompt scheduler is not part of this set.
+
 ## Compatibility changes
 
 - Await `Files`/`FilesDB` reads, inserts, updates, lists, and deletes.
@@ -43,7 +57,7 @@ Each version is a patch increment. Existing `required_open_webui_version` metada
 ## Verification
 
 - `python -m compileall -q functions_tools/functions` passes.
-- An AST check covering the v0.10.2 async `Files` methods and the retrieval wrapper reports no un-awaited calls in `functions_tools/functions`.
+- AST checks covering the v0.10.2 async `Files` methods and the retrieval wrapper report no un-awaited calls in `functions_tools/functions`, `functions_tools/actions`, or `functions_tools/tools`.
 - `git diff --check` passes after generated cache files are removed.
 
-Runtime contract tests still require representative fresh v0.10.2 users, media uploads, and provider credentials. Actions and tools outside the pipe-function directory need a separate compatibility pass before deployment if they are retained.
+Runtime contract tests still require representative fresh v0.10.2 users, media uploads, and provider credentials. Static Files API compatibility coverage is complete for the currently inventoried functions, actions, and tools.

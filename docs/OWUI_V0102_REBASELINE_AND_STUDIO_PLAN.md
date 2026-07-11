@@ -105,7 +105,7 @@ Create `docs/feature-ledger.md`. Give every custom feature one explicit decision
 - [x] Knowledge-management changes. See `docs/feature-ledger.md`.
 - [x] Branding, navigation, and static assets. See `docs/feature-ledger.md`.
 - [x] Pi Gateway and other experimental interfaces. See `docs/feature-ledger.md`.
-- [x] `functions_tools` submodule features. See `docs/feature-ledger.md`; all pipe files were inventoried and the 19 file-API callers were patched for v0.10.2. Action/tool disposition and runtime contract tests remain open. See `docs/functions-tools-v0.10.2-file-api-compatibility.md`.
+- [x] `functions_tools` submodule features. See `docs/feature-ledger.md`; the 19 pipe functions plus one action and six tools that call the Files API were patched for v0.10.2, and the legacy prompt scheduler was removed. Per-artifact product disposition and runtime contract tests remain open. See `docs/functions-tools-v0.10.2-file-api-compatibility.md`.
 
 ### Record for every feature
 
