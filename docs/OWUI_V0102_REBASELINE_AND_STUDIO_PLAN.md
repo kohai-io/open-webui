@@ -140,7 +140,7 @@ Create `docs/feature-ledger.md`. Give every custom feature one explicit decision
 - [x] Fetch the v0.10.2 tag and record its commit SHA. The ref came from the official remote; independent GPG trust verification remains open because the signing public key is unavailable locally. See `docs/v0.10.2-baseline-comparison.md`.
 - [x] Create `rebaseline/upstream-v0.10.2` from the exact upstream tag. Created locally without switching the legacy working tree.
 - [x] Confirm there are no custom source changes on the initial baseline commit. The branch and release ref both resolve to `ecd48e2f718220a6400ecf49eafd4867a38feb10`.
-- [ ] Build and start unmodified v0.10.2 with empty disposable data. Frontend production build passed; backend start and smoke tests remain. See `docs/v0.10.2-baseline-comparison.md`.
+- [x] Build and start unmodified v0.10.2 with empty disposable data. Frontend production build and initial backend health/bootstrap smoke checks passed. See `docs/v0.10.2-baseline-comparison.md`.
 
 ### Configuration compatibility
 
@@ -152,7 +152,7 @@ Create `docs/feature-ledger.md`. Give every custom feature one explicit decision
 
 ### Fresh data rehearsal
 
-- [ ] Start v0.10.2 against a new empty database and empty file/vector storage.
+- [x] Start v0.10.2 against a new empty database and empty file/vector storage. Disposable rehearsal reached Alembic head `42e2978c7933`.
 - [ ] Create bootstrap administrators and representative test users through supported interfaces.
 - [ ] Configure representative groups, models, agents, files, knowledge, OAuth, MCP, and tools from scratch.
 - [ ] Verify login, permissions, chats, uploads, knowledge, OAuth, MCP, tools, and API access.
@@ -417,7 +417,7 @@ Add concise links or references as work completes.
 | --- | --- | --- |
 | 0 | `docs/rebaseline-phase-0-source-record.md` | Local source, remote, branch, submodule, and candidate deployment material recorded; live deployment and recovery evidence still required |
 | 1 | `docs/feature-ledger.md` | Initial inventory, disposition, ownership, fresh-start acceptance, and rollback ledger created; no legacy data migration or import is in scope |
-| 2 | `docs/v0.10.2-baseline-comparison.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Official remote/tag fetched; release commit and clean branch recorded; initial feature/configuration comparison complete; production frontend build passes, upstream type check fails; backend startup, runtime configuration, fresh-data rehearsal, and independent signature trust remain |
+| 2 | `docs/v0.10.2-baseline-comparison.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Official remote/tag fetched; clean branch recorded; frontend build and empty-data backend health/admin/auth/Automations/Calendar/Skills smoke checks pass; upstream type check fails; extended workflows, production-like runtime configuration, and independent signature trust remain |
 | 3 | | |
 | 4 | | |
 | 5 | | |
