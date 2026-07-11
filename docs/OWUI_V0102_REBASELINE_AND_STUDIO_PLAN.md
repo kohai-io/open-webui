@@ -122,7 +122,7 @@ Create `docs/feature-ledger.md`. Give every custom feature one explicit decision
 - [x] Flows will be extracted to Studio. See `docs/feature-ledger.md`.
 - [x] Media and the video timeline will be extracted to Studio. See `docs/feature-ledger.md`.
 - [x] Welcome and Agents are candidates for the first Studio vertical slice. See `docs/feature-ledger.md`.
-- [x] Scheduled prompts are replaced by upstream Automations and Calendar. The fork implementation and its data are not ported or imported. See `docs/feature-ledger.md`.
+- [x] Scheduled prompts are replaced by upstream Automations/Calendar and `create_automation`. The fork implementation and its data are not ported or imported, and the legacy `functions_tools` prompt-scheduler tool has been deleted. See `docs/feature-ledger.md`.
 - [x] Pi Gateway and experiments will not be added to the maintained OWUI fork. See `docs/feature-ledger.md`.
 - [x] Fork fixes already present upstream will be dropped. See `docs/mcp-oauth-google-drive-comparison.md`; remaining feature areas still require their own upstream comparison.
 
