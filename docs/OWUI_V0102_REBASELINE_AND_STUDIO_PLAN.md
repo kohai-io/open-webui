@@ -236,7 +236,7 @@ Create a short contract document before implementing the integration.
 
 ### Core services
 
-- [ ] Implement Studio sessions and authentication. Migration-backed opaque session handles, AES-256-GCM encrypted payload storage, expiry, rotation, revocation, and OIDC-subject binding are implemented in Studio commit `bccf2ef`; secure cookie integration and live OIDC routes remain.
+- [x] Implement Studio sessions and authentication. Studio commits `bccf2ef` and `2f0bd9b` provide migration-backed opaque handles, AES-256-GCM storage, expiry/rotation/revocation, subject binding, discovery, Authorization Code + PKCE, state/nonce, single-use transactions, secure cookie integration, provider-token exchange, login/callback/logout routes, and a fake-provider suite. Live Okta conformance remains a Phase 2/staging check.
 - [x] Implement the typed server-side OWUI adapter. Studio commit `6df9f08` covers upstream OAuth token exchange, current identity, filtered models/agents, paginated files, paginated Knowledge, and chat creation with normalized response types and stable error mapping.
 - [x] Add a Studio-owned database and migrations. Studio commit `bccf2ef` adds an independent SQLite database, transactional numbered migrations, identity bindings, encrypted session rows, ignored local data files, and container migration assets.
 - [x] Add fixtures or a stub service for OWUI contract tests. Studio commit `6df9f08` adds a deterministic injected-fetch stub covering success, two-user separation, hidden-resource denial, malformed responses, transient read retry, and mutation non-retry.
@@ -429,6 +429,7 @@ Record material decisions here or link to separate decision records.
 | 2026-07-11 | Use upstream MCP/OAuth except for a proposed tool-name resolver contribution | v0.10.2 supersedes the fork's token-auth, callback, and cleanup fixes but still requires exact tool names | Upstream accepts the resolver or intended staging models never reproduce the issue |
 | 2026-07-11 | Use upstream Google Drive selected-file import and drop fork synchronisation | The upstream browser picker covers fresh imports; server OAuth and continuous sync are a separate product/security lifecycle | Continuous Drive synchronisation becomes an explicit Studio/connector requirement |
 | 2026-07-11 | Use upstream admin analytics and move only LiteLLM spend reporting to Studio | v0.10.2 already owns standard analytics; LiteLLM credentials and provider-specific reporting do not belong in the OWUI patch set | Upstream gains the required LiteLLM reporting or the report is no longer needed |
+| 2026-07-11 | Keep Studio OIDC provider-neutral with Okta as the intended production provider | Discovery and standards-based Authorization Code + PKCE allow automated fake-provider tests now and Okta conformance later without making a homelab IdP a production dependency | Okta requires a documented non-standard integration or the production IdP changes |
 
 ## Evidence log
 
@@ -440,7 +441,7 @@ Add concise links or references as work completes.
 | 1 | `docs/feature-ledger.md` | Source-level inventory, disposition, ownership, fresh-start acceptance, and rollback ledger created; live usage/deployment reconciliation remains open; no legacy data migration or import is in scope |
 | 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Clean build/start, admin/auth, OpenAI-compatible discovery/SSE chat, explicit model grant/denial, private file/Knowledge denial, processing, attachment, and retrieval pass; source variables classified; real providers, OAuth/MCP/Drive, proxy/browser checks, upstream type check, live deployment names, and signature trust remain |
 | 3 | `docs/owui-studio-contract.md` | Ownership, shared-OIDC/token-exchange authentication, fallback launch exchange, minimum user-scoped API surface, typed adapter policy, denial matrix, and narrow patch set documented; no direct database access or administrator browser credential required |
-| 4 | Studio repository `git.theoldschool.house/robert/open-webui-studio` through `bccf2ef`; functions repository `git.theoldschool.house/robert/open-webui-functions-tools` through `196b1a4` | Canonical origins are private Gitea; Studio shell, non-root container, typed v0.10.2 adapter, deterministic stub, independent SQLite migrations, and encrypted session store pass lint, zero-diagnostic checking, 11 tests, production build, and Node 22 Alpine image build; secure-cookie/OIDC routes, full user matrix, proxy, and rollback work remain |
+| 4 | Studio repository `git.theoldschool.house/robert/open-webui-studio` through `2f0bd9b`; functions repository `git.theoldschool.house/robert/open-webui-functions-tools` through `196b1a4` | Canonical origins are private Gitea; Studio shell, non-root container, typed v0.10.2 adapter, SQLite migrations, encrypted sessions, provider-neutral OIDC routes, and fake IdP pass lint, zero-diagnostic checking, 14 tests, production build, and Node 22 Alpine image build; live Okta, full user matrix, proxy, and rollback checks remain |
 | 5 | | |
 | 6 | | |
 | 7 | | |
