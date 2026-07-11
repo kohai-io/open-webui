@@ -234,9 +234,9 @@ Create a short contract document before implementing the integration.
 ### Core services
 
 - [ ] Implement Studio sessions and authentication.
-- [ ] Implement the typed server-side OWUI adapter.
+- [x] Implement the typed server-side OWUI adapter. Studio commit `6df9f08` covers upstream OAuth token exchange, current identity, filtered models/agents, paginated files, paginated Knowledge, and chat creation with normalized response types and stable error mapping.
 - [ ] Add a Studio-owned database and migrations.
-- [ ] Add fixtures or a stub service for OWUI contract tests.
+- [x] Add fixtures or a stub service for OWUI contract tests. Studio commit `6df9f08` adds a deterministic injected-fetch stub covering success, two-user separation, hidden-resource denial, malformed responses, transient read retry, and mutation non-retry.
 - [ ] Add a test user matrix covering ordinary users, administrators, groups, and denied resources.
 
 ### Deployment seam
@@ -437,7 +437,7 @@ Add concise links or references as work completes.
 | 1 | `docs/feature-ledger.md` | Initial inventory, disposition, ownership, fresh-start acceptance, and rollback ledger created; no legacy data migration or import is in scope |
 | 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Clean build/start, admin/auth, OpenAI-compatible discovery/SSE chat, explicit model grant/denial, private file/Knowledge denial, processing, attachment, and retrieval pass; source variables classified; real providers, OAuth/MCP/Drive, proxy/browser checks, upstream type check, live deployment names, and signature trust remain |
 | 3 | `docs/owui-studio-contract.md` | Ownership, shared-OIDC/token-exchange authentication, fallback launch exchange, minimum user-scoped API surface, typed adapter policy, denial matrix, and narrow patch set documented; no direct database access or administrator browser credential required |
-| 4 | Private repository `git.theoldschool.house/robert/open-webui-studio`, commits `0a5770e` and `04c0ba3` | Canonical `origin` moved to the private Gitea service and `main` pushed; SvelteKit/TypeScript `adapter-node` shell created at `/studio`; lint, type check, Vitest, build, Playwright shell/health test, non-root Docker image build, container startup, and container health pass; authentication, adapter, database, fixtures, proxy, and rollback work remain |
+| 4 | Private repository `git.theoldschool.house/robert/open-webui-studio`, commits `0a5770e`, `04c0ba3`, and `6df9f08` | Canonical `origin` is the private Gitea service; SvelteKit/TypeScript shell and non-root container pass their checks; typed v0.10.2 OWUI adapter and deterministic stub pass eight tests including two-user separation and denial/failure behaviour; authentication, database, full user matrix, proxy, and rollback work remain |
 | 5 | | |
 | 6 | | |
 | 7 | | |
