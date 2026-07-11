@@ -19,8 +19,10 @@ The repository status at capture time contained one untracked planning document:
 ## `functions_tools`
 
 - Git submodule path: `functions_tools`
-- Source: `https://github.com/kohai-io/open-webui-functions-tools.git`
-- Pinned tree entry: `15a73d36764ab82522326ee3ca0f99fe15504731`
+- Legacy source: `https://github.com/kohai-io/open-webui-functions-tools.git`
+- Canonical maintained source: `https://git.theoldschool.house/robert/open-webui-functions-tools.git`
+- Legacy pinned tree entry: `15a73d36764ab82522326ee3ca0f99fe15504731`
+- Maintained v0.10.2 compatibility revision: `196b1a4` on `codex/v0102-file-api-compat`
 - The root Docker build context copies the repository before the frontend build. The production deployment must still be checked to establish whether it builds this checkout, uses a prebuilt image, or deploys the submodule separately.
 
 ## Deployment material present in source

@@ -2,7 +2,7 @@
 
 ## Scope
 
-The legacy root repository pinned `functions_tools` at revision `15a73d36764ab82522326ee3ca0f99fe15504731`. The v0.10.2 compatibility branch is now at `196b1a4` (`codex/v0102-file-api-compat`): pipe Files API patch `651c242`, scheduler removal `c077fe5`, and action/tool Files API patch `196b1a4`. This pass covers retained artifacts at the legacy revision that directly call Open WebUI's file model or retrieval `process_file` implementation. The legacy `tools/prompt_scheduler.py` has been removed because upstream Automations, including the `create_automation` tool, replace it.
+The legacy root repository pinned `functions_tools` at revision `15a73d36764ab82522326ee3ca0f99fe15504731`. The maintained repository is `https://git.theoldschool.house/robert/open-webui-functions-tools.git`; its v0.10.2 compatibility branch is at `196b1a4` (`codex/v0102-file-api-compat`): pipe Files API patch `651c242`, scheduler removal `c077fe5`, and action/tool Files API patch `196b1a4`. This pass covers retained artifacts at the legacy revision that directly call Open WebUI's file model or retrieval `process_file` implementation. The legacy `tools/prompt_scheduler.py` has been removed because upstream Automations, including the `create_automation` tool, replace it.
 
 Open WebUI v0.10.2 changed the relevant file-model operations to async methods. Direct calls to `process_file` also require an explicit async database session. Storage-provider upload and lookup signatures remain compatible, although upload tags must be a mapping rather than a list.
 

@@ -65,7 +65,7 @@ Do not rewrite the legacy or archived rebaseline histories.
 - [ ] Preserve the unfinished v0.9.4 rebaseline as `archive/rebaseline-v0.9.4`.
 - [ ] Record the deployed container image and digest.
 - [ ] Record Compose files, reverse-proxy routes, volumes, environment variable names, and external dependencies.
-- [ ] Record the `functions_tools` submodule revision and how it is deployed. The source revision and compatibility work are recorded; live deployment use remains unverified. See `docs/rebaseline-phase-0-source-record.md` and `docs/functions-tools-v0.10.2-file-api-compatibility.md`.
+- [ ] Record the `functions_tools` submodule revision and how it is deployed. Compatibility revision `196b1a4` is published on `codex/v0102-file-api-compat` at `git.theoldschool.house/robert/open-webui-functions-tools`; live deployment use remains unverified. See `docs/rebaseline-phase-0-source-record.md` and `docs/functions-tools-v0.10.2-file-api-compatibility.md`.
 - [ ] Store secrets only in the existing secret-management location; do not copy secret values into this plan.
 
 ### Fresh-start boundary
@@ -107,7 +107,9 @@ Create `docs/feature-ledger.md`. Give every custom feature one explicit decision
 - [x] Pi Gateway and other experimental interfaces. See `docs/feature-ledger.md`.
 - [x] `functions_tools` submodule features. See `docs/feature-ledger.md`; the 19 pipe functions plus one action and six tools that call the Files API were patched for v0.10.2, and the legacy prompt scheduler was removed. Per-artifact product disposition and runtime contract tests remain open. See `docs/functions-tools-v0.10.2-file-api-compatibility.md`.
 
-### Record for every feature
+### Remaining deployment evidence across features
+
+The source-level routes, ownership, disposition, fresh-start acceptance, and rollback decisions needed for Exit Gate 1 are recorded in `docs/feature-ledger.md`. The following live deployment reconciliation remains open and does not block contract or foundation work:
 
 - [ ] Current routes and source paths.
 - [ ] Backend endpoints, database tables, migrations, jobs, and external dependencies.
@@ -223,10 +225,10 @@ Create a short contract document before implementing the integration.
 
 ### Repository and application
 
-- [x] Create the private `open-webui-studio` repository. Canonical origin is `https://git.theoldschool.house/robert/open-webui-studio.git`; validated foundation through commit `04c0ba3`. The former GitHub location is retained only as a secondary remote unless explicitly retired.
+- [x] Create the private `open-webui-studio` repository. Canonical origin is `https://git.theoldschool.house/robert/open-webui-studio.git`; validated foundation through commit `6df9f08`. The former GitHub location is retained only as a secondary remote unless explicitly retired.
 - [x] Scaffold a SvelteKit TypeScript application using `adapter-node`. The repository pins Node.js `22.17.0` for development and containers.
 - [ ] Configure deployment under `/studio`. The application base path and browser tests use `/studio`; reverse-proxy deployment remains.
-- [x] Add formatting, linting, type checking, unit tests, integration tests, and Playwright tests. Formatting, lint, zero-diagnostic Svelte check, two Vitest assertions, production build, and the `/studio` shell/health browser test pass.
+- [x] Add formatting, linting, type checking, unit tests, integration tests, and Playwright tests. Formatting, lint, zero-diagnostic Svelte check, eight Vitest assertions, production build, and the `/studio` shell/health browser test pass.
 - [x] Add a production Dockerfile running as a non-root user. Image `open-webui-studio:phase4` builds successfully, runs as `studio`, starts on port 3000, and passes a disposable `/studio/health` container smoke test.
 - [x] Add a health endpoint that exposes no secrets. `GET /studio/health` returns only status, service, and application version.
 - [x] Add structured logs and request correlation. Server requests emit bounded JSON metadata and an allowlisted/generated `X-Request-ID` without query strings or bodies.
@@ -345,7 +347,7 @@ Create a short contract document before implementing the integration.
 
 - [x] Decide the scheduled-prompt destination: use upstream Automations/Calendar exclusively; remove the fork implementation and do not import its records.
 - [x] Use upstream v0.10.2 admin analytics rather than porting the fork dashboard.
-- [x] Implement optional LiteLLM spend reporting in Studio server-side admin reporting; keep credentials out of browser code and OWUI. See `docs/feature-ledger.md`.
+- [x] Decide the optional LiteLLM spend-reporting destination: Studio server-side admin reporting, with credentials kept out of browser code and OWUI. Implementation remains future Studio work if the report is retained. See `docs/feature-ledger.md`.
 - [x] Decide the destination of Google Drive customisations after comparing v0.10.2: use upstream picker/chat import, drop fork server OAuth/sync, and contribute multi-file handling only if required.
 - [x] Use upstream v0.10.2 Agent Skills; do not port the fork implementation.
 - [x] Drop MCP/OAuth fixes already present upstream. Token-auth passthrough, duplicate callback credentials, and safe cleanup are upstream; unprefixed tool-name resolution remains an upstream contribution candidate.
@@ -434,10 +436,10 @@ Add concise links or references as work completes.
 | Phase | Evidence | Result |
 | --- | --- | --- |
 | 0 | `docs/rebaseline-phase-0-source-record.md` | Local source, remote, branch, submodule, and candidate deployment material recorded; live deployment, routing, image, and rollback evidence still required |
-| 1 | `docs/feature-ledger.md` | Initial inventory, disposition, ownership, fresh-start acceptance, and rollback ledger created; no legacy data migration or import is in scope |
+| 1 | `docs/feature-ledger.md` | Source-level inventory, disposition, ownership, fresh-start acceptance, and rollback ledger created; live usage/deployment reconciliation remains open; no legacy data migration or import is in scope |
 | 2 | `docs/v0.10.2-baseline-comparison.md`; `docs/v0.10.2-configuration-matrix.md`; local branch/worktree `rebaseline/upstream-v0.10.2` | Clean build/start, admin/auth, OpenAI-compatible discovery/SSE chat, explicit model grant/denial, private file/Knowledge denial, processing, attachment, and retrieval pass; source variables classified; real providers, OAuth/MCP/Drive, proxy/browser checks, upstream type check, live deployment names, and signature trust remain |
 | 3 | `docs/owui-studio-contract.md` | Ownership, shared-OIDC/token-exchange authentication, fallback launch exchange, minimum user-scoped API surface, typed adapter policy, denial matrix, and narrow patch set documented; no direct database access or administrator browser credential required |
-| 4 | Private repository `git.theoldschool.house/robert/open-webui-studio`, commits `0a5770e`, `04c0ba3`, and `6df9f08` | Canonical `origin` is the private Gitea service; SvelteKit/TypeScript shell and non-root container pass their checks; typed v0.10.2 OWUI adapter and deterministic stub pass eight tests including two-user separation and denial/failure behaviour; authentication, database, full user matrix, proxy, and rollback work remain |
+| 4 | Studio repository `git.theoldschool.house/robert/open-webui-studio` through `6df9f08`; functions repository `git.theoldschool.house/robert/open-webui-functions-tools` through `196b1a4` | Canonical origins are the private Gitea service; the previously local-only submodule compatibility history is published; the Studio shell, non-root container, typed v0.10.2 adapter, and deterministic stub pass their recorded checks; authentication, database, full user matrix, proxy, and rollback work remain |
 | 5 | | |
 | 6 | | |
 | 7 | | |
