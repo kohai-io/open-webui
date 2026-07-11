@@ -45,6 +45,7 @@ No legacy data migration is in scope; deployments start fresh.
 - Studio-owned agent experiment reverted by `0d74d7f`.
 - Media adapter contract: `5b5bb4e` on `codex/media-adapter-contract`.
 - Container native-dependency packaging fix: `08a332f` on the same branch.
+- First Studio Media page: `278be05` on the same branch.
 
 ### Functions and tools
 
@@ -65,7 +66,7 @@ No legacy data migration is in scope; deployments start fresh.
 Studio Media adapter test runtime:
 
 - Active container: `owui-studio-media-test`
-- Image: `open-webui-studio:media-adapter-08a332f`
+- Image: `open-webui-studio:media-page-278be05`
 - URL: `http://localhost:5173/studio/`
 - Volume: `owui-studio-media-test-data`
 - Runs as the unprivileged `studio` user.
@@ -88,8 +89,8 @@ The Keycloak test realm is `homelab`; local client names use the `-local` suffix
 - Hardened Docker image built successfully.
 - Container health endpoint and home page returned successfully.
 - Manual UI verification completed by the user in Chrome at normal and responsive/narrow widths.
-- Studio Media adapter: 11 focused tests passing; full Studio server suite: 21 tests passing; Svelte check and changed-file ESLint passing.
-- Studio image `open-webui-studio:media-adapter-08a332f` built successfully; the real Studio page and health endpoint return `200` from the healthy non-root container.
+- Studio Media adapter and page service: 13 focused tests passing; full Studio server suite: 23 tests passing; Svelte check, changed-file ESLint, and production build passing.
+- Studio image `open-webui-studio:media-page-278be05` built successfully. `/studio/media` and the health endpoint return `200`, unauthenticated content returns `401`, and the healthy non-root container can reach OWUI and OIDC.
 
 Do not use browser automation in the next session unless the user explicitly reverses this instruction; it repeatedly crashed the Codex desktop app. Prefer source tests, HTTP checks, Docker health/logs, and user-led manual UI verification.
 
@@ -108,7 +109,7 @@ Start with a read-only comparison; do not port the Media UI first.
 
 The first Studio Media release is read-only apart from downloading: it lists, searches, previews, and downloads media already stored in OWUI. Upload, deletion, generation, transcription, narration, and other processing controls are out of scope for this release.
 
-The read-only comparison and first-release contract are now recorded in `docs/media-contract-review.md`. Items 1 through 6 below are complete; resume by adding authenticated Studio Media server routes before implementing UI.
+The read-only comparison and first-release contract are now recorded in `docs/media-contract-review.md`. The first Media page, authenticated preview/download route, search, pagination, navigation, and empty/error states are implemented. Resume with user-led authenticated UI verification and representative-library performance checks; do not use browser automation unless the user reverses the instruction above.
 
 1. Inventory the legacy Media page, services, metadata expectations, preview behavior, and timeline references from the immutable `legacy/v0.6.36-custom` reference at `7f562ebb5c0893a886adc02521251fce7b725cb2`.
 2. Compare them with v0.10.2 Files API listing, pagination, content, download, deletion, processing status, metadata, and access-control behavior.
