@@ -66,10 +66,10 @@ Studio Media adapter test runtime:
 
 - Active container: `owui-studio-media-test`
 - Image: `open-webui-studio:media-adapter-08a332f`
-- URL: `http://localhost:3000/studio/`
+- URL: `http://localhost:5173/studio/`
 - Volume: `owui-studio-media-test-data`
 - Runs as the unprivileged `studio` user.
-- Studio page, health endpoint, OWUI reachability, and OIDC discovery were passing after the Docker-local non-secret URL overrides.
+- Studio page, health endpoint, OWUI reachability, OIDC discovery, and the Keycloak login redirect were passing. The container preserves the existing public origin and overrides only the non-secret container-to-host OWUI URL.
 
 Stopped rollback containers were intentionally retained:
 
