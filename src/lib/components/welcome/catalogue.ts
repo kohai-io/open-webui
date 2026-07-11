@@ -5,6 +5,41 @@ export type WelcomeCatalogueItem = {
 	kind: 'agent' | 'model';
 };
 
+export const orderWelcomeAgents = <T extends { id: string }>(
+	items: T[],
+	storedIds: string[]
+): T[] => {
+	const byId = new Map(items.map((item) => [item.id, item]));
+	const ordered = storedIds.flatMap((id) => {
+		const item = byId.get(id);
+		if (!item) return [];
+		byId.delete(id);
+		return [item];
+	});
+	return [...ordered, ...byId.values()];
+};
+
+export const buildWelcomeChatQuery = ({
+	message,
+	webSearchEnabled = false,
+	imageGenerationEnabled = false,
+	codeInterpreterEnabled = false,
+	selectedToolIds = []
+}: {
+	message: string;
+	webSearchEnabled?: boolean;
+	imageGenerationEnabled?: boolean;
+	codeInterpreterEnabled?: boolean;
+	selectedToolIds?: string[];
+}): string => {
+	const params = new URLSearchParams({ q: message.trim() });
+	if (webSearchEnabled) params.set('web-search', 'true');
+	if (imageGenerationEnabled) params.set('image-generation', 'true');
+	if (codeInterpreterEnabled) params.set('code-interpreter', 'true');
+	if (selectedToolIds.length) params.set('tools', selectedToolIds.join(','));
+	return params.toString();
+};
+
 const tagsFor = (item: any): string[] =>
 	(item?.meta?.tags ?? item?.tags ?? []).flatMap((tag: any) =>
 		typeof tag === 'string' ? [tag] : typeof tag?.name === 'string' ? [tag.name] : []

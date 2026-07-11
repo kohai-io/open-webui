@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyWelcomeCatalogue } from './catalogue';
+import { buildWelcomeChatQuery, classifyWelcomeCatalogue, orderWelcomeAgents } from './catalogue';
 
 describe('classifyWelcomeCatalogue', () => {
 	it('intersects OWUI workspace agents and functions with executable models', () => {
@@ -38,5 +38,30 @@ describe('classifyWelcomeCatalogue', () => {
 		);
 		expect(result.agents).toEqual([]);
 		expect(result.models).toHaveLength(1);
+	});
+});
+
+describe('Welcome preferences and handoff', () => {
+	it('preserves stored order and appends newly available agents', () => {
+		expect(
+			orderWelcomeAgents(
+				[{ id: 'new' }, { id: 'second' }, { id: 'first' }],
+				['first', 'missing', 'second']
+			).map((item) => item.id)
+		).toEqual(['first', 'second', 'new']);
+	});
+
+	it('hands composer capabilities to the native chat route', () => {
+		expect(
+			buildWelcomeChatQuery({
+				message: '  explain this  ',
+				webSearchEnabled: true,
+				imageGenerationEnabled: true,
+				codeInterpreterEnabled: true,
+				selectedToolIds: ['tool-a', 'tool-b']
+			})
+		).toBe(
+			'q=explain+this&web-search=true&image-generation=true&code-interpreter=true&tools=tool-a%2Ctool-b'
+		);
 	});
 });

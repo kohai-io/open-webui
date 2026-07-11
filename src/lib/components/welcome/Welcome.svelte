@@ -25,6 +25,8 @@
 	import IntegrationsMenu from '$lib/components/chat/MessageInput/IntegrationsMenu.svelte';
 	import PlusAlt from '$lib/components/icons/PlusAlt.svelte';
 	import Component from '$lib/components/icons/Component.svelte';
+	import { uploadFile } from '$lib/apis/files';
+	import { buildWelcomeChatQuery, orderWelcomeAgents } from './catalogue';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -74,24 +76,7 @@
 			const storedOrder = localStorage.getItem(AGENT_ORDER_KEY);
 			if (storedOrder) {
 				const orderIds: string[] = JSON.parse(storedOrder);
-				const agentMap = new Map(agentList.map((a) => [a.id, a]));
-				const ordered: any[] = [];
-
-				// Add agents in stored order
-				for (const id of orderIds) {
-					const agent = agentMap.get(id);
-					if (agent) {
-						ordered.push(agent);
-						agentMap.delete(id);
-					}
-				}
-
-				// Add any new agents not in stored order
-				for (const agent of agentMap.values()) {
-					ordered.push(agent);
-				}
-
-				return ordered;
+				return orderWelcomeAgents(agentList, orderIds);
 			}
 		} catch (error) {
 			console.error('Failed to load agent order:', error);
@@ -252,14 +237,15 @@
 		const message = formData.get('message') as string;
 		if (message && message.trim()) {
 			storeFilesForTransfer();
-			const params = new URLSearchParams({ q: message.trim() });
-			if (webSearchEnabled) {
-				params.set('web-search', 'true');
-			}
-			if (imageGenerationEnabled) params.set('image-generation', 'true');
-			if (codeInterpreterEnabled) params.set('code-interpreter', 'true');
-			if (selectedToolIds.length) params.set('tools', selectedToolIds.join(','));
-			goto(`/?${params.toString()}`);
+			goto(
+				`/?${buildWelcomeChatQuery({
+					message,
+					webSearchEnabled,
+					imageGenerationEnabled,
+					codeInterpreterEnabled,
+					selectedToolIds
+				})}`
+			);
 		}
 	};
 
@@ -306,7 +292,25 @@
 				};
 				reader.readAsDataURL(file);
 			} else {
-				files = [...files, { type: 'file', file: file, name: file.name }];
+				const fileItem: any = {
+					type: 'file',
+					name: file.name,
+					size: file.size,
+					status: 'uploading'
+				};
+				files = [...files, fileItem];
+				try {
+					const uploaded = await uploadFile(localStorage.token, file);
+					fileItem.status = 'uploaded';
+					fileItem.file = uploaded;
+					fileItem.id = uploaded.id;
+					fileItem.url = uploaded.id;
+					fileItem.collection_name = uploaded?.meta?.collection_name;
+					files = files;
+				} catch (error) {
+					files = files.filter((item) => item !== fileItem);
+					toast.error($i18n.t('Error uploading file: {{error}}', { error: `${error}` }));
+				}
 			}
 		}
 	};
