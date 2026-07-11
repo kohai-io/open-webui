@@ -294,6 +294,7 @@ Handoff point (2026-07-11): the native Welcome slice is implemented, hardened, d
 - [x] Manually verify the authenticated Media page, previews, and downloads.
 - [x] Verify cancellation and bounded preview concurrency with a representative 1,250-record mixed library. Studio commit `57f7673` proves 500-record scan bounds, opaque continuation, sequential upstream concurrency of one, cancellation without retry, and zero full-media grid preloads.
 - [x] Test representative large libraries, inaccessible cross-user references, and files deleted between metadata validation and content streaming. Studio commits `57f7673` and `dc082a9`.
+- [x] Manually verify two users see only their own media and a direct cross-user content URL returns hidden `404`.
 
 ### Timeline ownership
 
@@ -307,9 +308,9 @@ Handoff point (2026-07-11): the native Welcome slice is implemented, hardened, d
 
 ### Exit gate 6
 
-- [ ] Media access is user-scoped and performs acceptably on representative data.
+- [x] Media access is user-scoped and performs acceptably on representative data.
 - [ ] Timeline projects persist entirely outside OWUI's schema.
-- [ ] Missing or inaccessible OWUI files fail safely without exposing metadata.
+- [x] Missing or inaccessible OWUI files fail safely without exposing metadata.
 - [ ] OWUI can upgrade without migrating Studio timeline tables.
 
 ---
@@ -452,7 +453,7 @@ Add concise links or references as work completes.
 | 3 | `docs/owui-studio-contract.md` | Ownership, shared-OIDC/token-exchange authentication, fallback launch exchange, minimum user-scoped API surface, typed adapter policy, denial matrix, and narrow patch set documented; no direct database access or administrator browser credential required |
 | 4 | Studio repository `git.theoldschool.house/robert/open-webui-studio` through `b40cd51`; functions repository `git.theoldschool.house/robert/open-webui-functions-tools` through `196b1a4`; live Keycloak realm `homelab` | Canonical origins are private Gitea; Studio shell, non-root container, typed v0.10.2 adapter, SQLite migrations, encrypted sessions, provider-neutral OIDC routes, and fake IdP pass automated validation; shared Keycloak login and OWUI provider-token exchange were manually verified against a locally built clean v0.10.2 image; live Okta, second-user matrix, proxy, and rollback checks remain |
 | 5 | OWUI branch `rebaseline/upstream-v0.10.2` commits `559cd28f1`, `e9ca2fc11`, and `3ccdbe83c`; branch `PATCHES.md`; Studio commits `0d74d7f` and `abb86cc`; `docs/welcome-feature-maintenance-options.md` | The Studio-owned agent experiment was reverted. Native OWUI Welcome is a disabled-by-default UI island using authorised executable models, accessible workspace models, active functions, and native chat initialisation. The full legacy experience is restored and hardened: composer integrations, Files API upload/handoff, dictation, voice mode, tested local agent order, responsive launchers, and quick actions. Four focused tests and the production build pass. Live interactions were manually verified in Chrome at normal and responsive/narrow widths; physical-device mobile verification and the two-user browser proof remain. |
-| 6 | `docs/media-contract-review.md`; legacy `7f562ebb5c0893a886adc02521251fce7b725cb2`; OWUI `ecd48e2f7`; Studio commits `5b5bb4e`, `08a332f`, `278be05`, `57f7673`, and `dc082a9`; image `open-webui-studio:media-perf-57f7673` | Read-only comparison, typed adapter, authenticated content proxy, first Media page, representative-library performance hardening, and deleted-file race proof are complete. Self-owned listing/search, administrator denial, pagination, preview/download streaming, range forwarding, MIME/header hardening, cancellation, sequential bounded scans, zero grid-body preload, navigation, UI states, 26 server tests, build, non-root container startup, and user-led authenticated preview/download checks pass. Upload, deletion, generation/processing controls, chat/folder hierarchy, prompt recovery, live two-user proof, and timeline persistence remain. No OWUI bridge is initially justified. |
+| 6 | `docs/media-contract-review.md`; legacy `7f562ebb5c0893a886adc02521251fce7b725cb2`; OWUI `ecd48e2f7`; Studio commits `5b5bb4e`, `08a332f`, `278be05`, `57f7673`, and `dc082a9`; image `open-webui-studio:media-perf-57f7673` | The first-release Media browser gate is complete. Read-only comparison, typed adapter, authenticated content proxy, first Media page, representative-library performance hardening, deleted-file race proof, and live two-user isolation pass. Self-owned listing/search, administrator denial, pagination, preview/download streaming, range forwarding, MIME/header hardening, cancellation, sequential bounded scans, zero grid-body preload, navigation, UI states, 26 server tests, build, non-root container startup, user-led authenticated preview/download checks, and hidden cross-user `404` pass. Upload, deletion, generation/processing controls, chat/folder hierarchy, prompt recovery, and timeline persistence remain out of the browser slice. No OWUI bridge is initially justified. |
 | 7 | | |
 | 8 | `docs/mcp-oauth-google-drive-comparison.md` | MCP/OAuth fixes classified commit by commit; use upstream Google Drive selected-file import; fork server OAuth/sync dropped; tool-name resolver and optional Drive multi-file handling identified as narrow upstream contribution candidates |
 | 9 | | |
