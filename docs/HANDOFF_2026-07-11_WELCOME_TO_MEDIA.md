@@ -198,20 +198,24 @@ The first live run exposed two adapter gaps. Commit `eac13a2` normalises OWUI to
 
 All 117 Studio server tests pass. Scoped Prettier, ESLint, zero-warning Svelte check, the production build, and the signed-out headless route test pass. Docker image `open-webui-studio:flows-ui-local` runs in `owui-studio-media-test` at `http://localhost:5173/studio/`; the container reports healthy. The prior Studio containers remain stopped as rollback points.
 
-## Next session: Svelte Flow canvas
+## Completed slice: locked Svelte Flow canvas
 
 The legacy `src/lib/components/flows/FlowEditor.svelte` at commit `7f562ebb5c0893a886adc02521251fce7b725cb2` used `@xyflow/svelte` `0.1.19` for draggable nodes, handles, edges, controls, a minimap, fixed panels, and responsive graph layout. Use Svelte Flow `1.6.2`, reviewed on 2026-07-11, with Studio's Svelte 5 stack. See the [Svelte Flow quick start](https://svelteflow.dev/learn).
 
-Start with a locked-topology canvas for Input, Model, optional Transform, and Output:
+The local Studio worktree now implements the locked-topology Input, Model, optional Transform, and Output canvas:
 
-1. Add the current `@xyflow/svelte` dependency and required stylesheet.
-2. Create typed adapters between `FlowDefinitionV1` and Svelte Flow view nodes and edges.
-3. Keep configuration in the saved definition and execution state in a separate node-ID map.
-4. Add custom node cards, a configuration panel, controls, background, minimap, fit view, and saved positions.
-5. Overlay SSE node progress and terminal results, then run unit, Svelte, build, container, and user-led checks.
+1. `@xyflow/svelte` `1.6.2` and its required stylesheet are installed for the Svelte 5 application.
+2. Typed adapters map shared `FlowDefinitionV1` nodes and edges to Svelte Flow view types and write only positions back.
+3. Linear drafts preserve saved positions; adding or removing the optional Transform does not overwrite the other nodes' positions.
+4. Custom node cards, selected-node configuration, Controls, Background, MiniMap, fit view, and draggable saved positions are present while arbitrary add/delete/connect remains disabled.
+5. Existing execution records and SSE events populate a separate node-ID execution map. Runtime state is not written into definitions.
+
+All 122 server tests pass, including focused adapter, execution-map, position, and component coverage. Svelte check reports zero errors and warnings, full ESLint passes, changed files pass Prettier, and the production build succeeds. The Node 22.17.0 Docker image builds and the rebuilt `owui-studio-media-test` container is healthy at `http://localhost:5173/studio/`, still using `owui-studio-media-test-data`. The prior container is preserved as `owui-studio-media-test-pre-svelte-flow`; older rollback containers are unchanged. Health and signed-out Flows HTTP checks return `200`, and container logs are clean.
+
+The remaining canvas gate is a user-led authenticated check of node selection, configuration, dragging and saved-position reload, fit view, MiniMap, live node progress, output, cancellation, and history. Do not unlock topology until that check is accepted.
 
 Do not copy the legacy global stores, browser executor, broad `any` types, window event listener, forced `flowKey` remount, random node placement, weak graph validation, discarded handle IDs, or automatic breakpoint layout that overwrites user positions. Keep the server validator authoritative. Unlock add, delete, and connect for the four admitted node types after the locked canvas passes. Deferred node types retain the admission gates in `docs/flow-extraction-contract.md`.
 
 Do not use in-app browser automation. The user reports that browser access crashes the ChatGPT app. Use automated tests, HTTP checks, container logs, and user-led UI verification.
 
-The Studio branch contains three unpushed commits: `e9accc5`, `eac13a2`, and `18efba0`. This planning repository also has local commits awaiting publication. Push each repository after the user gives fresh approval for its private remote.
+The Studio branch contains four unpushed commits: `e9accc5`, `eac13a2`, `18efba0`, and locked-canvas commit `cd30583`. This planning repository also has local commits and documentation changes awaiting publication. Push each repository only after the user gives fresh approval for its private remote.
