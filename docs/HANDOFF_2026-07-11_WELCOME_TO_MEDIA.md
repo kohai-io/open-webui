@@ -1,4 +1,4 @@
-# Handoff: Media browser complete, timeline next
+# Handoff: Media browser complete, Flows selected
 
 Date: 2026-07-11
 
@@ -7,6 +7,8 @@ Date: 2026-07-11
 The Open WebUI v0.10.2 rebaseline is running locally with the full native Welcome experience. Welcome remains an optional OWUI UI island because it composes OWUI-owned workspace models, functions/pipes, chat, files, tools, dictation, and voice mode. Studio does not own duplicate agent records.
 
 The first Studio Media browser slice is also complete. It lists, searches, previews, and downloads self-owned OWUI image/video/audio files through the typed server-side adapter. It has no upload, deletion, generation, transcription, narration, or other processing controls. OWUI remains the file, storage, and permission owner.
+
+The user parked timeline persistence after review and selected Phase 7 Flows as the next product slice. `docs/flow-extraction-contract.md` records its contract-first boundary.
 
 The user manually verified:
 
@@ -37,6 +39,8 @@ No legacy data migration is in scope; deployments start fresh.
   - `559cd28f1` — feature flag and initial native catalogue;
   - `e9ca2fc11` — full legacy Welcome restoration adapted to v0.10.2;
   - `3ccdbe83c` — ordering/query tests, Files API handoff hardening, and `PATCHES.md`.
+  - `da39eb4a1` — restore distinct sidebar New Chat and Welcome navigation.
+  - `6dca01731` — update the retained patch register.
 - Patch register: `PATCHES.md`
 
 ### Studio
@@ -64,11 +68,12 @@ No legacy data migration is in scope; deployments start fresh.
 ## Local runtime
 
 - Active container: `owui-v0102-studio-test`
-- Image: `open-webui-local:v0102-welcome-hardened`
+- Image: `open-webui-local:v0102-welcome-nav`
 - URL: `http://localhost:8080/`
 - Volume: `owui-v0102-studio-test-data`
 - Feature flag: `ENABLE_WELCOME_PAGE=True`
 - Health was passing at handoff.
+- Local CORS now admits `http://localhost:5173` and `http://localhost:8080`; an origin-bearing Socket.IO WebSocket handshake passes.
 
 Studio Media adapter test runtime:
 
@@ -117,7 +122,7 @@ These checks do not block starting timeline persistence.
 
 The first Studio Media release is read-only apart from downloading: it lists, searches, previews, and downloads media already stored in OWUI. Upload, deletion, generation, transcription, narration, and other processing controls remain out of scope.
 
-The read-only comparison and first-release contract are now recorded in `docs/media-contract-review.md`. The first Media page, authenticated preview/download route, search, pagination, navigation, empty/error states, cancellation, representative-library scan/concurrency bounds, deleted-file race behavior, and live two-user isolation are implemented and verified. The Media browser gate is complete; resume with Studio-owned timeline persistence. Do not use browser automation unless the user reverses the instruction above.
+The read-only comparison and first-release contract are now recorded in `docs/media-contract-review.md`. The first Media page, authenticated preview/download route, search, pagination, navigation, empty/error states, cancellation, representative-library scan/concurrency bounds, deleted-file race behavior, and live two-user isolation are implemented and verified. The Media browser gate is complete. Timeline persistence is parked and Flows is the current slice. Do not use browser automation unless the user reverses the instruction above.
 
 1. Inventoried the legacy Media page, services, metadata expectations, preview behavior, and timeline references from the immutable `legacy/v0.6.36-custom` reference at `7f562ebb5c0893a886adc02521251fce7b725cb2`.
 2. Compared them with v0.10.2 Files API listing, pagination, content, download, deletion, processing status, metadata, and access-control behavior.
@@ -127,13 +132,13 @@ The read-only comparison and first-release contract are now recorded in `docs/me
 6. Extended adapter fixtures and permission tests for Media-specific listing, search, preview, download, pagination, missing files, and cross-user denial before implementing Media UI.
 7. Kept OWUI as file/permission owner. Studio will own timeline projects, tracks, clips, markers, and versions using opaque OWUI file IDs.
 
-## Next slice: Phase 6 timeline persistence
+## Parked slice: Phase 6 timeline persistence
 
-Start with the Studio-owned data and service contract; do not port the legacy timeline UI first.
+Parked by user decision on 2026-07-11. When resumed, start with the Studio-owned data and service contract; do not port the legacy timeline UI first.
 
 The immutable behavior reference remains `legacy/v0.6.36-custom` at `7f562ebb5c0893a886adc02521251fce7b725cb2`. The legacy editor provides useful player, scrub, zoom, waveform, thumbnail, marker, and segment interaction references, but its save/export backend was unfinished and no project table was found. Do not treat the legacy README's “production-ready” language as persistence evidence.
 
-Immediate work for the new session:
+Work to retain for when timeline resumes:
 
 1. Reconfirm the legacy timeline types, calculations, routes, save TODOs, upload behavior, and OWUI file assumptions from the pinned commit.
 2. Write `docs/timeline-persistence-contract.md` before implementation.
@@ -145,3 +150,24 @@ Immediate work for the new session:
 8. Port timeline calculations and UI only after the persistence contract and tests pass.
 
 The first deliverable should be the contract document plus executable schema/service tests, not a visually complete editor.
+
+## Current slice: Phase 7 Flows extraction
+
+The legacy and unfinished v0.9.4 Flow implementations have been audited. They share the same fundamental limitation: execution occurs in the browser, the backend execute route is only a placeholder, and the browser submits its own claimed execution history. Do not port that executor architecture or the legacy OWUI Flow tables/routes.
+
+The design contract is `docs/flow-extraction-contract.md`. The first release is intentionally limited to server-executed text DAGs containing Input, Model, Transform, and Output nodes. Conditional, Merge, Loop, Knowledge, web search, files/media, tools/functions, connectors, terminal, and arbitrary HTTP nodes are rejected until separately admitted.
+
+Immediate implementation work:
+
+1. Add numbered Studio SQLite migrations for flows, immutable versions, executions, checkpoints, credential leases, and bounded events.
+2. Implement typed `schemaVersion: 1` definition validation with strict node/edge limits and stable field errors.
+3. Implement owner-scoped create/list/read/update/delete and immutable version history with optimistic concurrency.
+4. Add deterministic two-user, migration, validation, version, conflict, and deletion tests before porting the editor.
+5. Add and prove the narrow v0.10.2 non-persisted text-completion adapter fixture before implementing the worker.
+6. Implement execution credentials and the durable worker only after the session-store security review required by the contract.
+
+The first implementation deliverable is migrations, validation, immutable version CRUD, and two-user service tests. It contains no legacy editor and performs no model calls.
+
+Studio commit `6b957d0` on published branch `codex/flows-foundation` implements the foundation from Media commit `dc082a9`. Migration `0003_flows.sql` creates the Studio Flow persistence envelope with database-level ownership constraints. Strict definition validation and `FlowStore` implement owner-scoped immutable version CRUD, optimistic concurrency, and guarded deletion. Empty and existing-database migration coverage plus 22 Flow assertions pass within the 48-test server suite; Prettier, ESLint, zero-warning Svelte check, and the production build pass.
+
+Resume with the pinned v0.10.2 non-persisted text-completion adapter fixture. Do not add routes, the editor, credential leases, or the durable worker until that fixture proves the OWUI execution boundary without creating hidden chats.

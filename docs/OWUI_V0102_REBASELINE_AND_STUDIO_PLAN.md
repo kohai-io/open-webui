@@ -282,7 +282,7 @@ Create a short contract document before implementing the integration.
 
 ## Phase 6: Media browser and video timeline
 
-Handoff point (2026-07-11): the native Welcome slice is implemented, hardened, documented, deployed locally, and manually verified. Resume with the read-only Media contract comparison in `docs/HANDOFF_2026-07-11_WELCOME_TO_MEDIA.md`.
+Current point (2026-07-11): native Welcome and the first read-only Media browser are implemented and verified. The user parked timeline persistence and selected Phase 7 Flows as the next product slice. See `docs/HANDOFF_2026-07-11_WELCOME_TO_MEDIA.md` and `docs/flow-extraction-contract.md`.
 
 ### Media access
 
@@ -297,6 +297,8 @@ Handoff point (2026-07-11): the native Welcome slice is implemented, hardened, d
 - [x] Manually verify two users see only their own media and a direct cross-user content URL returns hidden `404`.
 
 ### Timeline ownership
+
+Parked by user decision on 2026-07-11. These items remain valid but do not block Phase 7 Flows work.
 
 - [ ] Define Studio-owned project, track, clip, marker, and version schemas.
 - [ ] Store OWUI file IDs as opaque external references.
@@ -319,16 +321,16 @@ Handoff point (2026-07-11): the native Welcome slice is implemented, hardened, d
 
 ### Design before porting
 
-- [ ] Review the legacy Flows implementation and the unfinished v0.9.4 port as reference material.
-- [ ] Compare every node type and integration with v0.10.2 APIs.
-- [ ] Define the supported first-release node set; archive unused nodes.
-- [ ] Specify flow definition versioning and validation.
-- [ ] Specify user-scoped access to models, files, knowledge, and tools.
-- [ ] Define connector-secret storage and redaction.
+- [x] Review the legacy Flows implementation and the unfinished v0.9.4 port as reference material. See `docs/flow-extraction-contract.md`.
+- [x] Compare every node type and integration with v0.10.2 APIs. The legacy nine-node inventory and admission decisions are recorded in `docs/flow-extraction-contract.md`.
+- [x] Define the supported first-release node set; reject deferred nodes rather than preserving or skipping them. First release: text Input, Model, Transform, and Output.
+- [x] Specify immutable flow definition versioning, optimistic concurrency, graph validation, and stable errors. See `docs/flow-extraction-contract.md`.
+- [x] Specify user-scoped access to models, files, Knowledge, and tools. The first release admits accessible base text models only; files, Knowledge, tools/functions, and media are deferred.
+- [x] Define connector-secret storage and redaction. The first release accepts no connector secrets; future connectors require separate encrypted credential references and admission tests.
 
 ### Studio implementation
 
-- [ ] Move flow definitions and versions into the Studio database.
+- [x] Move flow definitions and immutable versions into the Studio database. Studio commit `6b957d0` on published branch `codex/flows-foundation` adds migration `0003_flows.sql`, strict definition validation, owner-scoped CRUD, optimistic concurrency, and version history.
 - [ ] Move execution history and checkpoints into the Studio database.
 - [ ] Port the editor without OWUI internal stores or routes.
 - [ ] Implement server-side flow execution in a durable worker.
@@ -341,7 +343,7 @@ Handoff point (2026-07-11): the native Welcome slice is implemented, hardened, d
 
 - [ ] Do not add a legacy Flow export or import path.
 - [ ] Create representative supported flows from scratch in Studio fixtures and end-to-end tests.
-- [ ] Confirm Studio creates no legacy Flow tables in OWUI storage.
+- [x] Confirm Studio creates no legacy Flow tables in OWUI storage. Empty and existing-foundation migration tests create only `studio_flow*` tables in the independent Studio database.
 
 ### Exit gate 7
 
@@ -454,7 +456,7 @@ Add concise links or references as work completes.
 | 4 | Studio repository `git.theoldschool.house/robert/open-webui-studio` through `b40cd51`; functions repository `git.theoldschool.house/robert/open-webui-functions-tools` through `196b1a4`; live Keycloak realm `homelab` | Canonical origins are private Gitea; Studio shell, non-root container, typed v0.10.2 adapter, SQLite migrations, encrypted sessions, provider-neutral OIDC routes, and fake IdP pass automated validation; shared Keycloak login and OWUI provider-token exchange were manually verified against a locally built clean v0.10.2 image; live Okta, second-user matrix, proxy, and rollback checks remain |
 | 5 | OWUI branch `rebaseline/upstream-v0.10.2` commits `559cd28f1`, `e9ca2fc11`, and `3ccdbe83c`; branch `PATCHES.md`; Studio commits `0d74d7f` and `abb86cc`; `docs/welcome-feature-maintenance-options.md` | The Studio-owned agent experiment was reverted. Native OWUI Welcome is a disabled-by-default UI island using authorised executable models, accessible workspace models, active functions, and native chat initialisation. The full legacy experience is restored and hardened: composer integrations, Files API upload/handoff, dictation, voice mode, tested local agent order, responsive launchers, and quick actions. Four focused tests and the production build pass. Live interactions were manually verified in Chrome at normal and responsive/narrow widths; physical-device mobile verification and the two-user browser proof remain. |
 | 6 | `docs/media-contract-review.md`; legacy `7f562ebb5c0893a886adc02521251fce7b725cb2`; OWUI `ecd48e2f7`; Studio commits `5b5bb4e`, `08a332f`, `278be05`, `57f7673`, and `dc082a9`; image `open-webui-studio:media-perf-57f7673` | The first-release Media browser gate is complete. Read-only comparison, typed adapter, authenticated content proxy, first Media page, representative-library performance hardening, deleted-file race proof, and live two-user isolation pass. Self-owned listing/search, administrator denial, pagination, preview/download streaming, range forwarding, MIME/header hardening, cancellation, sequential bounded scans, zero grid-body preload, navigation, UI states, 26 server tests, build, non-root container startup, user-led authenticated preview/download checks, and hidden cross-user `404` pass. Upload, deletion, generation/processing controls, chat/folder hierarchy, prompt recovery, and timeline persistence remain out of the browser slice. No OWUI bridge is initially justified. |
-| 7 | | |
+| 7 | `docs/flow-extraction-contract.md`; legacy `7f562ebb5c0893a886adc02521251fce7b725cb2`; archived v0.9.4 `d62f9dc9250be3699d27941f608712d46f4c3f38`; OWUI `ecd48e2f7`; Studio `6b957d0` on `codex/flows-foundation` | Legacy and unfinished-port behavior audited. The browser executor and OWUI Flow tables/routes will not be ported. The first release is a server-executed text DAG with Input, Model, Transform, and Output. Migration `0003_flows.sql`, strict validation, owner-scoped immutable version CRUD, conflict handling, deletion guards, and empty/existing-database migration tests pass. The full Studio server suite has 48 passing tests; Svelte check and production build pass. Completion adapter, worker, events, routes, and editor remain. |
 | 8 | `docs/mcp-oauth-google-drive-comparison.md` | MCP/OAuth fixes classified commit by commit; use upstream Google Drive selected-file import; fork server OAuth/sync dropped; tool-name resolver and optional Drive multi-file handling identified as narrow upstream contribution candidates |
 | 9 | | |
 | 10 | | |
