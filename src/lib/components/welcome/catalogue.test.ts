@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildWelcomeChatQuery, classifyWelcomeCatalogue, orderWelcomeAgents } from './catalogue';
+import {
+	buildWelcomeChatQuery,
+	classifyWelcomeCatalogue,
+	hasPendingWelcomeFileOperations,
+	orderWelcomeAgents
+} from './catalogue';
 
 describe('classifyWelcomeCatalogue', () => {
 	it('intersects OWUI workspace agents and functions with executable models', () => {
@@ -22,10 +27,15 @@ describe('classifyWelcomeCatalogue', () => {
 			[{ id: 'pipe', is_active: true }]
 		);
 
-		expect(result.agents).toEqual([
+		expect(result.agents.map(({ id, name, tags, kind }) => ({ id, name, tags, kind }))).toEqual([
 			{ id: 'assistant', name: 'Research agent', tags: ['research'], kind: 'agent' },
 			{ id: 'pipe', name: 'Pipe', tags: [], kind: 'agent' }
 		]);
+		expect(result.agents[0]).toMatchObject({
+			base_model_id: 'base',
+			is_active: true,
+			meta: { tags: [{ name: 'research' }] }
+		});
 		expect(result.models.map((item) => item.id)).toEqual(['base']);
 		expect(result.agents.some((item) => item.id === 'hidden')).toBe(false);
 	});
@@ -38,6 +48,15 @@ describe('classifyWelcomeCatalogue', () => {
 		);
 		expect(result.agents).toEqual([]);
 		expect(result.models).toHaveLength(1);
+	});
+
+	it('does not expose an active function when its workspace record is inactive', () => {
+		const result = classifyWelcomeCatalogue(
+			[{ id: 'inactive', name: 'Inactive' }],
+			[{ id: 'inactive', name: 'Inactive', is_active: false }],
+			[{ id: 'inactive', is_active: true }]
+		);
+		expect(result.agents).toEqual([]);
 	});
 });
 
@@ -63,5 +82,11 @@ describe('Welcome preferences and handoff', () => {
 		).toBe(
 			'q=explain+this&web-search=true&image-generation=true&code-interpreter=true&tools=tool-a%2Ctool-b'
 		);
+	});
+
+	it('blocks handoff while a file operation is pending', () => {
+		expect(hasPendingWelcomeFileOperations([], 1)).toBe(true);
+		expect(hasPendingWelcomeFileOperations([{ status: 'uploading' }])).toBe(true);
+		expect(hasPendingWelcomeFileOperations([{ status: 'uploaded' }])).toBe(false);
 	});
 });

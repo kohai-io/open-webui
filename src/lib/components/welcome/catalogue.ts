@@ -3,6 +3,7 @@ export type WelcomeCatalogueItem = {
 	name: string;
 	tags: string[];
 	kind: 'agent' | 'model';
+	[key: string]: any;
 };
 
 export const orderWelcomeAgents = <T extends { id: string }>(
@@ -40,6 +41,11 @@ export const buildWelcomeChatQuery = ({
 	return params.toString();
 };
 
+export const hasPendingWelcomeFileOperations = (
+	files: Array<{ status?: string }>,
+	pendingOperations = 0
+): boolean => pendingOperations > 0 || files.some((file) => file.status === 'uploading');
+
 const tagsFor = (item: any): string[] =>
 	(item?.meta?.tags ?? item?.tags ?? []).flatMap((tag: any) =>
 		typeof tag === 'string' ? [tag] : typeof tag?.name === 'string' ? [tag.name] : []
@@ -59,7 +65,9 @@ export const classifyWelcomeCatalogue = (
 	]);
 	const catalogue = executableModels.map((model) => {
 		const workspace = workspaceById.get(model.id);
+		const merged = workspace ? { ...model, ...workspace } : { ...model };
 		return {
+			...merged,
 			id: model.id,
 			name: workspace?.name ?? model.name ?? model.id,
 			tags: tagsFor(workspace ?? model),
@@ -68,7 +76,7 @@ export const classifyWelcomeCatalogue = (
 	});
 
 	return {
-		agents: catalogue.filter((item) => item.kind === 'agent'),
+		agents: catalogue.filter((item) => item.kind === 'agent' && item.is_active !== false),
 		models: catalogue.filter((item) => item.kind === 'model')
 	};
 };

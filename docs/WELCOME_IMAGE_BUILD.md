@@ -39,7 +39,7 @@ docker build --platform linux/amd64 `
 
 Push and deploy an immutable image digest. Record the source revision, image digest, platform, UID/GID, base-image digests, and build command in the release evidence.
 
-The upstream `.github/workflows/docker.yaml` omits `UID` and `GID`, and it does not trigger for the maintained branch. Do not use that workflow as the production release path until it enforces the build requirements above.
+The customised `.github/workflows/docker.yaml` triggers for the maintained branch, passes UID/GID `1000:1000`, and checks the runtime user after each image build. Preserve these safeguards when rebasing the workflow from upstream.
 
 ## Enable and roll back
 

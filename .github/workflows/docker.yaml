@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - dev
+      - rebaseline/upstream-v0.10.2
     tags:
       - v*
 
@@ -124,7 +125,15 @@ jobs:
           sbom: true
           build-args: |
             BUILD_HASH=${{ github.sha }}
+            UID=1000
+            GID=1000
             ${{ matrix.variant.build_args }}
+
+      - name: Verify non-root runtime user
+        run: |
+          image="${FULL_IMAGE_NAME}@${{ steps.build.outputs.digest }}"
+          docker pull "$image"
+          test "$(docker image inspect "$image" --format '{{.Config.User}}')" = "1000:1000"
 
       - name: Export digest
         run: |

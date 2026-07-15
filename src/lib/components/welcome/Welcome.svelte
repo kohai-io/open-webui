@@ -26,7 +26,12 @@
 	import PlusAlt from '$lib/components/icons/PlusAlt.svelte';
 	import Component from '$lib/components/icons/Component.svelte';
 	import { uploadFile } from '$lib/apis/files';
-	import { buildWelcomeChatQuery, orderWelcomeAgents } from './catalogue';
+	import {
+		buildWelcomeChatQuery,
+		classifyWelcomeCatalogue,
+		hasPendingWelcomeFileOperations,
+		orderWelcomeAgents
+	} from './catalogue';
 
 	const i18n: Writable<i18nType> = getContext('i18n');
 
@@ -47,16 +52,24 @@
 	let recording = false;
 	let inputElement: HTMLInputElement;
 	let mobileInputElement: HTMLInputElement;
+	let pendingFileOperations = 0;
 
-	const storeFilesForTransfer = () => {
+	const storeFilesForTransfer = (): boolean => {
+		if (hasPendingWelcomeFileOperations(files, pendingFileOperations)) {
+			toast.error($i18n.t('Please wait for file uploads to finish'));
+			return false;
+		}
+
 		if (files.length > 0) {
 			try {
 				sessionStorage.setItem('welcome-files', JSON.stringify(files));
 			} catch (error) {
 				console.error('Failed to store files in sessionStorage:', error);
 				toast.error($i18n.t('Files are too large to transfer'));
+				return false;
 			}
 		}
+		return true;
 	};
 
 	const AGENT_ORDER_KEY = 'welcome-agent-order';
@@ -192,25 +205,11 @@
 				getFunctions(localStorage.token)
 			]);
 
-			// Merge workspace metadata
-			const mergedModels = (allModelsData || []).map((m: any) => {
-				const workspaceModel = (workspaceModelsData || []).find((wm: any) => wm.id === m.id);
-				return workspaceModel ? { ...m, ...workspaceModel } : m;
-			});
-
-			// Get agent IDs (assistants + functions)
-			const functionIds = new Set(
-				(functionsData || []).filter((a: any) => a.is_active).map((a: any) => a.id)
-			);
-			const assistantIds = new Set(
-				(workspaceModelsData || [])
-					.filter((m: any) => m.is_active && m.base_model_id)
-					.map((m: any) => m.id)
-			);
-			const agentIds = new Set([...functionIds, ...assistantIds]);
-
-			// Filter agents
-			agents = mergedModels.filter((m: any) => m.is_active !== false && agentIds.has(m.id));
+			agents = classifyWelcomeCatalogue(
+				allModelsData || [],
+				workspaceModelsData || [],
+				functionsData || []
+			).agents;
 
 			// Apply stored order from localStorage
 			orderedAgents = applyStoredOrder(agents);
@@ -228,7 +227,7 @@
 	});
 
 	const selectAgent = (agentId: string) => {
-		storeFilesForTransfer();
+		if (!storeFilesForTransfer()) return;
 		goto(`/?models=${encodeURIComponent(agentId)}`);
 	};
 
@@ -236,7 +235,7 @@
 		const formData = new FormData(e.target as HTMLFormElement);
 		const message = formData.get('message') as string;
 		if (message && message.trim()) {
-			storeFilesForTransfer();
+			if (!storeFilesForTransfer()) return;
 			goto(
 				`/?${buildWelcomeChatQuery({
 					message,
@@ -283,43 +282,57 @@
 		}
 	};
 
+	const readFileAsDataURL = (file: File): Promise<string> =>
+		new Promise((resolve, reject) => {
+			const reader = new FileReader();
+			reader.onload = () => resolve(reader.result as string);
+			reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
+			reader.readAsDataURL(file);
+		});
+
 	const inputFilesHandler = async (inputFiles: File[]) => {
-		for (const file of inputFiles) {
-			if (file.type.startsWith('image/')) {
-				const reader = new FileReader();
-				reader.onload = (e) => {
-					files = [...files, { type: 'image', url: e.target?.result as string, name: file.name }];
-				};
-				reader.readAsDataURL(file);
-			} else {
-				const fileItem: any = {
-					type: 'file',
-					name: file.name,
-					size: file.size,
-					status: 'uploading'
-				};
-				files = [...files, fileItem];
-				try {
-					const uploaded = await uploadFile(localStorage.token, file);
-					fileItem.status = 'uploaded';
-					fileItem.file = uploaded;
-					fileItem.id = uploaded.id;
-					fileItem.url = uploaded.id;
-					fileItem.collection_name = uploaded?.meta?.collection_name;
-					files = files;
-				} catch (error) {
-					files = files.filter((item) => item !== fileItem);
-					toast.error($i18n.t('Error uploading file: {{error}}', { error: `${error}` }));
+		pendingFileOperations += 1;
+		try {
+			for (const file of inputFiles) {
+				if (file.type.startsWith('image/')) {
+					try {
+						const url = await readFileAsDataURL(file);
+						files = [...files, { type: 'image', url, name: file.name }];
+					} catch (error) {
+						toast.error($i18n.t('Error reading file: {{error}}', { error: `${error}` }));
+					}
+				} else {
+					const fileItem: any = {
+						type: 'file',
+						name: file.name,
+						size: file.size,
+						status: 'uploading'
+					};
+					files = [...files, fileItem];
+					try {
+						const uploaded = await uploadFile(localStorage.token, file);
+						fileItem.status = 'uploaded';
+						fileItem.file = uploaded;
+						fileItem.id = uploaded.id;
+						fileItem.url = uploaded.id;
+						fileItem.collection_name = uploaded?.meta?.collection_name;
+						files = files;
+					} catch (error) {
+						files = files.filter((item) => item !== fileItem);
+						toast.error($i18n.t('Error uploading file: {{error}}', { error: `${error}` }));
+					}
 				}
 			}
+		} finally {
+			pendingFileOperations -= 1;
 		}
 	};
 
-	const handleFileInputChange = (event: Event) => {
+	const handleFileInputChange = async (event: Event) => {
 		const input = event.target as HTMLInputElement;
 		const selectedFiles = Array.from(input.files || []);
 		if (selectedFiles.length > 0) {
-			inputFilesHandler(selectedFiles);
+			await inputFilesHandler(selectedFiles);
 		}
 		input.value = '';
 	};
@@ -329,7 +342,7 @@
 	};
 
 	const handleVoiceMode = () => {
-		storeFilesForTransfer();
+		if (!storeFilesForTransfer()) return;
 		goto('/?call=true');
 	};
 
@@ -717,7 +730,7 @@
 						{$i18n.t('Agents')}
 					</h2>
 					<a
-						href="/workspace/agents"
+						href="/workspace/models"
 						class="hidden md:block text-sm text-blue-600 dark:text-blue-400 hover:underline"
 					>
 						{$i18n.t('View all')}
@@ -734,7 +747,7 @@
 							{$i18n.t('No agents available yet.')}
 						</p>
 						<a
-							href="/workspace/agents"
+							href="/workspace/models"
 							class="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
 						>
 							{$i18n.t('Browse Agents')}
@@ -928,7 +941,7 @@
 					</a>
 
 					<a
-						href="/workspace/agents"
+						href="/workspace/models"
 						class="flex items-center gap-3 p-4 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
 					>
 						<svg
