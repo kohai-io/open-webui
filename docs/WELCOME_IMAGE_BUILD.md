@@ -2,9 +2,9 @@
 
 ## Source baseline
 
-The maintained OWUI image comes from branch `rebaseline/upstream-v0.10.2`. The branch starts at upstream Open WebUI `v0.10.2` (`ecd48e2f7`) and applies the Welcome patch series listed in [`PATCHES.md`](../PATCHES.md).
+The production OWUI image comes from `main`. It starts at upstream Open WebUI `v0.10.2` (`ecd48e2f7`) and applies the Welcome patch series listed in [`PATCHES.md`](../PATCHES.md).
 
-Do not build this image from the legacy `main` branch.
+Use `rebaseline/upstream-v0.10.2` to maintain and test the upstream rebase before promotion to `main`. The previous customised fork remains available at `legacy/v0.6.36-custom`.
 
 ## How the Welcome page enters the image
 
@@ -21,10 +21,10 @@ The build imports Welcome at compile time, so the image contains its code even w
 
 ## Build requirements
 
-Build from a clean checkout of the maintained branch and record the source revision. The production image runs as UID/GID `1000:1000`:
+Build from a clean checkout of `main` and record the source revision. The production image runs as UID/GID `1000:1000`:
 
 ```powershell
-git switch rebaseline/upstream-v0.10.2
+git switch main
 git status --short
 $revision = git rev-parse HEAD
 
@@ -39,7 +39,7 @@ docker build --platform linux/amd64 `
 
 Push and deploy an immutable image digest. Record the source revision, image digest, platform, UID/GID, base-image digests, and build command in the release evidence.
 
-The customised `.github/workflows/docker.yaml` triggers for the maintained branch, passes UID/GID `1000:1000`, and checks the runtime user after each image build. Preserve these safeguards when rebasing the workflow from upstream.
+The customised `.github/workflows/docker.yaml` runs for `main` and `rebaseline/upstream-v0.10.2`. It passes UID/GID `1000:1000` and checks the runtime user after each image build. Production releases come from `main`.
 
 ## Enable and roll back
 
