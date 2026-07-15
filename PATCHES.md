@@ -2,6 +2,8 @@
 
 This branch starts from upstream Open WebUI `v0.10.2` at `ecd48e2f7`. Retained changes must remain small enough to review and reapply independently on the next selected upstream release.
 
+See [`docs/WELCOME_IMAGE_BUILD.md`](docs/WELCOME_IMAGE_BUILD.md) for the image build path, runtime flag, and release requirements.
+
 ## Native Welcome page
 
 ### Purpose
