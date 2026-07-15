@@ -1,0 +1,45 @@
+services:
+  open-webui:
+    image: git.theoldschool.house/robert/open-webui@sha256:012e5f80e9aaf508c5831fde9440a78fea3b7ff2f4b2a8ca451758e904e696c9
+    container_name: owui-staging
+    user: "1000:1000"
+    restart: unless-stopped
+    ports:
+      - "${OWUI_BIND_ADDRESS}:${OWUI_HOST_PORT}:8080"
+    environment:
+      WEBUI_SECRET_KEY: ${WEBUI_SECRET_KEY}
+      WEBUI_URL: ${WEBUI_URL}
+      CORS_ALLOW_ORIGIN: ${CORS_ALLOW_ORIGIN}
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS}
+      ENABLE_WELCOME_PAGE: ${ENABLE_WELCOME_PAGE}
+      ENABLE_SIGNUP: ${ENABLE_SIGNUP}
+      ENABLE_OAUTH_SIGNUP: ${ENABLE_OAUTH_SIGNUP}
+      OAUTH_CLIENT_ID: ${OAUTH_CLIENT_ID}
+      OAUTH_CLIENT_SECRET: ${OAUTH_CLIENT_SECRET}
+      OPENID_PROVIDER_URL: ${OPENID_PROVIDER_URL}
+      OAUTH_PROVIDER_NAME: ${OAUTH_PROVIDER_NAME}
+      OAUTH_SCOPES: ${OAUTH_SCOPES}
+      OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+    volumes:
+      - /srv/stacks/owui-staging/data:/app/backend/data
+    networks:
+      - infra
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl --silent --fail http://127.0.0.1:8080/health >/dev/null || exit 1",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+
+networks:
+  infra:
+    external: true

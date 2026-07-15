@@ -1,0 +1,29 @@
+# Define these values in Portainer. Do not add values to this file.
+
+# Stack routing values used only for Compose substitution.
+OWUI_BIND_ADDRESS non-secret expected=10.100.1.144
+OWUI_HOST_PORT non-secret expected=8080
+
+# Required OWUI and proxy boundary
+WEBUI_SECRET_KEY secret
+WEBUI_URL non-secret
+CORS_ALLOW_ORIGIN non-secret
+FORWARDED_ALLOW_IPS non-secret
+ENABLE_WELCOME_PAGE non-secret
+
+# Fresh account and OIDC configuration
+ENABLE_SIGNUP non-secret
+ENABLE_OAUTH_SIGNUP non-secret
+OAUTH_CLIENT_ID non-secret
+OAUTH_CLIENT_SECRET secret
+OPENID_PROVIDER_URL non-secret
+OAUTH_PROVIDER_NAME non-secret
+OAUTH_SCOPES non-secret
+
+# Configure only selected model providers
+OPENAI_API_BASE_URL non-secret expected=http://litellm:4000/v1
+OPENAI_API_KEY secret
+OLLAMA_BASE_URL non-secret
+
+# Add required Automations, Calendar, MCP, file, storage, and notification
+# names only after those integrations are selected.

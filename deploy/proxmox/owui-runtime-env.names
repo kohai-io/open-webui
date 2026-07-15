@@ -10,15 +10,21 @@ ENABLE_WELCOME_PAGE non-secret
 # Fresh account and OIDC configuration
 ENABLE_SIGNUP non-secret
 ENABLE_OAUTH_SIGNUP non-secret
+ENABLE_OAUTH_TOKEN_EXCHANGE non-secret
+OAUTH_MERGE_ACCOUNTS_BY_EMAIL non-secret
 OAUTH_CLIENT_ID non-secret
 OAUTH_CLIENT_SECRET secret
 OPENID_PROVIDER_URL non-secret
+OPENID_REDIRECT_URI non-secret
 OAUTH_PROVIDER_NAME non-secret
 OAUTH_SCOPES non-secret
+OAUTH_CODE_CHALLENGE_METHOD non-secret
 
 # Configure only the selected model providers
+ENABLE_OPENAI_API non-secret
 OPENAI_API_BASE_URL non-secret
 OPENAI_API_KEY secret
+ENABLE_OLLAMA_API non-secret
 OLLAMA_BASE_URL non-secret
 
 # Add required Automations, Calendar, MCP, files, storage, and provider names

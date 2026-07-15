@@ -2,6 +2,7 @@
 
 ORIGIN non-secret
 OWUI_BASE_URL non-secret
+OWUI_PUBLIC_URL non-secret
 OIDC_ISSUER_URL non-secret
 OIDC_CLIENT_ID non-secret
 OIDC_CLIENT_SECRET secret

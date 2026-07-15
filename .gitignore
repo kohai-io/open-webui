@@ -318,3 +318,6 @@ cypress/screenshots
 
 backend/start.ps1
 scripts/port_v082_bootstrap.ps1
+
+# Generated Proxmox deployment bundles
+/*-proxmox-bundle-*.tar.gz

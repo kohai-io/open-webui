@@ -37,6 +37,9 @@ fixed backup root.
 | `install-or-update.sh`   | Digest-only first install and update with stopped-service backup   |
 | `health-check.sh`        | Local service health check                                         |
 | `rollback.sh`            | Checksum-verified image and data rollback                          |
+| `provision-owui-lxc.sh`  | Guarded Proxmox-host preparation through the runtime-env stop gate |
+| `provision-studio-lxc.sh` | Guarded Studio LXC preparation through the identity stop gate     |
+| `STUDIO_LXC_RUNBOOK.md`  | Console-run Studio LXC preparation through the identity stop gate  |
 | `REHEARSAL_CHECKLIST.md` | Evidence checklist for disposable staging LXCs                     |
 
 ## Build and publication boundary
@@ -57,6 +60,12 @@ manifest digest after the push, and use that digest for deployment. A local
 image ID or mutable tag does not satisfy the contract.
 
 ## LXC prerequisites
+
+For the recorded disposable OWUI target, `provision-owui-lxc.sh` automates
+the host and guest preparation described in `OWUI_LXC_RUNBOOK.md`. Run it
+only from a reviewed local bundle on the selected Proxmox host. It refuses an
+existing VMID by default, supports validated resume after partial failure,
+and never deletes a guest or creates runtime secrets.
 
 Install these packages or equivalent host tools inside each disposable LXC:
 

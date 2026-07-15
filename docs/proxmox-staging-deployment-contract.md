@@ -2,6 +2,12 @@
 
 Recorded on 2026-07-11 for Phase 9 of the Open WebUI v0.10.2 rebaseline.
 
+> Evaluation note, 2026-07-12: a Portainer-managed stack on existing Docker VM
+> `113` was considered after the first LXC preparation interruption, but was
+> not adopted. See `docs/phase-9-portainer-topology-amendment.md`. The selected
+> separate-LXC design below remains active; do not treat partially prepared LXC
+> `105` as a completed OWUI rehearsal.
+
 This contract selects the staging topology and deployment boundaries. An
 operator must still select the Proxmox node, container IDs, storage pool,
 network addresses, DNS names, private image registry, and reverse-proxy host
@@ -37,6 +43,13 @@ LXCs.
 Treat these figures as starting allocations. Record CPU, memory, disk,
 storage-pool, and mount-point choices before provisioning. Increase Studio
 resources if Flow concurrency or Media traffic reaches the recorded limits.
+
+For the disposable OWUI bootstrap rehearsal, the operator approved a smaller
+40 GiB total allocation split into a 24 GiB root disk for Debian and Docker
+images and a separate 16 GiB managed application-data volume. The first 8 GiB
+root and 32 GiB data split could not extract the pinned OWUI image. This
+rehearsal exception does not change the 50 GiB staging starting allocation
+above.
 
 Use local block-backed storage for both SQLite data directories. Do not place
 SQLite files on NFS, SMB, or another filesystem with unverified locking and
