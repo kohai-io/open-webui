@@ -4,7 +4,7 @@
 
 The production OWUI image comes from `main`. It starts at upstream Open WebUI `v0.10.2` (`ecd48e2f7`) and applies the Welcome patch series listed in [`PATCHES.md`](../PATCHES.md).
 
-Use `rebaseline/upstream-v0.10.2` to maintain and test the upstream rebase before promotion to `main`. The previous customised fork remains available at `legacy/v0.6.36-custom`.
+Use `main` for maintained development and production releases. For the next upstream upgrade, create a short-lived branch from the selected upstream release tag and follow the rebase procedure in `PATCHES.md` before promotion to `main`. The previous customised fork remains frozen at `legacy/v0.6.36-custom`; `archive/pre-v0102-transition` and `archive/rebaseline-v0.9.4` preserve historical transition work.
 
 ## How the Welcome page enters the image
 
@@ -39,7 +39,7 @@ docker build --platform linux/amd64 `
 
 Push and deploy an immutable image digest. Record the source revision, image digest, platform, UID/GID, base-image digests, and build command in the release evidence.
 
-The customised `.github/workflows/docker.yaml` runs for `main` and `rebaseline/upstream-v0.10.2`. It passes UID/GID `1000:1000` and checks the runtime user after each image build. Production releases come from `main`.
+The customised `.github/workflows/docker.yaml` runs on pushes to `main` and `dev`, pushes of `v*` tags, and manual dispatch. It passes UID/GID `1000:1000` and checks the runtime user after each image build. Production releases come from `main`. Pushing to GitHub `main` automatically builds and publishes Docker images.
 
 ## Enable and roll back
 
