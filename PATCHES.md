@@ -58,3 +58,7 @@ Set `ENABLE_WELCOME_PAGE=True` to replace the parameter-free `/` chat landing pa
 ### Removal and rollback
 
 Set `ENABLE_WELCOME_PAGE=False` or deploy an unpatched upstream image. No database rollback or data conversion is required.
+
+## Repository automation
+
+Keep the frontend and Python validation workflows. The inherited Docker publishing, GitHub release, and PyPI publishing workflows are removed from this fork; do not restore them when updating the upstream baseline. Image publishing remains an explicit release action documented in [the build guide](docs/WELCOME_IMAGE_BUILD.md).

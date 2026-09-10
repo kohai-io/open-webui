@@ -39,7 +39,7 @@ docker build --platform linux/amd64 `
 
 Push and deploy an immutable image digest. Record the source revision, image digest, platform, UID/GID, base-image digests, and build command in the release evidence.
 
-The customised `.github/workflows/docker.yaml` runs on pushes to `main` and `dev`, pushes of `v*` tags, and manual dispatch. It passes UID/GID `1000:1000` and checks the runtime user after each image build. Production releases come from `main`. Pushing to GitHub `main` automatically builds and publishes Docker images.
+GitHub Actions runs frontend build and test checks and Python checks. This fork has no GitHub Actions workflows for Docker image publishing, GitHub releases, or PyPI publishing. Build images explicitly using the command above, verify the revision label and runtime user, and publish to the selected registry as a separate release action.
 
 ## Enable and roll back
 
