@@ -39,7 +39,7 @@ describe('Welcome routing', () => {
 	it('uses Welcome after sign-in without a destination', () => {
 		login();
 		cy.location('pathname').should('eq', '/welcome');
-		cy.get('input[placeholder="Ask anything..."]:visible').should('be.visible');
+		cy.get('input[name="message"]:visible').should('be.visible');
 	});
 
 	it('preserves an explicit root sign-in destination', () => {
@@ -94,7 +94,7 @@ describe('Welcome routing', () => {
 		cy.get('nav button').first().click();
 		cy.get('#sidebar a[href="/welcome"]').click();
 		cy.location('pathname').should('eq', '/welcome');
-		cy.get('input[placeholder="Ask anything..."]:visible').should('be.visible');
+		cy.get('input[name="message"]:visible').should('be.visible');
 	});
 
 	it('falls back to Chat and hides Home when Welcome is disabled', () => {

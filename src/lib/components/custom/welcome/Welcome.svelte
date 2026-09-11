@@ -57,7 +57,7 @@
 
 	const storeFilesForTransfer = (): boolean => {
 		if (hasPendingWelcomeFileOperations(files, pendingFileOperations)) {
-			toast.error($i18n.t('Please wait for file uploads to finish'));
+			toast.error($i18n.t('Please wait until all files are uploaded.'));
 			return false;
 		}
 
@@ -437,15 +437,9 @@
 					class="font-semibold mb-1 text-gray-900 dark:text-white"
 				>
 					<span class="text-blue-600 dark:text-blue-400"
-						>{$i18n.t('Hello, {{name}}.', { name: $user?.name || $i18n.t('there') })}</span
+						>{$i18n.t('Hello, {{name}}', { name: $user?.name || $i18n.t('User') })}</span
 					>
 				</h1>
-				<p
-					style="font-size: clamp(2rem, 6vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;"
-					class="font-semibold text-gray-600 dark:text-gray-400"
-				>
-					{$i18n.t('how can I help?')}
-				</p>
 			</div>
 
 			<!-- Chat Input - Desktop only (inline) -->
@@ -490,7 +484,7 @@
 								{#if file.type === 'image'}
 									<img
 										src={file.url}
-										alt={file.name || 'Uploaded image'}
+										alt={file.name || $i18n.t('Image')}
 										class="w-20 h-20 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700"
 									/>
 								{:else}
@@ -596,7 +590,7 @@
 							bind:this={inputElement}
 							type="text"
 							name="message"
-							placeholder={$i18n.t('Ask anything...')}
+							placeholder={$i18n.t('How can I help you today?')}
 							class="w-full px-6 py-4 pl-24 pr-32 text-lg rounded-2xl bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
 						/>
 						<div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
@@ -942,7 +936,7 @@
 						<div>
 							<div class="font-medium text-gray-900 dark:text-gray-100">{$i18n.t('New Chat')}</div>
 							<div class="text-sm text-gray-500 dark:text-gray-400">
-								{$i18n.t('Start a conversation')}
+								{$i18n.t('Start a new conversation')}
 							</div>
 						</div>
 					</a>
@@ -1044,7 +1038,7 @@
 						{#if file.type === 'image'}
 							<img
 								src={file.url}
-								alt={file.name || 'Uploaded image'}
+								alt={file.name || $i18n.t('Image')}
 								class="w-16 h-16 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700"
 							/>
 						{:else}
@@ -1145,7 +1139,7 @@
 					bind:this={mobileInputElement}
 					type="text"
 					name="message"
-					placeholder={$i18n.t('Ask anything...')}
+					placeholder={$i18n.t('How can I help you today?')}
 					class="flex-1 min-w-0 px-3 py-3 text-base rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
 				/>
 				<div class="flex items-center gap-0.5 shrink-0">
