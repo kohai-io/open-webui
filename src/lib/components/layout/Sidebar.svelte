@@ -83,6 +83,7 @@
 	import Code from '../icons/Code.svelte';
 	import { slide } from 'svelte/transition';
 	import HotkeyHint from '../common/HotkeyHint.svelte';
+	import WelcomeLink from '$lib/components/custom/welcome/WelcomeLink.svelte';
 
 	const BREAKPOINT = 768;
 	const DEFAULT_PINNED_ITEMS = ['notes', 'workspace'];
@@ -807,7 +808,7 @@
 	id="sidebar-new-chat-button"
 	class="hidden"
 	on:click={() => {
-		goto('/?new=true');
+		goto('/');
 		newChatHandler();
 	}}
 />
@@ -858,17 +859,18 @@
 			</div>
 
 			<div class="-mt-[0.5px]">
+				<WelcomeLink compact onNavigate={newChatHandler} />
 				<div class="">
 					<Tooltip content={$i18n.t('New Chat')} placement="right">
 						<a
 							class=" cursor-pointer flex rounded-xl hover:bg-gray-100 dark:hover:bg-gray-850 transition group"
-							href="/?new=true"
+							href="/"
 							draggable="false"
 							on:click={async (e) => {
 								e.stopImmediatePropagation();
 								e.preventDefault();
 
-								goto('/?new=true');
+								goto('/');
 								newChatHandler();
 							}}
 							aria-label={$i18n.t('New Chat')}
@@ -1053,6 +1055,7 @@
 					class="flex items-center rounded-xl size-8.5 h-full justify-center hover:bg-gray-100/50 dark:hover:bg-gray-850/50 transition no-drag-region"
 					href="/"
 					draggable="false"
+					on:click={newChatHandler}
 				>
 					<img
 						crossorigin="anonymous"
@@ -1062,7 +1065,7 @@
 					/>
 				</a>
 
-				<a href="/" class="flex flex-1 px-0.5">
+				<a href="/" class="flex flex-1 px-0.5" on:click={newChatHandler}>
 					<div
 						id="sidebar-webui-name"
 						class=" self-center font-medium text-gray-850 dark:text-white font-primary"
@@ -1107,11 +1110,12 @@
 				}}
 			>
 				<div class="pb-1.5">
+					<WelcomeLink onNavigate={newChatHandler} />
 					<div class="px-[0.4375rem] flex justify-center text-gray-800 dark:text-gray-200">
 						<a
 							id="sidebar-new-chat-button"
 							class="group grow flex items-center space-x-3 rounded-2xl px-2.5 py-2 hover:bg-gray-100 dark:hover:bg-gray-900 transition outline-none"
-							href="/?new=true"
+							href="/"
 							draggable="false"
 							on:click={newChatHandler}
 							aria-label={$i18n.t('New Chat')}

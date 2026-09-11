@@ -11,6 +11,7 @@
 		showSearch
 	} from '$lib/stores';
 	import { getModels } from '$lib/apis';
+	import { WEBUI_API_BASE_URL } from '$lib/constants';
 	import { getModelItems as getWorkspaceModels } from '$lib/apis/models';
 	import { getFunctions } from '$lib/apis/functions';
 	import type { Writable } from 'svelte/store';
@@ -56,7 +57,7 @@
 
 	const storeFilesForTransfer = (): boolean => {
 		if (hasPendingWelcomeFileOperations(files, pendingFileOperations)) {
-			toast.error($i18n.t('Please wait for file uploads to finish'));
+			toast.error($i18n.t('Please wait until all files are uploaded.'));
 			return false;
 		}
 
@@ -436,15 +437,9 @@
 					class="font-semibold mb-1 text-gray-900 dark:text-white"
 				>
 					<span class="text-blue-600 dark:text-blue-400"
-						>{$i18n.t('Hello, {{name}}.', { name: $user?.name || $i18n.t('there') })}</span
+						>{$i18n.t('Hello, {{name}}', { name: $user?.name || $i18n.t('User') })}</span
 					>
 				</h1>
-				<p
-					style="font-size: clamp(2rem, 6vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;"
-					class="font-semibold text-gray-600 dark:text-gray-400"
-				>
-					{$i18n.t('how can I help?')}
-				</p>
 			</div>
 
 			<!-- Chat Input - Desktop only (inline) -->
@@ -489,7 +484,7 @@
 								{#if file.type === 'image'}
 									<img
 										src={file.url}
-										alt={file.name || 'Uploaded image'}
+										alt={file.name || $i18n.t('Image')}
 										class="w-20 h-20 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700"
 									/>
 								{:else}
@@ -595,7 +590,7 @@
 							bind:this={inputElement}
 							type="text"
 							name="message"
-							placeholder={$i18n.t('Ask anything...')}
+							placeholder={$i18n.t('How can I help you today?')}
 							class="w-full px-6 py-4 pl-24 pr-32 text-lg rounded-2xl bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
 						/>
 						<div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
@@ -657,7 +652,7 @@
 				</h2>
 				<div class="flex gap-3 overflow-x-auto scrollbar-none pb-1">
 					<a
-						href="/?new=true"
+						href="/"
 						class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-[0.98] transition"
 					>
 						<svg
@@ -774,10 +769,13 @@
 									{!isDragging ? 'active:scale-[0.98]' : ''}"
 								>
 									<img
-										src={agent?.meta?.profile_image_url ??
-											agent?.info?.meta?.profile_image_url ??
-											'/static/favicon.png'}
+										src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${encodeURIComponent(agent.id)}&lang=${$i18n.language}`}
 										alt={agent.name}
+										on:error={(e) => {
+											if (e.currentTarget.getAttribute('src') !== '/favicon.png') {
+												e.currentTarget.src = '/favicon.png';
+											}
+										}}
 										class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700 flex-shrink-0 pointer-events-none"
 									/>
 									<div class="min-w-0 flex-1 pointer-events-none">
@@ -856,10 +854,13 @@
 										: 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm'}"
 								>
 									<img
-										src={agent?.meta?.profile_image_url ??
-											agent?.info?.meta?.profile_image_url ??
-											'/static/favicon.png'}
+										src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${encodeURIComponent(agent.id)}&lang=${$i18n.language}`}
 										alt={agent.name}
+										on:error={(e) => {
+											if (e.currentTarget.getAttribute('src') !== '/favicon.png') {
+												e.currentTarget.src = '/favicon.png';
+											}
+										}}
 										class="w-9 h-9 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700 flex-shrink-0"
 									/>
 									<div class="min-w-0 flex-1">
@@ -916,7 +917,7 @@
 				</h2>
 				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 					<a
-						href="/?new=true"
+						href="/"
 						class="flex items-center gap-3 p-4 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
 					>
 						<svg
@@ -935,7 +936,7 @@
 						<div>
 							<div class="font-medium text-gray-900 dark:text-gray-100">{$i18n.t('New Chat')}</div>
 							<div class="text-sm text-gray-500 dark:text-gray-400">
-								{$i18n.t('Start a conversation')}
+								{$i18n.t('Start a new conversation')}
 							</div>
 						</div>
 					</a>
@@ -1037,7 +1038,7 @@
 						{#if file.type === 'image'}
 							<img
 								src={file.url}
-								alt={file.name || 'Uploaded image'}
+								alt={file.name || $i18n.t('Image')}
 								class="w-16 h-16 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700"
 							/>
 						{:else}
@@ -1138,7 +1139,7 @@
 					bind:this={mobileInputElement}
 					type="text"
 					name="message"
-					placeholder={$i18n.t('Ask anything...')}
+					placeholder={$i18n.t('How can I help you today?')}
 					class="flex-1 min-w-0 px-3 py-3 text-base rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
 				/>
 				<div class="flex items-center gap-0.5 shrink-0">
