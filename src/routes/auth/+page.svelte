@@ -60,7 +60,9 @@
 			}
 
 			if (!redirectPath) {
-				redirectPath = $page.url.searchParams.get('redirect') || '/';
+				redirectPath =
+					$page.url.searchParams.get('redirect') ||
+					($config?.features?.enable_welcome_page ? '/welcome' : '/');
 			}
 
 			goto(redirectPath);
@@ -168,7 +170,7 @@
 	onMount(async () => {
 		const redirectPath = $page.url.searchParams.get('redirect');
 		if ($user !== undefined) {
-			goto(redirectPath || '/');
+			goto(redirectPath || ($config?.features?.enable_welcome_page ? '/welcome' : '/'));
 		} else {
 			if (redirectPath) {
 				localStorage.setItem('redirectPath', redirectPath);

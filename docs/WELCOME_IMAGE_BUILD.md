@@ -13,9 +13,11 @@ The repository contains the Welcome page as a native Svelte component. Docker do
 1. `Dockerfile` copies the patched repository into the Node build stage.
 2. `npm run build` compiles `Welcome.svelte` into the frontend bundle.
 3. The final Python image receives that compiled bundle from `/app/build`.
-4. `ENABLE_WELCOME_PAGE` controls which root-page component OWUI renders at runtime.
+4. `ENABLE_WELCOME_PAGE` enables `/welcome`, its sidebar Home link, and the default sign-in landing destination.
 
-The backend reads `ENABLE_WELCOME_PAGE` in `backend/open_webui/config.py` and returns it from `/api/config` as `features.enable_welcome_page`. The frontend route `src/routes/(app)/+page.svelte` renders Welcome only for `/` with no query parameters. New Chat and other query-based links continue to render the upstream Chat component.
+The backend reads `ENABLE_WELCOME_PAGE` in `backend/open_webui/config.py` and returns it from `/api/config` as `features.enable_welcome_page`. The thin route `src/routes/(app)/(custom)/welcome/+page.svelte` renders `src/lib/components/custom/welcome/Welcome.svelte` at `/welcome`. Route groups in parentheses do not appear in the URL.
+
+`src/routes/(app)/+page.svelte` remains identical to upstream: `/` always renders Chat, with existing model, prompt, tool and voice query parameters unchanged. Sign-in without a destination opens `/welcome` when enabled; explicit redirects, including `/`, remain authoritative. The sidebar Home link opens Welcome and New Chat opens `/`.
 
 The build imports Welcome at compile time, so the image contains its code even when the feature flag is off.
 
@@ -49,12 +51,13 @@ Set the runtime environment variable:
 ENABLE_WELCOME_PAGE=True
 ```
 
-Set it to `False` to restore the upstream root Chat page. The flag changes presentation only; rollback requires no database migration.
+Set it to `False` to hide the Home link and use `/` as the default sign-in destination. Requests to `/welcome` then redirect to `/` with history replacement. The root route always renders Chat regardless of this flag. The flag changes presentation only; rollback requires no database migration.
 
 ## Release checks
 
 - Confirm the checkout is clean and based on the intended upstream tag.
 - Run the focused Welcome Vitest tests and a production frontend build.
 - Verify the image revision label and runtime user.
-- Test `/`, New Chat, agent/model visibility, prompt handoff, and attachments.
+- Test `/welcome` and `/` with the flag enabled and disabled; verify default sign-in and explicit return destinations.
+- Test sidebar Home and New Chat on desktop and mobile, temporary chat, desktop query/call events, agent/model visibility, prompt handoff, and attachments.
 - Deploy the verified image digest and retain the build evidence.

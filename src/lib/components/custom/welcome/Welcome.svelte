@@ -658,7 +658,7 @@
 				</h2>
 				<div class="flex gap-3 overflow-x-auto scrollbar-none pb-1">
 					<a
-						href="/?new=true"
+						href="/"
 						class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-[0.98] transition"
 					>
 						<svg
@@ -923,7 +923,7 @@
 				</h2>
 				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 					<a
-						href="/?new=true"
+						href="/"
 						class="flex items-center gap-3 p-4 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
 					>
 						<svg
