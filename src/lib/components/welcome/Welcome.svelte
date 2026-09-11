@@ -11,6 +11,7 @@
 		showSearch
 	} from '$lib/stores';
 	import { getModels } from '$lib/apis';
+	import { WEBUI_API_BASE_URL } from '$lib/constants';
 	import { getModelItems as getWorkspaceModels } from '$lib/apis/models';
 	import { getFunctions } from '$lib/apis/functions';
 	import type { Writable } from 'svelte/store';
@@ -774,10 +775,13 @@
 									{!isDragging ? 'active:scale-[0.98]' : ''}"
 								>
 									<img
-										src={agent?.meta?.profile_image_url ??
-											agent?.info?.meta?.profile_image_url ??
-											'/static/favicon.png'}
+										src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${encodeURIComponent(agent.id)}&lang=${$i18n.language}`}
 										alt={agent.name}
+										on:error={(e) => {
+											if (e.currentTarget.getAttribute('src') !== '/favicon.png') {
+												e.currentTarget.src = '/favicon.png';
+											}
+										}}
 										class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700 flex-shrink-0 pointer-events-none"
 									/>
 									<div class="min-w-0 flex-1 pointer-events-none">
@@ -856,10 +860,13 @@
 										: 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm'}"
 								>
 									<img
-										src={agent?.meta?.profile_image_url ??
-											agent?.info?.meta?.profile_image_url ??
-											'/static/favicon.png'}
+										src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${encodeURIComponent(agent.id)}&lang=${$i18n.language}`}
 										alt={agent.name}
+										on:error={(e) => {
+											if (e.currentTarget.getAttribute('src') !== '/favicon.png') {
+												e.currentTarget.src = '/favicon.png';
+											}
+										}}
 										class="w-9 h-9 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700 flex-shrink-0"
 									/>
 									<div class="min-w-0 flex-1">
