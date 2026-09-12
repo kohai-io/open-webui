@@ -43,7 +43,14 @@ export const updateConfig = async (token: string = '', config: object) => {
 			...(token && { authorization: `Bearer ${token}` })
 		},
 		body: JSON.stringify({
-			...config
+			...Object.fromEntries(
+				Object.entries(config).map(([key, value]) => [
+					key,
+					['IMAGE_GENERATION_MODEL', 'IMAGE_EDIT_MODEL'].includes(key) && typeof value === 'string'
+						? value.trim()
+						: value
+				])
+			)
 		})
 	})
 		.then(async (res) => {
@@ -254,14 +261,12 @@ export const imageEdits = async (
 			...(token && { authorization: `Bearer ${token}` })
 		},
 		body: JSON.stringify({
-			form_data: {
-				image: images,
-				prompt,
-				...(model && { model }),
-				...(size && { size }),
-				...(n && { n }),
-				...(background && { background })
-			}
+			image: images,
+			prompt,
+			...(model && { model }),
+			...(size && { size }),
+			...(n && { n }),
+			...(background && { background })
 		})
 	})
 		.then(async (res) => {

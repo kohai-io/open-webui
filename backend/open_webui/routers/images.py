@@ -107,7 +107,12 @@ async def get_config_values(key_map: dict[str, str]) -> dict:
 
 
 async def get_image_config() -> SimpleNamespace:
-    return SimpleNamespace(**await get_config_values(IMAGE_CONFIG_KEYS))
+    values = await get_config_values(IMAGE_CONFIG_KEYS)
+    # Normalize legacy/environment values before both dispatch and capability matching.
+    for key in ('IMAGE_GENERATION_MODEL', 'IMAGE_EDIT_MODEL'):
+        if isinstance(values.get(key), str):
+            values[key] = values[key].strip()
+    return SimpleNamespace(**values)
 
 
 def config_updates(data: dict, key_map: dict[str, str]) -> dict:
@@ -169,6 +174,7 @@ def get_image_file_item(base64_string, param_name='image'):
 
 
 async def set_image_model(request: Request, model: str):
+    model = model.strip()
     log.info(f'Setting image model to {model}')
     await Config.upsert({'image_generation.model': model})
     image_config = await get_image_config()
@@ -274,6 +280,8 @@ async def get_config(request: Request, user=Depends(get_admin_user)):
 
 @router.post('/config/update')
 async def update_config(request: Request, form_data: ImagesConfig, user=Depends(get_admin_user)):
+    form_data.IMAGE_GENERATION_MODEL = form_data.IMAGE_GENERATION_MODEL.strip()
+    form_data.IMAGE_EDIT_MODEL = form_data.IMAGE_EDIT_MODEL.strip()
     if form_data.IMAGE_SIZE == 'auto' and not re.match(
         IMAGE_AUTO_SIZE_MODELS_REGEX_PATTERN, form_data.IMAGE_GENERATION_MODEL
     ):
@@ -899,7 +907,7 @@ async def image_edits(
         size = form_data.size if form_data.size else image_config.IMAGE_EDIT_SIZE
         width, height = tuple(map(int, size.split('x')))
 
-    model = image_config.IMAGE_EDIT_MODEL if form_data.model is None else form_data.model
+    model = image_config.IMAGE_EDIT_MODEL if form_data.model is None else form_data.model.strip()
 
     try:
 
@@ -977,7 +985,7 @@ async def image_edits(
                     {}
                     if re.match(
                         IMAGE_URL_RESPONSE_MODELS_REGEX_PATTERN,
-                        image_config.IMAGE_EDIT_MODEL,
+                        model,
                     )
                     else {'response_format': 'b64_json'}
                 ),

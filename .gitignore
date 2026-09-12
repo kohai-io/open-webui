@@ -1,3 +1,5 @@
+functions_tools/
+/.codex-tmp
 x.py
 yarn.lock
 .DS_Store

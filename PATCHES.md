@@ -120,6 +120,58 @@ src/lib/components/custom/media/cypress.config.js`. These checks stub all API re
 and exercise only fake files; they need no credentials. They do not replace live
 verification of server permissions or media streaming.
 
+## Image canvas
+
+The admin Images playground at `/playground/images` lazy-loads the fork-owned
+`src/lib/components/custom/image-canvas/` editor. It uses MIT-licensed Konva and
+`svelte-konva`, with no React runtime. Keep the thin upstream `Images.svelte`
+wrapper and the `imageEdits` request-body fix when porting this patch: the backend
+accepts `EditImageForm` directly, without a `form_data` wrapper.
+
+Image model IDs are trimmed on settings save and when the backend reads legacy
+configuration. Capability matching uses the resolved edit model. This prevents a
+pasted leading space from sending an invalid model ID and adding `response_format`
+to a GPT Image request. Preserve these narrow changes in `routers/images.py` and
+the frontend Images API adapter when rebasing.
+
+Users can generate from a text prompt, upload multiple images, move/resize/rotate
+and reorder image or drawing layers, draw with a configurable brush, and generate
+from the combined canvas. Canvas generation sends a single white-background
+1024×1024 PNG to the existing `/api/v1/images/edit` endpoint. The configured backend
+controls the generated output size. Text generation uses `/generations`. The first
+result opens on the canvas; Undo restores the inputs, and the results strip allows
+multiple generated images to be added to a new composition. Clear and removal are
+undoable. PNG download includes the composition without selection handles.
+
+One editable draft per user is stored in this browser's IndexedDB, including prompt
+and result references. Drafts are not server documents or shared across devices;
+undo history lasts for the mounted editing session. Generated files remain OWUI
+Files records. Images are imported as raster data, while returned OWUI file URLs
+are fetched with authentication before rendering into the exportable canvas.
+
+Both image generation and image editing retain their existing independent server
+configuration switches and backend authorization. The existing admin-only
+playground access remains. This patch adds no provider, API key, database migration,
+inpainting/mask contract, or changes to Chat and Media gallery behavior.
+
+Verification (Node 22):
+
+- `npx vitest run --dir src/lib/components/custom/image-canvas`
+- `npx vite build`
+- Start `npx vite preview --host 127.0.0.1 --port 18871`, then run
+  `npx cypress run --e2e --config-file src/lib/components/custom/image-canvas/cypress.config.js`.
+
+Browser checks mock image APIs and files, including generation failure and disabled
+settings. They check text results, multiple input images, exported pixel content,
+drawing, draft reload, layer controls, undo/redo and narrow-screen layout without
+spending model credits. A configured live provider is still needed to assess model
+quality and provider-specific interpretation of sketches.
+
+Upgrade checks: verify `EditImageForm`, generation responses and file content URLs,
+the admin image configuration flags, Svelte/Konva compatibility, and lazy loading.
+Removal: restore upstream `Images.svelte`, remove `custom/image-canvas/` and the
+Konva dependencies. The API request-body correction can remain independently.
+
 ## Repository automation
 
 Keep the frontend and Python validation workflows. The inherited Docker publishing, GitHub release, and PyPI publishing workflows are removed from this fork; do not restore them when updating the upstream baseline. Image publishing remains an explicit release action documented in [the build guide](docs/WELCOME_IMAGE_BUILD.md).
