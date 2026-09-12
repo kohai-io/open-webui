@@ -154,7 +154,8 @@ describe('Media phase one', () => {
 		cy.get('#sidebar a[href="/welcome"]').should('be.visible');
 		cy.get('#sidebar a[href="/media"]').click();
 		cy.get('header button[aria-label="Open Sidebar"]').should('be.visible');
-		cy.get('#sidebar').should('not.exist');
+		// Upstream's animated sidebar can remain mounted after closing.
+		cy.get('#sidebar').should('not.be.visible');
 		cy.get('article').should('be.visible');
 		cy.screenshot('media-mobile');
 	});
