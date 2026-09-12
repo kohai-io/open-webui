@@ -46,7 +46,7 @@ Set `ENABLE_WELCOME_PAGE=True` to enable `/welcome`, the sidebar Home link, and 
 - `src/routes/auth/+page.svelte` (default destination only)
 - `src/lib/components/custom/welcome/*`
 - A narrow Welcome attachment restore block in `src/lib/components/chat/Chat.svelte`
-- A WelcomeLink import and two insertions in `src/lib/components/layout/Sidebar.svelte`
+- A CustomLinks import and two insertions in `src/lib/components/layout/Sidebar.svelte`; the custom component includes WelcomeLink
 - Welcome strings in `src/lib/i18n/locales/*/translation.json`
 
 Keep the root route identical to upstream. Keep fork-owned components, helpers and tests together under `custom/`, with route entry points under `(custom)/`. These directories identify ownership; imports of upstream menus and the attachment handoff still require compatibility checks.
@@ -78,6 +78,47 @@ The default test URL is `http://127.0.0.1:18765`; set `CYPRESS_BASE_URL` to over
 ### Removal and rollback
 
 Set `ENABLE_WELCOME_PAGE=False` or deploy an unpatched upstream image. No database rollback or data conversion is required.
+
+## Media gallery: phase one
+
+`/media` is a thin route under `src/routes/(app)/(custom)/media/`. Its implementation,
+Files API adapter and focused tests live under `src/lib/components/custom/media/`.
+`custom/navigation/CustomLinks.svelte` provides the shared sidebar integration for
+Welcome and Media, in both expanded and collapsed navigation.
+
+Media is available to signed-in, approved users independently of `ENABLE_WELCOME_PAGE`.
+This phase adds no backend endpoint, environment setting, database migration or Chat
+change. It reuses the existing paginated `/api/v1/files/?page=N&content=false` endpoint,
+file content URLs and file deletion API. Listing follows upstream access rules:
+administrators may see other users' files when `BYPASS_ADMIN_ACCESS_CONTROL` allows it.
+
+The gallery supports image/video/audio filtering, filename search, previews, downloads
+and confirmed single-file deletion. Search and filters apply only to loaded files.
+Each Load more action fetches one upstream page (currently 50 files, including non-media
+files); no automatic full-library scan occurs. After deletion, pagination restarts to
+avoid skipping files as upstream offsets shift. Video/audio load only in the preview.
+
+Chat/folder grouping, orphan classification, prompt extraction, bulk deletion, timeline
+editing, sorting across the whole library and Chat attachment handoff are deferred.
+The legacy `/workspace/media` URL is not restored. Feature-owned copy lives in `media/copy.ts`
+and uses the `customMedia` i18next namespace with English defaults. Existing labels reuse
+upstream translations. An extraction regression test ensures the custom components add no
+keys to upstream locale dictionaries during the CI translation check.
+
+Upgrade checks: confirm the Files response still has `items` and `total`, page numbering
+and access rules; check content/download authentication, deletion, and imported modal
+interfaces; check `/media` for an upstream route collision. Verify sidebar navigation
+on desktop/mobile with Welcome enabled and disabled, empty/non-media pages, pagination
+and retries, media previews and deletion on a disposable file. Run focused Media and
+Welcome tests and a production frontend build. Remove the custom route/components and
+restore the WelcomeLink sidebar insertions to remove this feature.
+
+Run the focused tests with `npx vitest run --dir src/lib/components/custom`.
+For the mocked browser checks, build the frontend, start `npx vite preview --host
+127.0.0.1 --port 18766`, then run `npx cypress run --e2e --config-file
+src/lib/components/custom/media/cypress.config.js`. These checks stub all API requests
+and exercise only fake files; they need no credentials. They do not replace live
+verification of server permissions or media streaming.
 
 ## Repository automation
 
