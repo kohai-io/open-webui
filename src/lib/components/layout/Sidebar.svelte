@@ -83,7 +83,7 @@
 	import Code from '../icons/Code.svelte';
 	import { slide } from 'svelte/transition';
 	import HotkeyHint from '../common/HotkeyHint.svelte';
-	import WelcomeLink from '$lib/components/custom/welcome/WelcomeLink.svelte';
+	import CustomLinks from '$lib/components/custom/navigation/CustomLinks.svelte';
 
 	const BREAKPOINT = 768;
 	const DEFAULT_PINNED_ITEMS = ['notes', 'workspace'];
@@ -859,7 +859,7 @@
 			</div>
 
 			<div class="-mt-[0.5px]">
-				<WelcomeLink compact onNavigate={newChatHandler} />
+				<CustomLinks compact onNavigate={newChatHandler} />
 				<div class="">
 					<Tooltip content={$i18n.t('New Chat')} placement="right">
 						<a
@@ -1110,7 +1110,7 @@
 				}}
 			>
 				<div class="pb-1.5">
-					<WelcomeLink onNavigate={newChatHandler} />
+					<CustomLinks onNavigate={newChatHandler} />
 					<div class="px-[0.4375rem] flex justify-center text-gray-800 dark:text-gray-200">
 						<a
 							id="sidebar-new-chat-button"
