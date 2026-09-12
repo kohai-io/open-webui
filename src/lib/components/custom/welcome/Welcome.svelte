@@ -197,7 +197,7 @@
 
 <div class="h-full min-h-0 w-full flex flex-col">
 	<!-- Top Navigation Bar -->
-	<nav class="sticky top-0 z-30 w-full py-1 pl-1.5 pr-1">
+	<nav class="sticky top-0 z-30 w-full shrink-0 py-1 pl-1.5 pr-1">
 		<div class="w-full flex items-center justify-between">
 			<!-- Left: Sidebar button (mobile only) -->
 			<div class="flex items-center">
@@ -240,381 +240,396 @@
 		</div>
 	</nav>
 
-	<!-- Scroll the catalogue independently of the surrounding Chat layout. -->
-	<div class="flex-1 min-h-0 overflow-y-auto px-4 pt-8 md:pt-0 md:px-12 lg:px-20 pb-8">
-		<div class="max-w-6xl mx-auto w-full flex flex-col">
-			<!-- Greeting -->
-			<!-- Keep the desktop composer near the New Chat starting position as the viewport grows. -->
-			<div class="mb-6 md:mb-8 mt-2 md:mt-0 md:flex md:min-h-[calc(50dvh-10rem)] md:items-end">
-				<h1
-					style="font-size: clamp(2rem, 6vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;"
-					class="font-semibold mb-1 text-gray-900 dark:text-white"
+	<!-- Mobile content scrolls above the composer; desktop keeps the composer below the greeting. -->
+	<div class="flex-1 min-h-0 overflow-hidden md:overflow-y-auto md:px-12 lg:px-20 md:pb-8">
+		<div class="max-w-6xl mx-auto w-full h-full md:h-auto flex flex-col">
+			<div
+				data-testid="welcome-content"
+				class="min-h-0 flex-1 overflow-y-auto px-4 pt-8 pb-4 md:contents"
+			>
+				<!-- Greeting -->
+				<!-- Keep the desktop composer near the New Chat starting position as the viewport grows. -->
+				<div
+					class="mb-6 md:mb-8 mt-2 md:mt-0 md:order-1 md:flex md:min-h-[calc(50dvh-10rem)] md:items-end"
 				>
-					<span class="text-blue-600 dark:text-blue-400"
-						>{$i18n.t('Hello, {{name}}', { name: $user?.name || $i18n.t('User') })}</span
+					<h1
+						style="font-size: clamp(2rem, 6vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;"
+						class="font-semibold mb-1 text-gray-900 dark:text-white"
 					>
-				</h1>
-			</div>
-
-			<!-- Chat owns the composer and all model, file and submission state. -->
-			<div class="mb-10 md:mb-12 w-full">
-				<slot />
-			</div>
-
-			<!-- Quick Actions - Mobile only -->
-			<div class="md:hidden mb-6">
-				<h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">
-					{$i18n.t('Quick Actions')}
-				</h2>
-				<div class="flex gap-3 overflow-x-auto scrollbar-none pb-1">
-					<a
-						href="/"
-						class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-[0.98] transition"
-					>
-						<svg
-							class="w-4 h-4 text-blue-500"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
+						<span class="text-blue-600 dark:text-blue-400"
+							>{$i18n.t('Hello, {{name}}', { name: $user?.name || $i18n.t('User') })}</span
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-							/>
-						</svg>
-						<span class="text-sm font-medium text-gray-900 dark:text-gray-100"
-							>{$i18n.t('New Chat')}</span
-						>
-					</a>
-					<button
-						type="button"
-						on:click={() => showSearch.set(true)}
-						class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-[0.98] transition"
-					>
-						<svg
-							class="w-4 h-4 text-purple-500"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-							/>
-						</svg>
-						<span class="text-sm font-medium text-gray-900 dark:text-gray-100"
-							>{$i18n.t('Search')}</span
-						>
-					</button>
-					<a
-						href="/notes"
-						class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-[0.98] transition"
-					>
-						<svg
-							class="w-4 h-4 text-amber-500"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-							/>
-						</svg>
-						<span class="text-sm font-medium text-gray-900 dark:text-gray-100"
-							>{$i18n.t('Notes')}</span
-						>
-					</a>
+					</h1>
 				</div>
-			</div>
 
-			<!-- Agents Section -->
-			<div class="w-full">
-				<div class="flex items-center justify-between mb-6">
-					<h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200">
-						{$i18n.t('Agents')}
+				<!-- Quick Actions - Mobile only -->
+				<div class="md:hidden mb-6">
+					<h2 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-3">
+						{$i18n.t('Quick Actions')}
 					</h2>
-					<a
-						href="/workspace/models"
-						class="hidden md:block text-sm text-blue-600 dark:text-blue-400 hover:underline"
-					>
-						{$i18n.t('View all')}
-					</a>
-				</div>
-
-				{#if loading}
-					<div class="flex justify-center py-16">
-						<div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
-					</div>
-				{:else if agents.length === 0}
-					<div class="text-center py-16">
-						<p class="text-gray-500 dark:text-gray-400 mb-4">
-							{$i18n.t('No agents available yet.')}
-						</p>
+					<div class="flex gap-3 overflow-x-auto scrollbar-none pb-1">
 						<a
-							href="/workspace/models"
-							class="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+							href="/"
+							class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-[0.98] transition"
 						>
-							{$i18n.t('Browse Agents')}
+							<svg
+								class="w-4 h-4 text-blue-500"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+								/>
+							</svg>
+							<span class="text-sm font-medium text-gray-900 dark:text-gray-100"
+								>{$i18n.t('New Chat')}</span
+							>
+						</a>
+						<button
+							type="button"
+							on:click={() => showSearch.set(true)}
+							class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-[0.98] transition"
+						>
+							<svg
+								class="w-4 h-4 text-purple-500"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+								/>
+							</svg>
+							<span class="text-sm font-medium text-gray-900 dark:text-gray-100"
+								>{$i18n.t('Search')}</span
+							>
+						</button>
+						<a
+							href="/notes"
+							class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-850 rounded-xl border border-gray-200 dark:border-gray-700 active:scale-[0.98] transition"
+						>
+							<svg
+								class="w-4 h-4 text-amber-500"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+								/>
+							</svg>
+							<span class="text-sm font-medium text-gray-900 dark:text-gray-100"
+								>{$i18n.t('Notes')}</span
+							>
 						</a>
 					</div>
-				{:else}
-					<!-- Mobile: Constrained vertical scroll area with drag reorder -->
-					<div class="md:hidden flex flex-col">
-						<div
-							bind:this={scrollContainer}
-							class="overflow-y-auto max-h-[240px] space-y-2 scrollbar-none"
-							on:touchmove={handleTouchMove}
-							on:touchend={handleTouchEnd}
-						>
-							{#each orderedAgents as agent, index (agent.id)}
-								<button
-									data-agent-index={index}
-									on:click={() => !isDragging && selectAgent(agent.id)}
-									on:touchstart={(e) => handleTouchStart(index, e)}
-									class="w-full flex items-center gap-2.5 p-2.5 rounded-xl border transition-all duration-150 text-left touch-manipulation
-									{draggedIndex === index
-										? 'bg-blue-100 dark:bg-blue-900/30 border-blue-500 border-2 shadow-lg scale-[1.02]'
-										: 'bg-white dark:bg-gray-850 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'}
-									{!isDragging ? 'active:scale-[0.98]' : ''}"
-								>
-									<img
-										src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${encodeURIComponent(agent.id)}&lang=${$i18n.language}`}
-										alt={agent.name}
-										on:error={(e) => {
-											if (e.currentTarget.getAttribute('src') !== '/favicon.png') {
-												e.currentTarget.src = '/favicon.png';
-											}
-										}}
-										class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700 flex-shrink-0 pointer-events-none"
-									/>
-									<div class="min-w-0 flex-1 pointer-events-none">
-										<h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
-											{agent.name}
-										</h3>
-										<p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
-											{agent?.meta?.description ?? agent?.info?.meta?.description ?? ''}
-										</p>
-									</div>
-									<svg
-										class="w-4 h-4 text-gray-400 flex-shrink-0 pointer-events-none"
-										fill="none"
-										stroke="currentColor"
-										viewBox="0 0 24 24"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M9 5l7 7-7 7"
-										/>
-									</svg>
-								</button>
-							{/each}
-							<!-- Create Agent Card - Mobile -->
-							<a
-								href="/workspace/models/create"
-								class="w-full flex items-center justify-center gap-2 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 active:scale-[0.98] transition"
-							>
-								<div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
-									<svg
-										class="w-4 h-4 text-white"
-										fill="none"
-										stroke="currentColor"
-										viewBox="0 0 24 24"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M12 4v16m8-8H4"
-										/>
-									</svg>
-								</div>
-								<span class="text-sm font-medium text-blue-600 dark:text-blue-400"
-									>{$i18n.t('Create Agent')}</span
-								>
-							</a>
-						</div>
-					</div>
-
-					<!-- Desktop/Tablet: Grid layout with scroll -->
-					<div
-						class="hidden md:block overflow-y-auto scrollbar-none"
-						style="max-height: calc(3 * 72px + 2 * 12px);"
-					>
-						<div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-min">
-							{#each orderedAgents as agent, index (agent.id)}
-								<button
-									data-agent-index={index}
-									draggable="true"
-									on:click={() => !isDragging && selectAgent(agent.id)}
-									on:dragstart={(e) => {
-										handleDragStart(index);
-										e.dataTransfer?.setData('text/plain', index.toString());
-									}}
-									on:dragover={(e) => {
-										e.preventDefault();
-										handleDragOver(index);
-									}}
-									on:dragend={handleDragEnd}
-									class="flex items-center gap-3 p-3 h-[72px] bg-white dark:bg-gray-850 rounded-lg border transition-all duration-150 text-left group cursor-grab active:cursor-grabbing
-								{draggedIndex === index
-										? 'opacity-50 scale-95 border-blue-500 border-2'
-										: 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm'}"
-								>
-									<img
-										src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${encodeURIComponent(agent.id)}&lang=${$i18n.language}`}
-										alt={agent.name}
-										on:error={(e) => {
-											if (e.currentTarget.getAttribute('src') !== '/favicon.png') {
-												e.currentTarget.src = '/favicon.png';
-											}
-										}}
-										class="w-9 h-9 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700 flex-shrink-0"
-									/>
-									<div class="min-w-0 flex-1">
-										<h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-1">
-											{agent.name}
-										</h3>
-										<p
-											class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed"
-										>
-											{agent?.meta?.description ?? agent?.info?.meta?.description ?? ''}
-										</p>
-									</div>
-								</button>
-							{/each}
-
-							<!-- Create Agent Card - Desktop -->
-							<a
-								href="/workspace/models/create"
-								class="flex items-center gap-3 p-3 h-[72px] bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 transition-all duration-150"
-							>
-								<div
-									class="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0"
-								>
-									<svg
-										class="w-4 h-4 text-white"
-										fill="none"
-										stroke="currentColor"
-										viewBox="0 0 24 24"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M12 4v16m8-8H4"
-										/>
-									</svg>
-								</div>
-								<div class="min-w-0 flex-1">
-									<div class="text-sm font-semibold text-blue-600 dark:text-blue-400">
-										{$i18n.t('Create Agent')}
-									</div>
-									<p class="text-xs text-gray-500 dark:text-gray-400">Add a new agent</p>
-								</div>
-							</a>
-						</div>
-					</div>
-				{/if}
-			</div>
-
-			<!-- Quick Actions (hidden on mobile to save space) -->
-			<div class="hidden md:block mt-16 w-full">
-				<h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">
-					{$i18n.t('Quick Actions')}
-				</h2>
-				<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-					<a
-						href="/"
-						class="flex items-center gap-3 p-4 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
-					>
-						<svg
-							class="w-5 h-5 text-gray-600 dark:text-gray-400"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-							/>
-						</svg>
-						<div>
-							<div class="font-medium text-gray-900 dark:text-gray-100">{$i18n.t('New Chat')}</div>
-							<div class="text-sm text-gray-500 dark:text-gray-400">
-								{$i18n.t('Start a new conversation')}
-							</div>
-						</div>
-					</a>
-
-					<a
-						href="/workspace/models"
-						class="flex items-center gap-3 p-4 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
-					>
-						<svg
-							class="w-5 h-5 text-gray-600 dark:text-gray-400"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-							/>
-						</svg>
-						<div>
-							<div class="font-medium text-gray-900 dark:text-gray-100">
-								{$i18n.t('Browse Agents')}
-							</div>
-							<div class="text-sm text-gray-500 dark:text-gray-400">
-								{$i18n.t('Explore all agents')}
-							</div>
-						</div>
-					</a>
-
-					<a
-						href="/workspace"
-						class="flex items-center gap-3 p-4 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
-					>
-						<svg
-							class="w-5 h-5 text-gray-600 dark:text-gray-400"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
-						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-							/>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-							/>
-						</svg>
-						<div>
-							<div class="font-medium text-gray-900 dark:text-gray-100">{$i18n.t('Workspace')}</div>
-							<div class="text-sm text-gray-500 dark:text-gray-400">
-								{$i18n.t('Manage your settings')}
-							</div>
-						</div>
-					</a>
 				</div>
+
+				<!-- Agents Section -->
+				<div class="w-full md:order-3">
+					<div class="flex items-center justify-between mb-6">
+						<h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200">
+							{$i18n.t('Agents')}
+						</h2>
+						<a
+							href="/workspace/models"
+							class="hidden md:block text-sm text-blue-600 dark:text-blue-400 hover:underline"
+						>
+							{$i18n.t('View all')}
+						</a>
+					</div>
+
+					{#if loading}
+						<div class="flex justify-center py-16">
+							<div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+						</div>
+					{:else if agents.length === 0}
+						<div class="text-center py-16">
+							<p class="text-gray-500 dark:text-gray-400 mb-4">
+								{$i18n.t('No agents available yet.')}
+							</p>
+							<a
+								href="/workspace/models"
+								class="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
+							>
+								{$i18n.t('Browse Agents')}
+							</a>
+						</div>
+					{:else}
+						<!-- Mobile: Constrained vertical scroll area with drag reorder -->
+						<div class="md:hidden flex flex-col">
+							<div
+								bind:this={scrollContainer}
+								class="overflow-y-auto max-h-[240px] space-y-2 scrollbar-none"
+								on:touchmove={handleTouchMove}
+								on:touchend={handleTouchEnd}
+							>
+								{#each orderedAgents as agent, index (agent.id)}
+									<button
+										data-agent-index={index}
+										on:click={() => !isDragging && selectAgent(agent.id)}
+										on:touchstart={(e) => handleTouchStart(index, e)}
+										class="w-full flex items-center gap-2.5 p-2.5 rounded-xl border transition-all duration-150 text-left touch-manipulation
+									{draggedIndex === index
+											? 'bg-blue-100 dark:bg-blue-900/30 border-blue-500 border-2 shadow-lg scale-[1.02]'
+											: 'bg-white dark:bg-gray-850 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'}
+									{!isDragging ? 'active:scale-[0.98]' : ''}"
+									>
+										<img
+											src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${encodeURIComponent(agent.id)}&lang=${$i18n.language}`}
+											alt={agent.name}
+											on:error={(e) => {
+												if (e.currentTarget.getAttribute('src') !== '/favicon.png') {
+													e.currentTarget.src = '/favicon.png';
+												}
+											}}
+											class="w-10 h-10 rounded-full object-cover ring-2 ring-gray-100 dark:ring-gray-700 flex-shrink-0 pointer-events-none"
+										/>
+										<div class="min-w-0 flex-1 pointer-events-none">
+											<h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+												{agent.name}
+											</h3>
+											<p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+												{agent?.meta?.description ?? agent?.info?.meta?.description ?? ''}
+											</p>
+										</div>
+										<svg
+											class="w-4 h-4 text-gray-400 flex-shrink-0 pointer-events-none"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M9 5l7 7-7 7"
+											/>
+										</svg>
+									</button>
+								{/each}
+								<!-- Create Agent Card - Mobile -->
+								<a
+									href="/workspace/models/create"
+									class="w-full flex items-center justify-center gap-2 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 active:scale-[0.98] transition"
+								>
+									<div class="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+										<svg
+											class="w-4 h-4 text-white"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M12 4v16m8-8H4"
+											/>
+										</svg>
+									</div>
+									<span class="text-sm font-medium text-blue-600 dark:text-blue-400"
+										>{$i18n.t('Create Agent')}</span
+									>
+								</a>
+							</div>
+						</div>
+
+						<!-- Desktop/Tablet: Grid layout with scroll -->
+						<div
+							class="hidden md:block overflow-y-auto scrollbar-none"
+							style="max-height: calc(3 * 72px + 2 * 12px);"
+						>
+							<div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 auto-rows-min">
+								{#each orderedAgents as agent, index (agent.id)}
+									<button
+										data-agent-index={index}
+										draggable="true"
+										on:click={() => !isDragging && selectAgent(agent.id)}
+										on:dragstart={(e) => {
+											handleDragStart(index);
+											e.dataTransfer?.setData('text/plain', index.toString());
+										}}
+										on:dragover={(e) => {
+											e.preventDefault();
+											handleDragOver(index);
+										}}
+										on:dragend={handleDragEnd}
+										class="flex items-center gap-3 p-3 h-[72px] bg-white dark:bg-gray-850 rounded-lg border transition-all duration-150 text-left group cursor-grab active:cursor-grabbing
+								{draggedIndex === index
+											? 'opacity-50 scale-95 border-blue-500 border-2'
+											: 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm'}"
+									>
+										<img
+											src={`${WEBUI_API_BASE_URL}/models/model/profile/image?id=${encodeURIComponent(agent.id)}&lang=${$i18n.language}`}
+											alt={agent.name}
+											on:error={(e) => {
+												if (e.currentTarget.getAttribute('src') !== '/favicon.png') {
+													e.currentTarget.src = '/favicon.png';
+												}
+											}}
+											class="w-9 h-9 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700 flex-shrink-0"
+										/>
+										<div class="min-w-0 flex-1">
+											<h3
+												class="text-sm font-semibold text-gray-900 dark:text-gray-100 line-clamp-1"
+											>
+												{agent.name}
+											</h3>
+											<p
+												class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed"
+											>
+												{agent?.meta?.description ?? agent?.info?.meta?.description ?? ''}
+											</p>
+										</div>
+									</button>
+								{/each}
+
+								<!-- Create Agent Card - Desktop -->
+								<a
+									href="/workspace/models/create"
+									class="flex items-center gap-3 p-3 h-[72px] bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500 transition-all duration-150"
+								>
+									<div
+										class="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0"
+									>
+										<svg
+											class="w-4 h-4 text-white"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M12 4v16m8-8H4"
+											/>
+										</svg>
+									</div>
+									<div class="min-w-0 flex-1">
+										<div class="text-sm font-semibold text-blue-600 dark:text-blue-400">
+											{$i18n.t('Create Agent')}
+										</div>
+										<p class="text-xs text-gray-500 dark:text-gray-400">Add a new agent</p>
+									</div>
+								</a>
+							</div>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Quick Actions (hidden on mobile to save space) -->
+				<div class="hidden md:block md:order-4 mt-16 w-full">
+					<h2 class="text-xl font-semibold text-gray-800 dark:text-gray-200 mb-4">
+						{$i18n.t('Quick Actions')}
+					</h2>
+					<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+						<a
+							href="/"
+							class="flex items-center gap-3 p-4 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+						>
+							<svg
+								class="w-5 h-5 text-gray-600 dark:text-gray-400"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+								/>
+							</svg>
+							<div>
+								<div class="font-medium text-gray-900 dark:text-gray-100">
+									{$i18n.t('New Chat')}
+								</div>
+								<div class="text-sm text-gray-500 dark:text-gray-400">
+									{$i18n.t('Start a new conversation')}
+								</div>
+							</div>
+						</a>
+
+						<a
+							href="/workspace/models"
+							class="flex items-center gap-3 p-4 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+						>
+							<svg
+								class="w-5 h-5 text-gray-600 dark:text-gray-400"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+								/>
+							</svg>
+							<div>
+								<div class="font-medium text-gray-900 dark:text-gray-100">
+									{$i18n.t('Browse Agents')}
+								</div>
+								<div class="text-sm text-gray-500 dark:text-gray-400">
+									{$i18n.t('Explore all agents')}
+								</div>
+							</div>
+						</a>
+
+						<a
+							href="/workspace"
+							class="flex items-center gap-3 p-4 bg-white dark:bg-gray-850 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+						>
+							<svg
+								class="w-5 h-5 text-gray-600 dark:text-gray-400"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+								/>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+								/>
+							</svg>
+							<div>
+								<div class="font-medium text-gray-900 dark:text-gray-100">
+									{$i18n.t('Workspace')}
+								</div>
+								<div class="text-sm text-gray-500 dark:text-gray-400">
+									{$i18n.t('Manage your settings')}
+								</div>
+							</div>
+						</a>
+					</div>
+				</div>
+			</div>
+			<!-- Keep one native composer mounted across breakpoints, including its draft and uploads. -->
+			<div
+				data-testid="welcome-composer"
+				class="w-full shrink-0 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:order-2 md:mb-12 md:px-0 md:py-0"
+			>
+				<slot />
 			</div>
 		</div>
 	</div>

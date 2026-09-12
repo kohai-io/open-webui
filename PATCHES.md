@@ -37,7 +37,7 @@ Set `ENABLE_WELCOME_PAGE=True` to enable `/welcome`, the sidebar Home link, and 
 - `/api/v1/functions/` supplies active function/pipe identifiers.
 - Agent definitions, prompts, knowledge, skills, tools, grants, files, and chats remain OWUI-owned.
 - Agent presentation order is a browser-local preference under `welcome-agent-order`; it is not an agent record or access-control mechanism.
-- `/welcome` renders Chat with an alternate empty-chat presentation. Placeholder renders the same native MessageInput below Welcome's greeting on desktop and mobile.
+- `/welcome` renders Chat with an alternate empty-chat presentation. Placeholder renders the same native MessageInput below Welcome's greeting on desktop and at the bottom on mobile, with the catalogue scrolling above it. CSS reorders the layout without remounting the composer or losing drafts when the viewport changes.
 - Chat owns model selection and defaults, tools, skills, attachments, voice, and submission. Welcome has no separate composer or query-string submission handoff. Sending the first message opens the ordinary conversation view.
 - Agent cards still open `/?models=...`. Uploaded attachments survive that navigation through the one-shot `welcome-files` restore; navigation waits for pending uploads.
 

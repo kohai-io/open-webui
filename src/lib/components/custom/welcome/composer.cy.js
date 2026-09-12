@@ -154,7 +154,7 @@ describe('Welcome native composer', () => {
 		});
 	});
 
-	it('places one composer below the greeting on mobile and keeps New Chat separate', () => {
+	it('anchors one composer at the bottom on mobile and keeps New Chat separate', () => {
 		cy.viewport(390, 844);
 		visit();
 		cy.contains('h1', 'Hello, Welcome Tester')
@@ -170,11 +170,48 @@ describe('Welcome native composer', () => {
 					});
 			});
 		cy.contains('button', 'Model Alpha').should('be.visible');
+		cy.get('[data-testid="welcome-composer"]').should(($composer) => {
+			expect($composer[0].getBoundingClientRect().bottom).to.be.closeTo(844, 2);
+		});
+		cy.contains('button', 'Model Alpha').click();
+		cy.get('#model-search-input').should('be.visible').type('Model Beta');
+		cy.contains('button', 'Model Beta').click();
+		cy.contains('button', 'Model Beta').should('be.visible');
 		cy.screenshot('welcome-native-mobile');
 		cy.contains('a:visible', 'New Chat').click();
 		cy.location('pathname').should('equal', '/');
 		cy.contains('h1', 'Hello, Welcome Tester').should('not.exist');
 		cy.get('#chat-input').should('be.visible');
+	});
+
+	it('keeps the composer visible on a short screen and preserves drafts across breakpoints', () => {
+		cy.viewport(390, 420);
+		visit();
+		cy.get('#chat-input').type('Keep this draft');
+		attachFile();
+		cy.get('[data-testid="welcome-content"]').scrollTo('bottom');
+		cy.get('[data-testid="welcome-composer"]').should(($composer) => {
+			expect($composer[0].getBoundingClientRect().bottom).to.be.closeTo(420, 2);
+		});
+		cy.get('#chat-input').should('be.visible').and('contain.text', 'Keep this draft');
+		cy.screenshot('welcome-native-mobile-short');
+		cy.viewport(1280, 720);
+		cy.get('#chat-input').should('have.length', 1).and('contain.text', 'Keep this draft');
+		cy.contains('welcome.txt').should('be.visible');
+		cy.contains('h1', 'Hello, Welcome Tester').then(($heading) => {
+			cy.get('[data-testid="welcome-composer"]').should(($composer) => {
+				const rect = $composer[0].getBoundingClientRect();
+				expect(rect.top).to.be.greaterThan($heading[0].getBoundingClientRect().bottom);
+				expect(rect.top).to.be.lessThan(360);
+			});
+		});
+		cy.screenshot('welcome-native-desktop');
+		cy.viewport(390, 844);
+		cy.get('#chat-input').should('have.length', 1).and('contain.text', 'Keep this draft');
+		cy.contains('welcome.txt').should('be.visible');
+		cy.get('[data-testid="welcome-composer"]').should(($composer) => {
+			expect($composer[0].getBoundingClientRect().bottom).to.be.closeTo(844, 2);
+		});
 	});
 
 	it('redirects Welcome to ordinary Chat when the feature is disabled', () => {
