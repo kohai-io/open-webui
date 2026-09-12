@@ -5,6 +5,7 @@
 	import Notes from '$lib/components/layout/Sidebar/icons/Notes.svelte';
 	import Photo from '$lib/components/icons/Photo.svelte';
 	import { mediaText } from '../media/copy';
+	import { welcomeText } from './copy';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as I18n } from 'i18next';
 
@@ -18,10 +19,7 @@
 			label: $i18n.t('Search'),
 			icon: Search,
 			href: undefined,
-			description: $i18n.t('searchDescription', {
-				ns: 'customWelcome',
-				defaultValue: 'Find past chats'
-			})
+			description: welcomeText($i18n, 'searchDescription')
 		},
 		...(notesEnabled
 			? [
@@ -30,10 +28,7 @@
 						label: $i18n.t('Notes'),
 						icon: Notes,
 						href: '/notes',
-						description: $i18n.t('notesDescription', {
-							ns: 'customWelcome',
-							defaultValue: 'Capture ideas'
-						})
+						description: welcomeText($i18n, 'notesDescription')
 					}
 				]
 			: []),
@@ -42,10 +37,7 @@
 			label: mediaText($i18n, 'title'),
 			icon: Photo,
 			href: '/media',
-			description: $i18n.t('mediaDescription', {
-				ns: 'customWelcome',
-				defaultValue: 'Browse your media'
-			})
+			description: welcomeText($i18n, 'mediaDescription')
 		}
 	];
 </script>
