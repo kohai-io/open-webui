@@ -3,6 +3,9 @@
 describe('Welcome native composer', () => {
 	let welcome;
 	let landingPageMode;
+	let notesEnabled;
+	let role;
+	let notesAllowed;
 	const model = (id, name) => ({
 		id,
 		name,
@@ -24,6 +27,9 @@ describe('Welcome native composer', () => {
 	beforeEach(() => {
 		welcome = true;
 		landingPageMode = 'chat';
+		notesEnabled = true;
+		role = 'admin';
+		notesAllowed = true;
 		cy.intercept('**/api/**', (request) => {
 			const path = new URL(request.url).pathname;
 			if (path === '/api/config')
@@ -31,7 +37,11 @@ describe('Welcome native composer', () => {
 					name: 'Open WebUI',
 					version: '0.11.3',
 					default_models: 'model-a',
-					features: { enable_welcome_page: welcome, enable_websocket: false },
+					features: {
+						enable_welcome_page: welcome,
+						enable_notes: notesEnabled,
+						enable_websocket: false
+					},
 					audio: { stt: {}, tts: {} },
 					file: { max_count: 10 }
 				});
@@ -40,8 +50,8 @@ describe('Welcome native composer', () => {
 					id: 'welcome-test',
 					name: 'Welcome Tester',
 					email: 'welcome@example.test',
-					role: 'admin',
-					permissions: { workspace: {}, chat: {} }
+					role,
+					permissions: { workspace: {}, chat: {}, features: { notes: notesAllowed } }
 				});
 			if (path === '/api/v1/users/user/settings')
 				return request.reply({
@@ -56,6 +66,12 @@ describe('Welcome native composer', () => {
 					}
 				});
 			if (path === '/api/models') return request.reply({ data: models });
+			if (
+				path === '/api/v1/notes/' ||
+				path === '/api/v1/notes/search' ||
+				(path === '/api/v1/files/' && request.method === 'GET')
+			)
+				return request.reply({ items: [], total: 0 });
 			if (path === '/api/v1/models/list')
 				return request.reply({
 					items: [
@@ -178,7 +194,8 @@ describe('Welcome native composer', () => {
 		cy.contains('button', 'Model Beta').click();
 		cy.contains('button', 'Model Beta').should('be.visible');
 		cy.screenshot('welcome-native-mobile');
-		cy.contains('a:visible', 'New Chat').click();
+		cy.get('nav button').first().click();
+		cy.get('#sidebar a[aria-label="New Chat"]').click();
 		cy.location('pathname').should('equal', '/');
 		cy.contains('h1', 'Hello, Welcome Tester').should('not.exist');
 		cy.get('#chat-input').should('be.visible');
@@ -234,4 +251,67 @@ describe('Welcome native composer', () => {
 			expect(request.body.user_message.content).to.equal('Start from New Chat');
 		});
 	});
+
+	for (const [device, width, height] of [
+		['desktop', 1280, 900],
+		['mobile', 390, 700]
+	]) {
+		it(`opens Search, Notes and Media from the same Quick Actions on ${device}`, () => {
+			cy.viewport(width, height);
+			visit();
+			cy.get('#chat-input').type('Keep my draft');
+			cy.get('section[aria-labelledby="welcome-quick-actions-title"]')
+				.as('quickActions')
+				.should('have.length', 1);
+			cy.get('@quickActions')
+				.find('button, a')
+				.should(($actions) => {
+					expect([...$actions].map((action) => action.getAttribute('aria-label'))).to.deep.equal([
+						'Search',
+						'Notes',
+						'Media'
+					]);
+					for (const action of $actions) {
+						const rect = action.getBoundingClientRect();
+						expect(rect.width).to.be.greaterThan(44);
+						expect(rect.height).to.be.greaterThan(44);
+						expect(rect.left).to.be.at.least(0);
+						expect(rect.right).to.be.at.most(width);
+					}
+				});
+			cy.screenshot(`welcome-quick-actions-${device}`);
+			cy.get('@quickActions').find('button[aria-label="Search"]').click();
+			cy.get('input[placeholder="Search"]:visible')
+				.should('be.focused')
+				.type('saved chat')
+				.type('{esc}');
+			cy.get('input[placeholder="Search"]:visible').should('not.exist');
+			cy.get('#chat-input').should('contain.text', 'Keep my draft');
+			cy.get('@quickActions').find('a[aria-label="Notes"]').click();
+			cy.location('pathname').should('equal', '/notes');
+			cy.go('back');
+			cy.get(
+				'section[aria-labelledby="welcome-quick-actions-title"] a[aria-label="Media"]'
+			).click();
+			cy.location('pathname').should('equal', '/media');
+			cy.contains('h1', 'Media').should('be.visible');
+		});
+	}
+
+	for (const restriction of ['disabled', 'not permitted']) {
+		it(`hides the Notes quick action when Notes is ${restriction}`, () => {
+			role = 'user';
+			notesEnabled = restriction !== 'disabled';
+			notesAllowed = restriction !== 'not permitted';
+			visit();
+			cy.get('section[aria-labelledby="welcome-quick-actions-title"]')
+				.find('button, a')
+				.should(($actions) => {
+					expect([...$actions].map((action) => action.getAttribute('aria-label'))).to.deep.equal([
+						'Search',
+						'Media'
+					]);
+				});
+		});
+	}
 });
