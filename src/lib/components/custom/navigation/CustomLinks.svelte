@@ -5,6 +5,7 @@
 	import type { Writable } from 'svelte/store';
 	import type { i18n as I18n } from 'i18next';
 	import WelcomeLink from '../welcome/WelcomeLink.svelte';
+	import { mediaText } from '../media/copy';
 	import Photo from '$lib/components/icons/Photo.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
 
@@ -15,10 +16,10 @@
 
 <WelcomeLink {compact} {onNavigate} />
 <div class={compact ? '' : 'px-[0.4375rem] text-gray-800 dark:text-gray-200'}>
-	<Tooltip content={$i18n.t('Media')} placement={compact ? 'right' : 'top'}>
+	<Tooltip content={mediaText($i18n, 'title')} placement={compact ? 'right' : 'top'}>
 		<a
 			href="/media"
-			aria-label={$i18n.t('Media')}
+			aria-label={mediaText($i18n, 'title')}
 			aria-current={$page.url.pathname === '/media' ? 'page' : undefined}
 			draggable="false"
 			class={compact
@@ -35,7 +36,7 @@
 			<div class={compact ? 'flex items-center justify-center size-9' : 'self-center'}>
 				<Photo className="size-4.5" />
 			</div>
-			{#if !compact}<span class="text-sm font-primary">{$i18n.t('Media')}</span>{/if}
+			{#if !compact}<span class="text-sm font-primary">{mediaText($i18n, 'title')}</span>{/if}
 		</a>
 	</Tooltip>
 </div>

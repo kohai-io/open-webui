@@ -100,8 +100,10 @@ avoid skipping files as upstream offsets shift. Video/audio load only in the pre
 
 Chat/folder grouping, orphan classification, prompt extraction, bulk deletion, timeline
 editing, sorting across the whole library and Chat attachment handoff are deferred.
-The legacy `/workspace/media` URL is not restored. New copy uses i18next's English-key
-fallback without modifying upstream locale dictionaries.
+The legacy `/workspace/media` URL is not restored. Feature-owned copy lives in `media/copy.ts`
+and uses the `customMedia` i18next namespace with English defaults. Existing labels reuse
+upstream translations. An extraction regression test ensures the custom components add no
+keys to upstream locale dictionaries during the CI translation check.
 
 Upgrade checks: confirm the Files response still has `items` and `total`, page numbering
 and access rules; check content/download authentication, deletion, and imported modal

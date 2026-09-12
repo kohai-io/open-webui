@@ -9,6 +9,7 @@
 	import ConfirmDialog from '$lib/components/common/ConfirmDialog.svelte';
 	import Sidebar from '$lib/components/icons/Sidebar.svelte';
 	import Photo from '$lib/components/icons/Photo.svelte';
+	import { mediaText } from './copy';
 	import {
 		getFilePage,
 		mediaKind,
@@ -80,7 +81,7 @@
 			// Deletion shifts the upstream page offsets. Restart instead of skipping a file.
 			await loadMore(true);
 		} catch {
-			toast.error($i18n.t('Error deleting file'));
+			toast.error(mediaText($i18n, 'deleteError'));
 		} finally {
 			deleting = false;
 			pendingDelete = null;
@@ -93,7 +94,7 @@
 	onDestroy(() => controller.abort());
 </script>
 
-<svelte:head><title>{$i18n.t('Media')} • {$WEBUI_NAME}</title></svelte:head>
+<svelte:head><title>{mediaText($i18n, 'title')} • {$WEBUI_NAME}</title></svelte:head>
 
 <div
 	class="flex h-screen max-h-[100dvh] w-full min-w-0 flex-col {$showSidebar
@@ -108,7 +109,7 @@
 				on:click={() => showSidebar.set(true)}><Sidebar /></button
 			>
 		{/if}
-		<h1 class="text-xl font-semibold">{$i18n.t('Media')}</h1>
+		<h1 class="text-xl font-semibold">{mediaText($i18n, 'title')}</h1>
 		<button
 			class="ml-auto rounded-lg px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-850 disabled:opacity-50"
 			disabled={loading || deleting}
@@ -132,15 +133,13 @@
 				>
 					<option value="all">{$i18n.t('All')}</option>
 					<option value="image">{$i18n.t('Images')}</option>
-					<option value="video">{$i18n.t('Video')}</option>
+					<option value="video">{mediaText($i18n, 'video')}</option>
 					<option value="audio">{$i18n.t('Audio')}</option>
 				</select>
 			</div>
 			<p class="mb-5 text-sm text-gray-500" aria-live="polite">
-				{$i18n.t('{{count}} media files loaded', { count: files.length })}
-				{#if hasMore}{$i18n.t(
-						'Search and filters apply to loaded files. Load more to browse further.'
-					)}{/if}
+				{mediaText($i18n, 'loaded', { count: files.length })}
+				{#if hasMore}{mediaText($i18n, 'loadedOnly')}{/if}
 			</p>
 			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 				{#each visible as file (file.id)}
@@ -164,7 +163,7 @@
 							{:else}
 								<div class="flex aspect-video items-center justify-center gap-2 text-gray-500">
 									<Photo className="size-6" />{mediaKind(file) === 'video'
-										? $i18n.t('Video')
+										? mediaText($i18n, 'video')
 										: $i18n.t('Audio')}
 								</div>
 							{/if}
@@ -194,13 +193,11 @@
 			</div>
 			{#if !loading && !error && visible.length === 0}
 				<p class="py-12 text-center text-gray-500">
-					{hasMore
-						? $i18n.t('No matching media in the files loaded so far.')
-						: $i18n.t('No results found')}
+					{hasMore ? mediaText($i18n, 'emptyPage') : $i18n.t('No results found')}
 				</p>
 			{/if}
 			{#if error}<p role="alert" class="mt-6 text-center text-red-600">
-					{$i18n.t('Unable to load files. Please try again.')}
+					{mediaText($i18n, 'loadError')}
 				</p>{/if}
 			{#if hasMore || loading || error}
 				<div class="mt-6 text-center">
@@ -211,8 +208,8 @@
 						>{loading
 							? $i18n.t('Loading...')
 							: error
-								? $i18n.t('Retry')
-								: $i18n.t('Load more')}</button
+								? mediaText($i18n, 'retry')
+								: mediaText($i18n, 'loadMore')}</button
 					>
 				</div>
 			{/if}
@@ -249,8 +246,8 @@
 
 <ConfirmDialog
 	bind:show={confirmDelete}
-	title={$i18n.t('Delete file?')}
-	message={$i18n.t('This permanently deletes the file, including access from chats that use it.')}
+	title={mediaText($i18n, 'deleteTitle')}
+	message={mediaText($i18n, 'deleteWarning')}
 	confirmLabel={$i18n.t('Delete')}
 	onConfirm={removeFile}
 />
