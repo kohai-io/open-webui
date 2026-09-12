@@ -50,7 +50,7 @@
 	];
 </script>
 
-<section aria-labelledby="welcome-quick-actions-title" class="mb-8 w-full md:order-3">
+<section aria-labelledby="welcome-quick-actions-title" class="w-full">
 	<h2
 		id="welcome-quick-actions-title"
 		class="mb-3 text-sm font-medium text-gray-600 dark:text-gray-400"

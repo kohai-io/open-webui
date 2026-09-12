@@ -206,7 +206,16 @@ describe('Welcome native composer', () => {
 		visit();
 		cy.get('#chat-input').type('Keep this draft');
 		attachFile();
+		let quickActionsTop;
+		cy.get('section[aria-labelledby="welcome-quick-actions-title"]').then(($actions) => {
+			quickActionsTop = $actions[0].getBoundingClientRect().top;
+		});
 		cy.get('[data-testid="welcome-content"]').scrollTo('bottom');
+		cy.get('section[aria-labelledby="welcome-quick-actions-title"]')
+			.should('be.visible')
+			.and(($actions) => {
+				expect($actions[0].getBoundingClientRect().top).to.be.closeTo(quickActionsTop, 1);
+			});
 		cy.get('[data-testid="welcome-composer"]').should(($composer) => {
 			expect($composer[0].getBoundingClientRect().bottom).to.be.closeTo(420, 2);
 		});
@@ -263,6 +272,32 @@ describe('Welcome native composer', () => {
 			cy.get('section[aria-labelledby="welcome-quick-actions-title"]')
 				.as('quickActions')
 				.should('have.length', 1);
+			if (device === 'desktop') {
+				cy.get('[data-testid="welcome-agents"]').then(($agents) => {
+					cy.get('@quickActions').should(($actions) => {
+						const gap =
+							$actions[0].getBoundingClientRect().top - $agents[0].getBoundingClientRect().bottom;
+						expect(gap).to.be.within(32, 48);
+					});
+				});
+			} else {
+				cy.get('[data-testid="welcome-composer"]').then(($composer) => {
+					cy.get('@quickActions')
+						.should('be.visible')
+						.and(($actions) => {
+							const rect = $actions[0].getBoundingClientRect();
+							expect(rect.bottom).to.be.greaterThan(height - 180);
+							expect($composer[0].getBoundingClientRect().top - rect.bottom).to.be.within(8, 20);
+						});
+				});
+				cy.get('[data-testid="welcome-content"]').then(($content) => {
+					cy.get('@quickActions').should(($actions) => {
+						expect($actions[0].getBoundingClientRect().top).to.be.at.least(
+							$content[0].getBoundingClientRect().bottom
+						);
+					});
+				});
+			}
 			cy.get('@quickActions')
 				.find('button, a')
 				.should(($actions) => {

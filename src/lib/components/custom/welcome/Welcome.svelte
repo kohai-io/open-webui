@@ -241,7 +241,7 @@
 		</div>
 	</nav>
 
-	<!-- Mobile content scrolls above the composer; desktop keeps the composer below the greeting. -->
+	<!-- Mobile content scrolls above Quick Actions and the composer. -->
 	<div class="flex-1 min-h-0 overflow-hidden md:overflow-y-auto md:px-12 lg:px-20 md:pb-8">
 		<div class="max-w-6xl mx-auto w-full h-full md:h-auto flex flex-col">
 			<div
@@ -263,10 +263,8 @@
 					</h1>
 				</div>
 
-				<QuickActions />
-
 				<!-- Agents Section -->
-				<div class="w-full md:order-4">
+				<div data-testid="welcome-agents" class="w-full md:order-3">
 					<div class="flex items-center justify-between mb-6">
 						<h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200">
 							{$i18n.t('Agents')}
@@ -458,6 +456,10 @@
 						</div>
 					{/if}
 				</div>
+			</div>
+			<!-- Keep shortcuts within thumb reach on mobile, below Agents on desktop. -->
+			<div class="shrink-0 px-4 pt-4 pb-3 md:order-4 md:mt-10 md:p-0">
+				<QuickActions />
 			</div>
 			<!-- Keep one native composer mounted across breakpoints, including its draft and uploads. -->
 			<div
