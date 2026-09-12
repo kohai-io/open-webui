@@ -87,6 +87,9 @@ Set `ENABLE_WELCOME_PAGE=False` or deploy an unpatched upstream image. No databa
 Files API adapter and focused tests live under `src/lib/components/custom/media/`.
 `custom/navigation/CustomLinks.svelte` provides the shared sidebar integration for
 Welcome and Media, in both expanded and collapsed navigation.
+Both links use `custom/navigation/NavigationLink.svelte` to match upstream sidebar
+row sizing, selected-page styling and compact navigation. Check these against the
+upstream Sidebar when porting to a new release.
 
 Media is available to signed-in, approved users independently of `ENABLE_WELCOME_PAGE`.
 This phase adds no backend endpoint, environment setting, database migration or Chat
