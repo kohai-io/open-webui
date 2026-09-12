@@ -20,31 +20,8 @@ export const orderWelcomeAgents = <T extends { id: string }>(
 	return [...ordered, ...byId.values()];
 };
 
-export const buildWelcomeChatQuery = ({
-	message,
-	webSearchEnabled = false,
-	imageGenerationEnabled = false,
-	codeInterpreterEnabled = false,
-	selectedToolIds = []
-}: {
-	message: string;
-	webSearchEnabled?: boolean;
-	imageGenerationEnabled?: boolean;
-	codeInterpreterEnabled?: boolean;
-	selectedToolIds?: string[];
-}): string => {
-	const params = new URLSearchParams({ q: message.trim() });
-	if (webSearchEnabled) params.set('web-search', 'true');
-	if (imageGenerationEnabled) params.set('image-generation', 'true');
-	if (codeInterpreterEnabled) params.set('code-interpreter', 'true');
-	if (selectedToolIds.length) params.set('tools', selectedToolIds.join(','));
-	return params.toString();
-};
-
-export const hasPendingWelcomeFileOperations = (
-	files: Array<{ status?: string }>,
-	pendingOperations = 0
-): boolean => pendingOperations > 0 || files.some((file) => file.status === 'uploading');
+export const hasPendingWelcomeFileOperations = (files: Array<{ status?: string }>): boolean =>
+	files.some((file) => file.status === 'uploading');
 
 const tagsFor = (item: any): string[] =>
 	(item?.meta?.tags ?? item?.tags ?? []).flatMap((tag: any) =>

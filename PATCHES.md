@@ -37,7 +37,9 @@ Set `ENABLE_WELCOME_PAGE=True` to enable `/welcome`, the sidebar Home link, and 
 - `/api/v1/functions/` supplies active function/pipe identifiers.
 - Agent definitions, prompts, knowledge, skills, tools, grants, files, and chats remain OWUI-owned.
 - Agent presentation order is a browser-local preference under `welcome-agent-order`; it is not an agent record or access-control mechanism.
-- Ordinary files are uploaded through OWUI's Files API before Chat handoff. Image and screen captures retain the existing data-URL handoff behavior.
+- `/welcome` renders Chat with an alternate empty-chat presentation. Placeholder renders the same native MessageInput below Welcome's greeting on desktop and mobile.
+- Chat owns model selection and defaults, tools, skills, attachments, voice, and submission. Welcome has no separate composer or query-string submission handoff. Sending the first message opens the ordinary conversation view.
+- Agent cards still open `/?models=...`. Uploaded attachments survive that navigation through the one-shot `welcome-files` restore; navigation waits for pending uploads.
 
 ### Patch surface
 
@@ -47,7 +49,8 @@ Set `ENABLE_WELCOME_PAGE=True` to enable `/welcome`, the sidebar Home link, and 
 - `src/routes/(app)/(custom)/welcome/+page.svelte`
 - `src/routes/auth/+page.svelte` (default destination only)
 - `src/lib/components/custom/welcome/*`
-- A narrow Welcome attachment restore block in `src/lib/components/chat/Chat.svelte`
+- The optional Welcome presentation flag, empty-chat branches, and agent-card attachment restore block in `src/lib/components/chat/Chat.svelte`
+- A Welcome presentation branch and shared MessageInput snippet in `src/lib/components/chat/Placeholder.svelte`
 - A CustomLinks import and two insertions in `src/lib/components/layout/Sidebar.svelte`; the custom component includes WelcomeLink
 - Welcome strings in `src/lib/i18n/locales/*/translation.json`
 
@@ -55,7 +58,8 @@ Keep the root route identical to upstream. Keep fork-owned components, helpers a
 
 ### Verification
 
-- Focused Vitest coverage for access-aware classification, ordering, and composer query handoff.
+- Focused Vitest coverage for access-aware classification, ordering, and pending attachment checks.
+- Stubbed Cypress coverage for native model selection and submission, attachments, agent-card handoff, mobile composer placement, and the disabled feature flag.
 - Full Vite production build.
 - Navigation checks with the flag on and off: `/welcome`, `/`, default sign-in, explicit sign-in redirects, sidebar Home and New Chat (expanded/collapsed/mobile), temporary chat, and desktop query/call events.
 - Manual checks: agent/model visibility, prompt submission, integrations, file/image attachment, dictation, voice mode, ordering persistence, quick actions, and mobile layout.
@@ -67,6 +71,8 @@ npx cypress run --e2e --config-file src/lib/components/custom/welcome/cypress.co
 ```
 
 The default test URL is `http://127.0.0.1:18765`; set `CYPRESS_BASE_URL` to override it. The checks override the browser's feature-flag response to exercise both settings. They cover default and explicit sign-in destinations, root Chat navigation, and desktop/mobile sidebar links without making model calls.
+
+Run the native composer integration checks against a frontend preview with `npx cypress run --e2e --config-file src/lib/components/custom/welcome/composer.config.js`. This suite defaults to port 18766 and stubs all API traffic, including file uploads and model requests; no account or model service is needed.
 
 ### Rebase procedure
 

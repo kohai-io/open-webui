@@ -1,26 +1,17 @@
 <script lang="ts">
-	import { onMount, getContext, tick } from 'svelte';
+	import { onMount, getContext } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { config, settings, user, showSidebar, mobile, showSearch } from '$lib/stores';
-	import { getModels } from '$lib/apis';
+	import { user, models, showSidebar, mobile, showSearch } from '$lib/stores';
 	import { WEBUI_API_BASE_URL } from '$lib/constants';
 	import { getModelItems as getWorkspaceModels } from '$lib/apis/models';
 	import { getFunctions } from '$lib/apis/functions';
 	import type { Writable } from 'svelte/store';
 	import type { i18n as i18nType } from 'i18next';
 	import { toast } from 'svelte-sonner';
-	import Voice from '$lib/components/icons/Voice.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
-	import VoiceRecording from '$lib/components/chat/MessageInput/VoiceRecording.svelte';
 	import Sidebar from '$lib/components/icons/Sidebar.svelte';
 	import UserMenu from '$lib/components/layout/Sidebar/UserMenu.svelte';
-	import InputMenu from '$lib/components/chat/MessageInput/InputMenu.svelte';
-	import IntegrationsMenu from '$lib/components/chat/MessageInput/IntegrationsMenu.svelte';
-	import PlusAlt from '$lib/components/icons/PlusAlt.svelte';
-	import Component from '$lib/components/icons/Component.svelte';
-	import { uploadFile } from '$lib/apis/files';
 	import {
-		buildWelcomeChatQuery,
 		classifyWelcomeCatalogue,
 		hasPendingWelcomeFileOperations,
 		orderWelcomeAgents
@@ -36,19 +27,10 @@
 	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 	let isDragging = false;
 	let scrollContainer: HTMLDivElement;
-	let files: any[] = [];
-	let filesInputElement: HTMLInputElement;
-	let webSearchEnabled = false;
-	let imageGenerationEnabled = false;
-	let codeInterpreterEnabled = false;
-	let selectedToolIds: string[] = [];
-	let recording = false;
-	let inputElement: HTMLInputElement;
-	let mobileInputElement: HTMLInputElement;
-	let pendingFileOperations = 0;
+	export let files: any[] = [];
 
 	const storeFilesForTransfer = (): boolean => {
-		if (hasPendingWelcomeFileOperations(files, pendingFileOperations)) {
+		if (hasPendingWelcomeFileOperations(files)) {
 			toast.error($i18n.t('Please wait until all files are uploaded.'));
 			return false;
 		}
@@ -185,21 +167,15 @@
 	};
 
 	onMount(async () => {
-		// Clear session storage for selected models to ensure default models are used
-		sessionStorage.removeItem('selectedModels');
 		loading = true;
 		try {
-			const connections = $config?.features?.enable_direct_connections
-				? ($settings?.directConnections ?? null)
-				: null;
-			const [allModelsData, workspaceModelsData, functionsData] = await Promise.all([
-				getModels(localStorage.token, connections),
+			const [workspaceModelsData, functionsData] = await Promise.all([
 				loadWorkspaceModels(),
 				getFunctions(localStorage.token)
 			]);
 
 			agents = classifyWelcomeCatalogue(
-				allModelsData || [],
+				$models,
 				workspaceModelsData || [],
 				functionsData || []
 			).agents;
@@ -211,159 +187,15 @@
 		} finally {
 			loading = false;
 		}
-
-		// Focus chat input (desktop only - mobile browsers block programmatic keyboard)
-		await tick();
-		if (!$mobile) {
-			inputElement?.focus();
-		}
 	});
 
 	const selectAgent = (agentId: string) => {
 		if (!storeFilesForTransfer()) return;
 		goto(`/?models=${encodeURIComponent(agentId)}`);
 	};
-
-	const handleSearch = (e: Event) => {
-		const formData = new FormData(e.target as HTMLFormElement);
-		const message = formData.get('message') as string;
-		if (message && message.trim()) {
-			if (!storeFilesForTransfer()) return;
-			goto(
-				`/?${buildWelcomeChatQuery({
-					message,
-					webSearchEnabled,
-					imageGenerationEnabled,
-					codeInterpreterEnabled,
-					selectedToolIds
-				})}`
-			);
-		}
-	};
-
-	const uploadFilesHandler = () => {
-		filesInputElement?.click();
-	};
-
-	const screenCaptureHandler = async () => {
-		try {
-			const stream = await navigator.mediaDevices.getDisplayMedia({
-				video: { displaySurface: 'monitor' } as any
-			});
-			const video = document.createElement('video');
-			video.srcObject = stream;
-			video.play();
-
-			await new Promise((resolve) => {
-				video.onloadedmetadata = resolve;
-			});
-
-			const canvas = document.createElement('canvas');
-			canvas.width = video.videoWidth;
-			canvas.height = video.videoHeight;
-			const context = canvas.getContext('2d');
-			context?.drawImage(video, 0, 0);
-
-			stream.getTracks().forEach((track) => track.stop());
-
-			const imageUrl = canvas.toDataURL('image/png');
-			files = [...files, { type: 'image', url: imageUrl }];
-			video.srcObject = null;
-		} catch (error) {
-			console.error('Screen capture error:', error);
-			toast.error($i18n.t('Screen capture failed'));
-		}
-	};
-
-	const readFileAsDataURL = (file: File): Promise<string> =>
-		new Promise((resolve, reject) => {
-			const reader = new FileReader();
-			reader.onload = () => resolve(reader.result as string);
-			reader.onerror = () => reject(reader.error ?? new Error('Failed to read file'));
-			reader.readAsDataURL(file);
-		});
-
-	const inputFilesHandler = async (inputFiles: File[]) => {
-		pendingFileOperations += 1;
-		try {
-			for (const file of inputFiles) {
-				if (file.type.startsWith('image/')) {
-					try {
-						const url = await readFileAsDataURL(file);
-						files = [...files, { type: 'image', url, name: file.name }];
-					} catch (error) {
-						toast.error($i18n.t('Error reading file: {{error}}', { error: `${error}` }));
-					}
-				} else {
-					const fileItem: any = {
-						type: 'file',
-						name: file.name,
-						size: file.size,
-						status: 'uploading'
-					};
-					files = [...files, fileItem];
-					try {
-						const uploaded = await uploadFile(localStorage.token, file);
-						fileItem.status = 'uploaded';
-						fileItem.file = uploaded;
-						fileItem.id = uploaded.id;
-						fileItem.url = uploaded.id;
-						fileItem.collection_name = uploaded?.meta?.collection_name;
-						files = files;
-					} catch (error) {
-						files = files.filter((item) => item !== fileItem);
-						toast.error($i18n.t('Error uploading file: {{error}}', { error: `${error}` }));
-					}
-				}
-			}
-		} finally {
-			pendingFileOperations -= 1;
-		}
-	};
-
-	const handleFileInputChange = async (event: Event) => {
-		const input = event.target as HTMLInputElement;
-		const selectedFiles = Array.from(input.files || []);
-		if (selectedFiles.length > 0) {
-			await inputFilesHandler(selectedFiles);
-		}
-		input.value = '';
-	};
-
-	const removeFile = (index: number) => {
-		files = files.filter((_, i) => i !== index);
-	};
-
-	const handleVoiceMode = () => {
-		if (!storeFilesForTransfer()) return;
-		goto('/?call=true');
-	};
-
-	const handleDictate = async () => {
-		try {
-			const stream = await navigator.mediaDevices.getUserMedia({ audio: true }).catch((err) => {
-				toast.error(
-					$i18n.t('Permission denied when accessing microphone: {{error}}', { error: err })
-				);
-				return null;
-			});
-
-			if (stream) {
-				recording = true;
-				const tracks = stream.getTracks();
-				tracks.forEach((track) => track.stop());
-			}
-		} catch {
-			toast.error($i18n.t('Permission denied when accessing microphone'));
-		}
-	};
 </script>
 
-<div
-	class="h-screen max-h-[100dvh] w-full max-w-full flex flex-col {$showSidebar
-		? 'md:max-w-[calc(100%-260px)]'
-		: ''}"
->
+<div class="h-full min-h-0 w-full flex flex-col">
 	<!-- Top Navigation Bar -->
 	<nav class="sticky top-0 z-30 w-full py-1 pl-1.5 pr-1">
 		<div class="w-full flex items-center justify-between">
@@ -408,11 +240,9 @@
 		</div>
 	</nav>
 
-	<!-- Mobile/Tablet: Fixed content area (no page scroll) -->
-	<div
-		class="flex-1 min-h-0 overflow-hidden md:overflow-y-auto px-6 pt-8 md:pt-0 md:px-12 lg:px-20 pb-24 md:pb-8"
-	>
-		<div class="max-w-6xl mx-auto w-full h-full md:h-auto flex flex-col">
+	<!-- Scroll the catalogue independently of the surrounding Chat layout. -->
+	<div class="flex-1 min-h-0 overflow-y-auto px-4 pt-8 md:pt-0 md:px-12 lg:px-20 pb-8">
+		<div class="max-w-6xl mx-auto w-full flex flex-col">
 			<!-- Greeting -->
 			<!-- Keep the desktop composer near the New Chat starting position as the viewport grows. -->
 			<div class="mb-6 md:mb-8 mt-2 md:mt-0 md:flex md:min-h-[calc(50dvh-10rem)] md:items-end">
@@ -426,207 +256,9 @@
 				</h1>
 			</div>
 
-			<!-- Chat Input - Desktop only (inline) -->
-			<div class="hidden md:block mb-12 w-full">
-				<!-- Voice Recording Overlay -->
-				{#if recording}
-					<div class="mb-4">
-						<VoiceRecording
-							bind:recording
-							onCancel={async () => {
-								recording = false;
-								await tick();
-								inputElement?.focus();
-							}}
-							onConfirm={async (data) => {
-								const { text } = data;
-								recording = false;
-								await tick();
-								if (text && inputElement) {
-									inputElement.value = text;
-									inputElement.focus();
-								}
-							}}
-						/>
-					</div>
-				{/if}
-
-				<!-- Hidden file inputs -->
-				<input
-					bind:this={filesInputElement}
-					type="file"
-					multiple
-					accept="*/*"
-					on:change={handleFileInputChange}
-					style="display: none;"
-				/>
-				<!-- File previews -->
-				{#if files.length > 0}
-					<div class="flex flex-wrap gap-2 mb-3">
-						{#each files as file, index}
-							<div class="relative group">
-								{#if file.type === 'image'}
-									<img
-										src={file.url}
-										alt={file.name || $i18n.t('Image')}
-										class="w-20 h-20 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700"
-									/>
-								{:else}
-									<div
-										class="w-20 h-20 flex items-center justify-center rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
-									>
-										<div class="text-center px-1">
-											<svg
-												class="w-6 h-6 mx-auto text-gray-400"
-												fill="none"
-												stroke="currentColor"
-												viewBox="0 0 24 24"
-											>
-												<path
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													stroke-width="2"
-													d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-												/>
-											</svg>
-											<span class="text-xs text-gray-600 dark:text-gray-400 block truncate w-full"
-												>{file.name}</span
-											>
-										</div>
-									</div>
-								{/if}
-								<button
-									type="button"
-									on:click={() => removeFile(index)}
-									class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-									aria-label={$i18n.t('Remove file')}
-								>
-									<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M6 18L18 6M6 6l12 12"
-										/>
-									</svg>
-								</button>
-							</div>
-						{/each}
-					</div>
-				{/if}
-
-				<form on:submit|preventDefault={handleSearch} class={recording ? 'hidden' : ''}>
-					<div class="relative">
-						<div class="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-							<InputMenu
-								bind:files
-								selectedModels={[]}
-								fileUploadCapableModels={[]}
-								{screenCaptureHandler}
-								{inputFilesHandler}
-								{uploadFilesHandler}
-								uploadGoogleDriveHandler={() => {}}
-								uploadOneDriveHandler={() => {}}
-								onUpload={() => {}}
-								onClose={async () => {
-									await tick();
-									inputElement?.focus();
-								}}
-							>
-								<div
-									class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-8 flex justify-center items-center"
-								>
-									<PlusAlt className="size-5.5" />
-								</div>
-							</InputMenu>
-							<IntegrationsMenu
-								bind:selectedToolIds
-								selectedModels={[]}
-								fileUploadCapableModels={[]}
-								toggleFilters={[]}
-								selectedFilterIds={[]}
-								showWebSearchButton={$config?.features?.enable_web_search ?? false}
-								bind:webSearchEnabled
-								showImageGenerationButton={$config?.features?.enable_image_generation ?? false}
-								bind:imageGenerationEnabled
-								showCodeInterpreterButton={($config?.features as any)?.enable_code_interpreter ??
-									false}
-								bind:codeInterpreterEnabled
-								onShowValves={() => {}}
-								onClose={async () => {
-									await tick();
-									inputElement?.focus();
-								}}
-							>
-								<div
-									class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-8 flex justify-center items-center {webSearchEnabled ||
-									imageGenerationEnabled ||
-									codeInterpreterEnabled ||
-									selectedToolIds.length > 0
-										? 'text-blue-600 dark:text-blue-400'
-										: ''}"
-								>
-									<Component className="size-4.5" strokeWidth="1.5" />
-								</div>
-							</IntegrationsMenu>
-						</div>
-						<input
-							bind:this={inputElement}
-							type="text"
-							name="message"
-							placeholder={$i18n.t('How can I help you today?')}
-							class="w-full px-6 py-4 pl-24 pr-32 text-lg rounded-2xl bg-white dark:bg-gray-850 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
-						/>
-						<div class="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">
-							<Tooltip content={$i18n.t('Dictate')}>
-								<button
-									type="button"
-									on:click={handleDictate}
-									class="text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-1.5"
-									aria-label={$i18n.t('Dictate')}
-								>
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										viewBox="0 0 20 20"
-										fill="currentColor"
-										class="size-5"
-									>
-										<path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
-										<path
-											d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-1.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z"
-										/>
-									</svg>
-								</button>
-							</Tooltip>
-							{#if $user?.role === 'admin' || ($user?.permissions?.chat?.call ?? true)}
-								<Tooltip content={$i18n.t('Voice mode')}>
-									<button
-										type="button"
-										on:click={handleVoiceMode}
-										class="bg-black text-white hover:bg-gray-900 dark:bg-white dark:text-black dark:hover:bg-gray-100 transition rounded-full p-1.5 mr-1"
-										aria-label={$i18n.t('Voice mode')}
-									>
-										<Voice className="size-5" strokeWidth="2.5" />
-									</button>
-								</Tooltip>
-							{/if}
-							<button
-								type="submit"
-								class="p-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition"
-								aria-label={$i18n.t('Send')}
-							>
-								<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M14 5l7 7m0 0l-7 7m7-7H3"
-									/>
-								</svg>
-							</button>
-						</div>
-					</div>
-				</form>
+			<!-- Chat owns the composer and all model, file and submission state. -->
+			<div class="mb-10 md:mb-12 w-full">
+				<slot />
 			</div>
 
 			<!-- Quick Actions - Mobile only -->
@@ -702,8 +334,8 @@
 				</div>
 			</div>
 
-			<!-- Agents Section (scrollable on mobile, positioned at bottom for thumb reach) -->
-			<div class="w-full mt-auto md:mt-0">
+			<!-- Agents Section -->
+			<div class="w-full">
 				<div class="flex items-center justify-between mb-6">
 					<h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-200">
 						{$i18n.t('Agents')}
@@ -985,182 +617,5 @@
 				</div>
 			</div>
 		</div>
-	</div>
-
-	<!-- Mobile/Tablet: Fixed bottom chat input -->
-	<div
-		class="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-3 py-3 z-40 overflow-hidden"
-	>
-		<!-- Voice Recording Overlay -->
-		{#if recording}
-			<div class="mb-3">
-				<VoiceRecording
-					bind:recording
-					onCancel={async () => {
-						recording = false;
-						await tick();
-						mobileInputElement?.focus({ preventScroll: true });
-					}}
-					onConfirm={async (data) => {
-						const { text } = data;
-						recording = false;
-						await tick();
-						if (text && mobileInputElement) {
-							mobileInputElement.value = text;
-							mobileInputElement.focus({ preventScroll: true });
-						}
-					}}
-				/>
-			</div>
-		{/if}
-
-		<!-- File previews -->
-		{#if files.length > 0}
-			<div class="flex flex-wrap gap-2 mb-3">
-				{#each files as file, index}
-					<div class="relative group">
-						{#if file.type === 'image'}
-							<img
-								src={file.url}
-								alt={file.name || $i18n.t('Image')}
-								class="w-16 h-16 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700"
-							/>
-						{:else}
-							<div
-								class="w-16 h-16 flex items-center justify-center rounded-lg border-2 border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800"
-							>
-								<div class="text-center px-1">
-									<svg
-										class="w-5 h-5 mx-auto text-gray-400"
-										fill="none"
-										stroke="currentColor"
-										viewBox="0 0 24 24"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-										/>
-									</svg>
-									<span class="text-xs text-gray-600 dark:text-gray-400 block truncate w-full"
-										>{file.name}</span
-									>
-								</div>
-							</div>
-						{/if}
-						<button
-							type="button"
-							on:click={() => removeFile(index)}
-							class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1"
-							aria-label={$i18n.t('Remove file')}
-						>
-							<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M6 18L18 6M6 6l12 12"
-								/>
-							</svg>
-						</button>
-					</div>
-				{/each}
-			</div>
-		{/if}
-
-		<form on:submit|preventDefault={handleSearch} class={recording ? 'hidden' : ''}>
-			<div class="relative flex items-center gap-2">
-				<InputMenu
-					bind:files
-					selectedModels={[]}
-					fileUploadCapableModels={[]}
-					{screenCaptureHandler}
-					{inputFilesHandler}
-					{uploadFilesHandler}
-					uploadGoogleDriveHandler={() => {}}
-					uploadOneDriveHandler={() => {}}
-					onUpload={() => {}}
-					onClose={async () => {
-						await tick();
-					}}
-				>
-					<div
-						class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-9 flex justify-center items-center"
-					>
-						<PlusAlt className="size-5.5" />
-					</div>
-				</InputMenu>
-				<IntegrationsMenu
-					bind:selectedToolIds
-					selectedModels={[]}
-					fileUploadCapableModels={[]}
-					toggleFilters={[]}
-					selectedFilterIds={[]}
-					showWebSearchButton={$config?.features?.enable_web_search ?? false}
-					bind:webSearchEnabled
-					showImageGenerationButton={$config?.features?.enable_image_generation ?? false}
-					bind:imageGenerationEnabled
-					showCodeInterpreterButton={($config?.features as any)?.enable_code_interpreter ?? false}
-					bind:codeInterpreterEnabled
-					onShowValves={() => {}}
-					onClose={async () => {
-						await tick();
-					}}
-				>
-					<div
-						class="bg-transparent hover:bg-gray-100 text-gray-700 dark:text-white dark:hover:bg-gray-800 rounded-full size-9 flex justify-center items-center {webSearchEnabled ||
-						imageGenerationEnabled ||
-						codeInterpreterEnabled ||
-						selectedToolIds.length > 0
-							? 'text-blue-600 dark:text-blue-400'
-							: ''}"
-					>
-						<Component className="size-4.5" strokeWidth="1.5" />
-					</div>
-				</IntegrationsMenu>
-				<input
-					bind:this={mobileInputElement}
-					type="text"
-					name="message"
-					placeholder={$i18n.t('How can I help you today?')}
-					class="flex-1 min-w-0 px-3 py-3 text-base rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 text-gray-900 dark:text-white placeholder-gray-400"
-				/>
-				<div class="flex items-center gap-0.5 shrink-0">
-					<button
-						type="button"
-						on:click={handleDictate}
-						class="text-gray-600 dark:text-gray-300 hover:text-gray-700 dark:hover:text-gray-200 transition rounded-full p-1.5"
-						aria-label={$i18n.t('Dictate')}
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							viewBox="0 0 20 20"
-							fill="currentColor"
-							class="size-5"
-						>
-							<path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z" />
-							<path
-								d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-1.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z"
-							/>
-						</svg>
-					</button>
-					<button
-						type="submit"
-						class="p-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition"
-						aria-label={$i18n.t('Send')}
-					>
-						<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M14 5l7 7m0 0l-7 7m7-7H3"
-							/>
-						</svg>
-					</button>
-				</div>
-			</div>
-		</form>
 	</div>
 </div>

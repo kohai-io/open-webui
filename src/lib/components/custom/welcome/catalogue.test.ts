@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-	buildWelcomeChatQuery,
 	classifyWelcomeCatalogue,
 	hasPendingWelcomeFileOperations,
 	orderWelcomeAgents
@@ -70,22 +69,8 @@ describe('Welcome preferences and handoff', () => {
 		).toEqual(['first', 'second', 'new']);
 	});
 
-	it('hands composer capabilities to the native chat route', () => {
-		expect(
-			buildWelcomeChatQuery({
-				message: '  explain this  ',
-				webSearchEnabled: true,
-				imageGenerationEnabled: true,
-				codeInterpreterEnabled: true,
-				selectedToolIds: ['tool-a', 'tool-b']
-			})
-		).toBe(
-			'q=explain+this&web-search=true&image-generation=true&code-interpreter=true&tools=tool-a%2Ctool-b'
-		);
-	});
-
 	it('blocks handoff while a file operation is pending', () => {
-		expect(hasPendingWelcomeFileOperations([], 1)).toBe(true);
+		expect(hasPendingWelcomeFileOperations([])).toBe(false);
 		expect(hasPendingWelcomeFileOperations([{ status: 'uploading' }])).toBe(true);
 		expect(hasPendingWelcomeFileOperations([{ status: 'uploaded' }])).toBe(false);
 	});

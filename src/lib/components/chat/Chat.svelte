@@ -142,6 +142,8 @@
 	export let onEmbeddedChatTitle: ((chatId: string, title: string) => void | Promise<void>) | null =
 		null;
 
+	export let welcome = false;
+
 	let loading = true;
 	$: chatContainerId = embedded ? 'note-chat-container' : 'chat-container';
 	$: messageInputDropzoneId = embedded ? 'note-chat-input-dropzone' : 'chat-pane';
@@ -1553,7 +1555,11 @@
 		}
 
 		const pageSubscribe = page.subscribe(async (p) => {
-			if (p.url.pathname === '/' || p.url.pathname.startsWith('/folders/')) {
+			if (
+				p.url.pathname === '/' ||
+				p.url.pathname.startsWith('/folders/') ||
+				(welcome && p.url.pathname === '/welcome')
+			) {
 				await tick();
 				initNewChat();
 			}
@@ -4312,7 +4318,7 @@
 								</button>
 							</Tooltip>
 						</div>
-					{:else}
+					{:else if !welcome || history.currentId}
 						<Navbar
 							bind:this={navbarElement}
 							{readOnly}
@@ -4376,7 +4382,7 @@
 						/>
 					{/if}
 					<div id="chat-pane" class="flex flex-col flex-auto z-10 w-full @container overflow-auto">
-						{#if ($settings?.landingPageMode === 'chat' && !$selectedFolder) || createMessagesList(history, history.currentId).length > 0}
+						{#if (!welcome && $settings?.landingPageMode === 'chat' && !$selectedFolder) || createMessagesList(history, history.currentId).length > 0}
 							<div
 								class=" pb-2.5 flex flex-col justify-between w-full flex-auto overflow-auto h-0 max-w-full z-10 scrollbar-hidden"
 								id="messages-container"
@@ -4587,6 +4593,7 @@
 						{:else}
 							<div class="flex items-center h-full">
 								<Placeholder
+									{welcome}
 									{history}
 									bind:selectedModels
 									bind:messageInput

@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { config } from '$lib/stores';
-	import Welcome from '$lib/components/custom/welcome/Welcome.svelte';
+	import Chat from '$lib/components/chat/Chat.svelte';
 
 	onMount(() => {
 		if (!$config?.features?.enable_welcome_page) {
@@ -12,5 +12,5 @@
 </script>
 
 {#if $config?.features?.enable_welcome_page}
-	<Welcome />
+	<Chat welcome />
 {/if}
