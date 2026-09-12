@@ -62,7 +62,9 @@
 			}
 
 			if (!redirectPath) {
-				redirectPath = $page.url.searchParams.get('redirect') || '/';
+				redirectPath =
+					$page.url.searchParams.get('redirect') ||
+					($config?.features?.enable_welcome_page ? '/welcome' : '/');
 			}
 
 			goto(redirectPath);
@@ -158,7 +160,7 @@
 		const logout = $page.url.searchParams.get('state') === 'logout';
 
 		if ($user && !logout) {
-			goto(redirectPath || '/');
+			goto(redirectPath || ($config?.features?.enable_welcome_page ? '/welcome' : '/'));
 		} else {
 			if (redirectPath) {
 				localStorage.setItem('redirectPath', redirectPath);

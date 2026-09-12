@@ -2182,6 +2182,17 @@
 			openCallOverlay();
 		}
 
+		const welcomeFiles = sessionStorage.getItem('welcome-files');
+		if (welcomeFiles) {
+			try {
+				files = JSON.parse(welcomeFiles);
+			} catch (error) {
+				console.error('Failed to restore Welcome attachments', error);
+			} finally {
+				sessionStorage.removeItem('welcome-files');
+			}
+		}
+
 		// Consume one-shot desktop event (e.g. Spotlight query, call shortcut)
 		if ($desktopEvent) {
 			const event = $desktopEvent;

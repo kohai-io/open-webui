@@ -87,6 +87,7 @@
 	import Sidebar from '../icons/Sidebar.svelte';
 	import WorkspaceIcon from './Sidebar/icons/Workspace.svelte';
 	import HotkeyHint from '../common/HotkeyHint.svelte';
+	import CustomLinks from '$lib/components/custom/navigation/CustomLinks.svelte';
 	import Dropdown from '../common/Dropdown.svelte';
 	import DropdownMenu from '../common/DropdownMenu.svelte';
 	import CheckIcon from '../icons/Check.svelte';
@@ -979,6 +980,7 @@
 				</div>
 
 				<div class="-gap-0.5">
+					<CustomLinks compact onNavigate={newChatHandler} />
 					<div class="">
 						<Tooltip content={$i18n.t('New Chat')} placement="right">
 							<a
@@ -1208,6 +1210,7 @@
 					}}
 				>
 					<div class="pb-1">
+						<CustomLinks onNavigate={newChatHandler} />
 						<div class="px-1 flex justify-center text-gray-700 dark:text-gray-300">
 							<a
 								id="sidebar-new-chat-button"
