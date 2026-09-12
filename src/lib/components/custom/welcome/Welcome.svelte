@@ -410,11 +410,12 @@
 
 	<!-- Mobile/Tablet: Fixed content area (no page scroll) -->
 	<div
-		class="flex-1 overflow-hidden md:overflow-y-auto px-6 py-4 md:py-8 md:px-12 lg:px-20 pb-24 md:pb-8"
+		class="flex-1 min-h-0 overflow-hidden md:overflow-y-auto px-6 pt-8 md:pt-0 md:px-12 lg:px-20 pb-24 md:pb-8"
 	>
 		<div class="max-w-6xl mx-auto w-full h-full md:h-auto flex flex-col">
 			<!-- Greeting -->
-			<div class="mb-6 md:mb-8 mt-2 md:mt-6">
+			<!-- Keep the desktop composer near the New Chat starting position as the viewport grows. -->
+			<div class="mb-6 md:mb-8 mt-2 md:mt-0 md:flex md:min-h-[calc(50dvh-10rem)] md:items-end">
 				<h1
 					style="font-size: clamp(2rem, 6vw, 5.5rem); line-height: 1.1; font-family: 'Public Sans', sans-serif;"
 					class="font-semibold mb-1 text-gray-900 dark:text-white"
