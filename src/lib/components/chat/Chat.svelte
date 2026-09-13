@@ -4318,7 +4318,7 @@
 								</button>
 							</Tooltip>
 						</div>
-					{:else if !welcome || history.currentId}
+					{:else}
 						<Navbar
 							bind:this={navbarElement}
 							{readOnly}

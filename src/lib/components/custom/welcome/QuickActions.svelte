@@ -10,9 +10,11 @@
 	import type { i18n as I18n } from 'i18next';
 
 	const i18n: Writable<I18n> = getContext('i18n');
+	export let columns = 3;
 	$: notesEnabled =
 		($config?.features?.enable_notes ?? false) &&
 		($user?.role === 'admin' || ($user?.permissions?.features?.notes ?? true));
+	$: columns = notesEnabled ? 3 : 2;
 	$: actions = [
 		{
 			id: 'search',
@@ -49,7 +51,7 @@
 	>
 		{$i18n.t('Quick Actions')}
 	</h2>
-	<div class="grid gap-2 sm:gap-3 {notesEnabled ? 'grid-cols-3' : 'grid-cols-2'}">
+	<div class="grid gap-2 sm:gap-3 {columns === 3 ? 'grid-cols-3' : 'grid-cols-2'}">
 		{#each actions as action (action.id)}
 			<svelte:element
 				this={action.href ? 'a' : 'button'}
