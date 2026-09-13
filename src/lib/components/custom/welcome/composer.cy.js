@@ -6,6 +6,7 @@ describe('Welcome native composer', () => {
 	let notesEnabled;
 	let role;
 	let notesAllowed;
+	let chatPermissions;
 	const model = (id, name) => ({
 		id,
 		name,
@@ -30,6 +31,7 @@ describe('Welcome native composer', () => {
 		notesEnabled = true;
 		role = 'admin';
 		notesAllowed = true;
+		chatPermissions = {};
 		cy.intercept('**/api/**', (request) => {
 			const path = new URL(request.url).pathname;
 			if (path === '/api/config')
@@ -51,7 +53,7 @@ describe('Welcome native composer', () => {
 					name: 'Welcome Tester',
 					email: 'welcome@example.test',
 					role,
-					permissions: { workspace: {}, chat: {}, features: { notes: notesAllowed } }
+					permissions: { workspace: {}, chat: chatPermissions, features: { notes: notesAllowed } }
 				});
 			if (path === '/api/v1/users/user/settings')
 				return request.reply({
@@ -265,6 +267,25 @@ describe('Welcome native composer', () => {
 		['desktop', 1280, 900],
 		['mobile', 390, 700]
 	]) {
+		it(`uses the native Temporary Chat and Controls header on ${device}`, () => {
+			cy.viewport(width, height);
+			visit();
+			cy.get('#chat-container nav').should('have.length', 1).as('chatHeader');
+			cy.get('@chatHeader').find('img').should('not.exist');
+			cy.get('#temporary-chat-button').should('have.length', 1).and('be.visible');
+			cy.get('#chat-input').type('Keep my header draft');
+			cy.get('@chatHeader').find('button[aria-label="Controls"]').click();
+			cy.contains('button', 'System Prompt').should('be.visible');
+			cy.get('button[aria-label="Close"]:visible').last().click();
+			cy.get('#chat-input').should('contain.text', 'Keep my header draft');
+			cy.get('#temporary-chat-button').click();
+			cy.location('pathname').should('equal', '/');
+			cy.location('search').should('equal', '?temporary-chat=true');
+			cy.get('#chat-input').should('have.length', 1).and('be.visible');
+			cy.get('#temporary-chat-button').click();
+			cy.location('search').should('equal', '');
+		});
+
 		it(`opens Search, Notes and Media from the same Quick Actions on ${device}`, () => {
 			cy.viewport(width, height);
 			visit();
@@ -332,6 +353,15 @@ describe('Welcome native composer', () => {
 			cy.contains('h1', 'Media').should('be.visible');
 		});
 	}
+
+	it('respects native header permissions for Temporary Chat and Controls', () => {
+		role = 'user';
+		chatPermissions = { temporary: false, controls: false };
+		visit();
+		cy.get('#chat-input').should('be.visible');
+		cy.get('#temporary-chat-button').should('not.exist');
+		cy.get('#chat-container nav button[aria-label="Controls"]').should('not.exist');
+	});
 
 	for (const restriction of ['disabled', 'not permitted']) {
 		it(`hides the Notes quick action when Notes is ${restriction}`, () => {

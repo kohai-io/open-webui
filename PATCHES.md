@@ -4,7 +4,7 @@ This branch starts from upstream Open WebUI `v0.11.3` at `2a960a5`. Retained cha
 
 See [`docs/WELCOME_IMAGE_BUILD.md`](docs/WELCOME_IMAGE_BUILD.md) for the image build path, runtime flag, and release requirements.
 
-The v0.11.3 port retains upstream's logout/SSO handling and revised sidebar. Welcome uses the upstream user menu without the removed `showArchivedChats` store or obsolete archive event handler. The `/welcome` and `/media` routes do not collide with upstream's `/home` route. Upgrading from v0.10.2 requires a database backup; reverting only the image after migration is insufficient.
+The v0.11.3 port retains upstream's logout/SSO handling and revised sidebar. Welcome uses the native Chat header, including Temporary Chat and Controls, with the profile/settings menu in the sidebar. The `/welcome` and `/media` routes do not collide with upstream's `/home` route. Upgrading from v0.10.2 requires a database backup; reverting only the image after migration is insufficient.
 
 ## Native Welcome page
 
