@@ -2,7 +2,7 @@
 
 ## Source baseline
 
-The production OWUI image comes from `main`. It starts at upstream Open WebUI `v0.10.2` (`ecd48e2f7`) and applies the Welcome patch series listed in [`PATCHES.md`](../PATCHES.md).
+The production OWUI image comes from `main`. The maintained baseline is upstream Open WebUI `v0.11.3` (`2a960a5`), with the Welcome and Media patches listed in [`PATCHES.md`](../PATCHES.md).
 
 Use `main` for maintained development and production releases. For the next upstream upgrade, create a short-lived branch from the selected upstream release tag and follow the rebase procedure in `PATCHES.md` before promotion to `main`. The previous customised fork remains frozen at `legacy/v0.6.36-custom`; `archive/pre-v0102-transition` and `archive/rebaseline-v0.9.4` preserve historical transition work.
 
@@ -15,7 +15,7 @@ The repository contains the Welcome page as a native Svelte component. Docker do
 3. The final Python image receives that compiled bundle from `/app/build`.
 4. `ENABLE_WELCOME_PAGE` enables `/welcome`, its sidebar Home link, and the default sign-in landing destination.
 
-The backend reads `ENABLE_WELCOME_PAGE` in `backend/open_webui/config.py` and returns it from `/api/config` as `features.enable_welcome_page`. The thin route `src/routes/(app)/(custom)/welcome/+page.svelte` renders `src/lib/components/custom/welcome/Welcome.svelte` at `/welcome`. Route groups in parentheses do not appear in the URL.
+The backend reads `ENABLE_WELCOME_PAGE` in `backend/open_webui/config.py` and returns it from `/api/config` as `features.enable_welcome_page`. The thin route `src/routes/(app)/(custom)/welcome/+page.svelte` renders `<Chat welcome />` at `/welcome`. Chat's Placeholder supplies the native MessageInput to `src/lib/components/custom/welcome/Welcome.svelte`: below the greeting on desktop, and at the bottom of the screen on mobile with content scrolling above it. Model selection, uploads, voice, and sending use Chat's existing state and handlers. After the first message, Chat shows the ordinary conversation view. Route groups in parentheses do not appear in the URL.
 
 `src/routes/(app)/+page.svelte` remains identical to upstream: `/` always renders Chat, with existing model, prompt, tool and voice query parameters unchanged. Sign-in without a destination opens `/welcome` when enabled; explicit redirects, including `/`, remain authoritative. The sidebar Home link opens Welcome and New Chat opens `/`.
 

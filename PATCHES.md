@@ -1,8 +1,10 @@
 # Maintained Open WebUI patch series
 
-This branch starts from upstream Open WebUI `v0.10.2` at `ecd48e2f7`. Retained changes must remain small enough to review and reapply independently on the next selected upstream release.
+This branch starts from upstream Open WebUI `v0.11.3` at `2a960a5`. Retained changes must remain small enough to review and reapply independently on the next selected upstream release.
 
 See [`docs/WELCOME_IMAGE_BUILD.md`](docs/WELCOME_IMAGE_BUILD.md) for the image build path, runtime flag, and release requirements.
+
+The v0.11.3 port retains upstream's logout/SSO handling and revised sidebar. Welcome uses the upstream user menu without the removed `showArchivedChats` store or obsolete archive event handler. The `/welcome` and `/media` routes do not collide with upstream's `/home` route. Upgrading from v0.10.2 requires a database backup; reverting only the image after migration is insufficient.
 
 ## Native Welcome page
 
@@ -35,7 +37,10 @@ Set `ENABLE_WELCOME_PAGE=True` to enable `/welcome`, the sidebar Home link, and 
 - `/api/v1/functions/` supplies active function/pipe identifiers.
 - Agent definitions, prompts, knowledge, skills, tools, grants, files, and chats remain OWUI-owned.
 - Agent presentation order is a browser-local preference under `welcome-agent-order`; it is not an agent record or access-control mechanism.
-- Ordinary files are uploaded through OWUI's Files API before Chat handoff. Image and screen captures retain the existing data-URL handoff behavior.
+- Welcome's shared Quick Actions component shows Search, Notes and Media below Agents, with a 40px section gap on desktop. On mobile, the actions stay above the bottom composer while the greeting and Agents scroll independently. It opens the native search modal and existing Notes/Media routes; Notes follows the sidebar's feature flag and user permission checks. New description strings use the `customWelcome` translation namespace with English fallbacks.
+- `/welcome` renders Chat with an alternate empty-chat presentation. Placeholder renders the same native MessageInput below Welcome's greeting on desktop and at the bottom on mobile, with the catalogue scrolling above it. CSS reorders the layout without remounting the composer or losing drafts when the viewport changes.
+- Chat owns model selection and defaults, tools, skills, attachments, voice, and submission. Welcome has no separate composer or query-string submission handoff. Sending the first message opens the ordinary conversation view.
+- Agent cards still open `/?models=...`. Uploaded attachments survive that navigation through the one-shot `welcome-files` restore; navigation waits for pending uploads.
 
 ### Patch surface
 
@@ -45,7 +50,8 @@ Set `ENABLE_WELCOME_PAGE=True` to enable `/welcome`, the sidebar Home link, and 
 - `src/routes/(app)/(custom)/welcome/+page.svelte`
 - `src/routes/auth/+page.svelte` (default destination only)
 - `src/lib/components/custom/welcome/*`
-- A narrow Welcome attachment restore block in `src/lib/components/chat/Chat.svelte`
+- The optional Welcome presentation flag, empty-chat branches, and agent-card attachment restore block in `src/lib/components/chat/Chat.svelte`
+- A Welcome presentation branch and shared MessageInput snippet in `src/lib/components/chat/Placeholder.svelte`
 - A CustomLinks import and two insertions in `src/lib/components/layout/Sidebar.svelte`; the custom component includes WelcomeLink
 - Welcome strings in `src/lib/i18n/locales/*/translation.json`
 
@@ -53,7 +59,8 @@ Keep the root route identical to upstream. Keep fork-owned components, helpers a
 
 ### Verification
 
-- Focused Vitest coverage for access-aware classification, ordering, and composer query handoff.
+- Focused Vitest coverage for access-aware classification, ordering, and pending attachment checks.
+- Stubbed Cypress coverage for native model selection and submission, attachments, agent-card handoff, mobile composer placement, and the disabled feature flag.
 - Full Vite production build.
 - Navigation checks with the flag on and off: `/welcome`, `/`, default sign-in, explicit sign-in redirects, sidebar Home and New Chat (expanded/collapsed/mobile), temporary chat, and desktop query/call events.
 - Manual checks: agent/model visibility, prompt submission, integrations, file/image attachment, dictation, voice mode, ordering persistence, quick actions, and mobile layout.
@@ -65,6 +72,8 @@ npx cypress run --e2e --config-file src/lib/components/custom/welcome/cypress.co
 ```
 
 The default test URL is `http://127.0.0.1:18765`; set `CYPRESS_BASE_URL` to override it. The checks override the browser's feature-flag response to exercise both settings. They cover default and explicit sign-in destinations, root Chat navigation, and desktop/mobile sidebar links without making model calls.
+
+Run the native composer integration checks against a frontend preview with `npx cypress run --e2e --config-file src/lib/components/custom/welcome/composer.config.js`. This suite defaults to port 18766 and stubs all API traffic, including file uploads and model requests; no account or model service is needed.
 
 ### Rebase procedure
 
@@ -85,6 +94,9 @@ Set `ENABLE_WELCOME_PAGE=False` or deploy an unpatched upstream image. No databa
 Files API adapter and focused tests live under `src/lib/components/custom/media/`.
 `custom/navigation/CustomLinks.svelte` provides the shared sidebar integration for
 Welcome and Media, in both expanded and collapsed navigation.
+Both links use `custom/navigation/NavigationLink.svelte` to match upstream sidebar
+row sizing, selected-page styling and compact navigation. Check these against the
+upstream Sidebar when porting to a new release.
 
 Media is available to signed-in, approved users independently of `ENABLE_WELCOME_PAGE`.
 This phase adds no backend endpoint, environment setting, database migration or Chat
