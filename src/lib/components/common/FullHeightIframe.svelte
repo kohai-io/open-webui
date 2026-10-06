@@ -7,7 +7,8 @@
 
 <script lang="ts">
 	import { onDestroy, onMount, tick } from 'svelte';
-	import { config } from '$lib/stores';
+	import { config, user } from '$lib/stores';
+	import { createDocumentReaderBridge } from '$lib/utils/documentReaderBridge';
 	import { injectCsp } from '$lib/utils/csp';
 
 	// Props
@@ -30,12 +31,25 @@
 		'strict-origin-when-cross-origin';
 	export let allowFullscreen = true;
 
-	export let payload = null; // payload to send into the iframe on request
+	export let payload: unknown = null; // payload to send into the iframe on request
 
 	let iframe: HTMLIFrameElement | null = null;
 	let iframeSrc: string | null = null;
 	let iframeDoc: string | null = null;
 	let registeredWindow: Window | null = null;
+	let readerBridge: ReturnType<typeof createDocumentReaderBridge> = null;
+	let readerViewportKey: string | null = null;
+	$: {
+		readerBridge = null;
+		readerViewportKey = null;
+		if (iframeDoc && $user?.id && typeof window !== 'undefined') {
+			try {
+				readerBridge = createDocumentReaderBridge(iframeDoc, $user.id, window.localStorage);
+			} catch {
+				/* storage disabled */
+			}
+		}
+	}
 
 	// Derived: build sandbox attribute from flags
 	$: sandbox =
@@ -158,6 +172,11 @@ window.Chart = parent.Chart; // Chart previously assigned on parent
 		if (!iframe || e.source !== iframe.contentWindow) return;
 
 		const data = e.data || {};
+		if (readerBridge) {
+			const reply = readerBridge(data, window.innerHeight);
+			if (reply) iframe.contentWindow?.postMessage(reply, '*');
+			if (reply?.type === 'document-reader:viewport') readerViewportKey = reply.key;
+		}
 		if (data?.type === 'iframe:height' && typeof data.height === 'number') {
 			iframe.style.height = Math.max(0, data.height) + 'px';
 		}
@@ -198,12 +217,23 @@ window.Chart = parent.Chart; // Chart previously assigned on parent
 	};
 
 	// Ensure event listener bound only while component lives
+	function onViewportResize() {
+		if (!readerViewportKey || !readerBridge) return;
+		// Reader replies with its existing iframe:height message and keeps its anchor.
+		const reply = readerBridge(
+			{ type: 'document-reader:viewport-request', key: readerViewportKey },
+			window.innerHeight
+		);
+		if (reply) iframe?.contentWindow?.postMessage(reply, '*');
+	}
 	onMount(() => {
 		window.addEventListener('message', onMessage);
+		window.addEventListener('resize', onViewportResize);
 	});
 
 	onDestroy(() => {
 		window.removeEventListener('message', onMessage);
+		window.removeEventListener('resize', onViewportResize);
 		if (registeredWindow) {
 			embedWindows.delete(registeredWindow);
 		}
@@ -220,7 +250,7 @@ window.Chart = parent.Chart; // Chart previously assigned on parent
 		width="100%"
 		frameborder="0"
 		{sandbox}
-		{allowFullscreen}
+		allowfullscreen={allowFullscreen}
 		on:load={onLoad}
 	/>
 {:else if iframeSrc}
@@ -234,7 +264,18 @@ window.Chart = parent.Chart; // Chart previously assigned on parent
 		frameborder="0"
 		{sandbox}
 		referrerpolicy={referrerPolicy}
-		{allowFullscreen}
+		allowfullscreen={allowFullscreen}
 		on:load={onLoad}
 	/>
 {/if}
+
+<style>
+	/* Opaque-origin embeds inherit this used scheme through prefers-color-scheme. */
+	iframe {
+		color-scheme: light;
+	}
+
+	:global(html.dark) iframe {
+		color-scheme: dark;
+	}
+</style>
